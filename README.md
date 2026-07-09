@@ -3,6 +3,8 @@
 A mobile-friendly management game about an amateur racketlon career — table tennis,
 badminton, squash, and tennis, one week at a time, never enough time, money, or energy.
 
+Sources of inspiration: Jones in the Fast Lane, Rimworld, Progress Quest, Football Manager, and Agricola. 
+
 ## Quick start
 
 ```bash
