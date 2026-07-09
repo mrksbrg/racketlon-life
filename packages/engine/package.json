@@ -1,0 +1,17 @@
+{
+  "name": "@racketlon/engine",
+  "version": "0.1.0",
+  "description": "Racketlon Life simulation engine — pure TypeScript, deterministic, no I/O",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "trainTT": {
+    "id": "trainTT",
+    "label": "Table tennis",
+    "short": "TT",
+    "sport": "tt",
+    "trainingBase": 6,
+    "fatigue": 7,
+    "money": -6,
+    "injuryLoad": 1.5
+  },
+  "trainBD": {
+    "id": "trainBD",
+    "label": "Badminton",
+    "short": "BA",
+    "sport": "bd",
+    "trainingBase": 6,
+    "fatigue": 7,
+    "money": -6,
+    "injuryLoad": 1.5
+  },
+  "trainSQ": {
+    "id": "trainSQ",
+    "label": "Squash",
+    "short": "SQ",
+    "sport": "sq",
+    "trainingBase": 6,
+    "fatigue": 7,
+    "money": -6,
+    "injuryLoad": 1.5
+  },
+  "trainTN": {
+    "id": "trainTN",
+    "label": "Tennis",
+    "short": "TE",
+    "sport": "tn",
+    "trainingBase": 6,
+    "fatigue": 7,
+    "money": -6,
+    "injuryLoad": 1.5
+  },
+  "physical": {
+    "id": "physical",
+    "label": "Physical training",
+    "short": "PT",
+    "fatigue": 8,
+    "money": -3,
+    "injuryLoad": 2
+  },
+  "rest": {
+    "id": "rest",
+    "label": "Rest",
+    "short": "—",
+    "fatigue": -3,
+    "money": 0,
+    "injuryLoad": 0
+  },
+  "work": {
+    "id": "work",
+    "label": "Work",
+    "short": "Job",
+    "fatigue": 4,
+    "money": 65,
+    "injuryLoad": 0
+  },
+  "social": {
+    "id": "social",
+    "label": "Social",
+    "short": "Soc",
+    "fatigue": -3,
+    "money": -10,
+    "injuryLoad": 0
+  },
+  "errands": {
+    "id": "errands",
+    "label": "Errands",
+    "short": "Err",
+    "fatigue": 2,
+    "money": -5,
+    "injuryLoad": 0
+  }
+}

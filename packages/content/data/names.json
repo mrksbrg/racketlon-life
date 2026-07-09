@@ -1,0 +1,37 @@
+{
+  "SE": {
+    "m": ["Erik", "Johan", "Anders", "Mats", "Lars", "Henrik"],
+    "f": ["Karin", "Elin", "Sofia", "Anna"],
+    "last": ["Andersson", "Johansson", "Karlsson", "Nilsson", "Eriksson", "Larsson", "Olsson", "Persson", "Svensson", "Lindberg"]
+  },
+  "DK": {
+    "m": ["Mads", "Jesper", "Kasper", "Søren", "Niels", "Anders"],
+    "f": ["Mette", "Lene", "Camilla", "Freja"],
+    "last": ["Jensen", "Nielsen", "Hansen", "Pedersen", "Andersen", "Christensen", "Larsen", "Sørensen", "Rasmussen", "Jørgensen"]
+  },
+  "FI": {
+    "m": ["Mikko", "Juha", "Antti", "Ville", "Pekka", "Timo"],
+    "f": ["Laura", "Sanna", "Aino", "Emilia"],
+    "last": ["Korhonen", "Virtanen", "Mäkinen", "Nieminen", "Mäkelä", "Hämäläinen", "Laine", "Heikkinen", "Koskinen", "Järvinen"]
+  },
+  "NO": {
+    "m": ["Ole", "Lars", "Kristian", "Magnus", "Espen", "Jonas"],
+    "f": ["Ingrid", "Silje", "Anette", "Kari"],
+    "last": ["Hansen", "Johansen", "Olsen", "Larsen", "Andersen", "Pedersen", "Nilsen", "Kristiansen", "Jensen", "Karlsen"]
+  },
+  "DE": {
+    "m": ["Stefan", "Michael", "Andreas", "Thomas", "Markus", "Jan"],
+    "f": ["Julia", "Katrin", "Sabine", "Nina"],
+    "last": ["Müller", "Schmidt", "Schneider", "Fischer", "Weber", "Meyer", "Wagner", "Becker", "Hoffmann", "Koch"]
+  },
+  "AT": {
+    "m": ["Lukas", "Florian", "Christoph", "Sebastian", "Bernhard"],
+    "f": ["Anna", "Marlene", "Verena", "Katharina", "Lisa"],
+    "last": ["Gruber", "Huber", "Bauer", "Wagner", "Müller", "Pichler", "Steiner", "Moser", "Mayer", "Hofer"]
+  },
+  "GB": {
+    "m": ["James", "Oliver", "Harry", "Thomas", "Daniel"],
+    "f": ["Charlotte", "Emma", "Sophie", "Lucy", "Hannah"],
+    "last": ["Smith", "Jones", "Taylor", "Brown", "Williams", "Wilson", "Johnson", "Davies", "Robinson", "Wright"]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "racketlon-life",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Racketlon Life — a mobile-friendly management game about an amateur racketlon career",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "check": "npm run check --workspaces --if-present",
+    "dev": "npm run dev --workspace apps/web"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

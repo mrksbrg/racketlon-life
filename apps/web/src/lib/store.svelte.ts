@@ -1,0 +1,458 @@
+import { defaultContent } from "@racketlon/content";
+import type {
+  ActivityType,
+  CareerStatsView,
+  CharacterDraft,
+  Forecast,
+  HumanView,
+  InboxView,
+  MatchState,
+  SaveGame,
+  Sport,
+  SportView,
+  Tactic,
+  TourEntry,
+  TournamentDef,
+  WeekSummary,
+} from "@racketlon/engine";
+import {
+  Game,
+  SLOTS_PER_WEEK,
+  SPORTS,
+  aiChooseTactic,
+  emptyPlan,
+  resumeMatch,
+  setTactic,
+  slotIndex,
+} from "@racketlon/engine";
+import { del, get, set } from "idb-keyval";
+import type { StatKey } from "./character";
+import { adjust, attrPointsRemaining, randomDraft, randomName, rerollStats, sportPointsRemaining } from "./character";
+
+const SAVE_KEY = "racketlon-life-save";
+
+export type Screen =
+  | "loading"
+  | "create"
+  | "planner"
+  | "tour"
+  | "inbox"
+  | "me"
+  | "simulating"
+  | "summary"
+  | "match";
+
+/** Screens reachable from the bottom tab bar (docs/07's nav model — full-screen
+ * flows like match/summary/create run over the top, without it). */
+export type TabScreen = "planner" | "tour" | "inbox" | "me";
+
+/** Screens that show the persistent bottom tab bar. */
+export const TAB_SCREENS: readonly Screen[] = ["planner", "tour", "inbox", "me"];
+
+export type MatchSpeed = 1 | 2 | 3;
+
+export interface TournamentContext {
+  name: string;
+  round: number;
+  totalRounds: number;
+}
+
+const DAY = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 } as const;
+const PERIOD = { Mor: 0, Aft: 1, Eve: 2 } as const;
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
+
+const TRAIN_FOR: Record<Sport, ActivityType> = {
+  tt: "trainTT",
+  bd: "trainBD",
+  sq: "trainSQ",
+  tn: "trainTN",
+};
+
+function blankWeek(): ActivityType[] {
+  return Array.from({ length: SLOTS_PER_WEEK }, () => "rest" as ActivityType);
+}
+
+function put(slots: ActivityType[], day: keyof typeof DAY, period: keyof typeof PERIOD, activity: ActivityType): void {
+  slots[slotIndex(DAY[day], PERIOD[period])] = activity;
+}
+
+/** Sports ranked by current level, best first; ties break by sport order so
+ * the ranking (and therefore every template built from it) stays stable. */
+function rankSports(sports: Record<Sport, SportView>): Sport[] {
+  return [...SPORTS].sort((a, b) => sports[b].level - sports[a].level || SPORTS.indexOf(a) - SPORTS.indexOf(b));
+}
+
+/**
+ * Quick-plan templates: each builds a full 21-slot week from the player's
+ * current sport ranking (best → worst), so "train best sport" always means
+ * whichever sport currently has the highest level, not a fixed one.
+ */
+export const TEMPLATES: Record<string, (ranked: Sport[]) => ActivityType[]> = {
+  Balanced: (ranked) => {
+    const slots = blankWeek();
+    for (const day of WEEKDAYS) {
+      put(slots, day, "Mor", "work");
+      put(slots, day, "Aft", "work");
+    }
+    put(slots, "Tue", "Eve", TRAIN_FOR[ranked[0]!]);
+    put(slots, "Thu", "Eve", TRAIN_FOR[ranked[1]!]);
+    put(slots, "Fri", "Eve", "social");
+    put(slots, "Sat", "Mor", TRAIN_FOR[ranked[0]!]);
+    put(slots, "Sat", "Aft", TRAIN_FOR[ranked[2]!]);
+    put(slots, "Sun", "Mor", TRAIN_FOR[ranked[1]!]);
+    put(slots, "Sun", "Aft", "social");
+    return slots;
+  },
+
+  "Focus on work": (ranked) => {
+    const slots = blankWeek();
+    for (const day of WEEKDAYS) {
+      put(slots, day, "Mor", "work");
+      put(slots, day, "Aft", "work");
+    }
+    put(slots, "Tue", "Eve", "work");
+    put(slots, "Thu", "Eve", "work");
+    put(slots, "Wed", "Eve", TRAIN_FOR[ranked[0]!]);
+    put(slots, "Fri", "Eve", "social");
+    put(slots, "Sat", "Mor", "physical");
+    put(slots, "Sun", "Mor", "social");
+    put(slots, "Sun", "Aft", "social");
+    return slots;
+  },
+
+  Recovery: () => {
+    const slots = blankWeek();
+    for (const day of WEEKDAYS) {
+      put(slots, day, "Mor", "work");
+      put(slots, day, "Aft", "work");
+    }
+    put(slots, "Wed", "Eve", "physical");
+    put(slots, "Sat", "Mor", "physical");
+    return slots;
+  },
+
+  "Training camp": (ranked) => {
+    const slots = blankWeek();
+    // no job at all — a mix of all four racket sports + physical training,
+    // cycling through the player's own ranking so every sport gets court
+    // time, across Mon-Fri (minus Wed evening, which is social)
+    const cycle: ActivityType[] = [
+      TRAIN_FOR[ranked[0]!],
+      TRAIN_FOR[ranked[1]!],
+      TRAIN_FOR[ranked[2]!],
+      TRAIN_FOR[ranked[3]!],
+      "physical",
+    ];
+    const weekdaySlots: Array<[keyof typeof DAY, keyof typeof PERIOD]> = [
+      ["Mon", "Mor"], ["Mon", "Aft"], ["Mon", "Eve"],
+      ["Tue", "Mor"], ["Tue", "Aft"], ["Tue", "Eve"],
+      ["Wed", "Mor"], ["Wed", "Aft"],
+      ["Thu", "Mor"], ["Thu", "Aft"], ["Thu", "Eve"],
+      ["Fri", "Mor"], ["Fri", "Aft"], ["Fri", "Eve"],
+    ];
+    weekdaySlots.forEach(([day, period], i) => put(slots, day, period, cycle[i % cycle.length]!));
+    put(slots, "Wed", "Eve", "social");
+    put(slots, "Sat", "Mor", "social");
+    put(slots, "Sat", "Eve", "social");
+    return slots;
+  },
+};
+
+class GameStore {
+  screen = $state<Screen>("loading");
+  slots = $state<ActivityType[]>(emptyPlan().slots);
+  draft = $state<CharacterDraft>(randomDraft());
+  summary = $state<WeekSummary | null>(null);
+  match = $state<MatchState | null>(null);
+  matchSpeed = $state<MatchSpeed>(2);
+  tournamentContext = $state<TournamentContext | null>(null);
+
+  /** Game is a non-reactive class; bumped after every simulated week so views refresh. */
+  private version = $state(0);
+  private game: Game | null = null;
+
+  readonly you: HumanView | null = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.you : null;
+  });
+
+  /** Lifetime + per-year career statistics for the Me screen. */
+  readonly careerStats: CareerStatsView | null = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.careerStats() : null;
+  });
+
+  /** Diegetic message feed, newest first. */
+  readonly inbox: InboxView[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.inbox : [];
+  });
+
+  /** Unread message count — drives the envelope badge. */
+  readonly unreadCount: number = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.unreadCount : 0;
+  });
+
+  /** Informational only — a tournament exists this week regardless of
+   * registration. Drives the "you missed the deadline" note on the planner. */
+  readonly tournamentThisWeek: TournamentDef | null = $derived.by(() => {
+    this.version;
+    if (!this.game) return null;
+    return this.game.tournamentThisWeek();
+  });
+
+  /** This week's tournament, only if registered for it in advance — the
+   * actionable one. There's no same-week fallback: miss the entry deadline
+   * and this stays null even though `tournamentThisWeek` still shows it. */
+  readonly registeredTournamentThisWeek: TournamentDef | null = $derived.by(() => {
+    this.version;
+    if (!this.game) return null;
+    return this.game.registeredTournamentThisWeek();
+  });
+
+  /** Next several occurrences of the recurring tournament — the Tour screen's calendar. */
+  readonly tourEntries: TourEntry[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.tournamentSchedule(6) : [];
+  });
+
+  readonly weekLabel: string = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.weekLabel : "";
+  });
+
+  readonly weekIndex: number = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.weekIndex : 0;
+  });
+
+  readonly forecast: Forecast | null = $derived.by(() => {
+    this.version;
+    if (!this.game) return null;
+    return this.game.previewPlan({ slots: [...this.slots] });
+  });
+
+  /** Points still to spend in the creation screen — sports and traits are
+   * independent pools (see character.ts), so each gates separately. */
+  readonly sportPointsLeft: number = $derived(sportPointsRemaining(this.draft));
+  readonly attrPointsLeft: number = $derived(attrPointsRemaining(this.draft));
+
+  /** Both pools fully spent and a name entered — everything Start needs. */
+  readonly canStartCareer: boolean = $derived(
+    this.sportPointsLeft === 0 &&
+      this.attrPointsLeft === 0 &&
+      this.draft.firstName.trim().length > 0 &&
+      this.draft.lastName.trim().length > 0,
+  );
+
+  async init(): Promise<void> {
+    let save: SaveGame | undefined;
+    try {
+      save = await get<SaveGame>(SAVE_KEY);
+    } catch {
+      save = undefined;
+    }
+    if (!save) {
+      // no career yet — build one on the character-creation screen
+      this.draft = randomDraft();
+      this.screen = "create";
+      return;
+    }
+    try {
+      this.game = Game.fromSave(save, defaultContent);
+    } catch {
+      // corrupt or incompatible save — start fresh rather than brick the app
+      this.draft = randomDraft();
+      this.screen = "create";
+      return;
+    }
+    this.version++;
+    this.screen = "planner";
+  }
+
+  // --- character creation ---
+
+  rerollCharacter(): void {
+    this.draft = randomDraft();
+  }
+
+  rerollName(): void {
+    const { first, last } = randomName(this.draft.nationality, this.draft.gender);
+    this.draft.firstName = first;
+    this.draft.lastName = last;
+  }
+
+  setFirstName(name: string): void {
+    this.draft.firstName = name;
+  }
+
+  setLastName(name: string): void {
+    this.draft.lastName = name;
+  }
+
+  setGender(gender: "m" | "f"): void {
+    this.draft.gender = gender;
+    this.rerollName();
+  }
+
+  setNationality(nationality: string): void {
+    this.draft.nationality = nationality;
+    this.rerollName();
+  }
+
+  adjustStat(key: StatKey, delta: 1 | -1): void {
+    adjust(this.draft, key, delta);
+  }
+
+  rerollStatsOnly(): void {
+    rerollStats(this.draft);
+  }
+
+  /** Commit the draft and drop into the planner for week 1. */
+  startCareer(): void {
+    if (!this.canStartCareer) return;
+    const character = $state.snapshot(this.draft) as CharacterDraft;
+    this.game = Game.newGame({ content: defaultContent, character });
+    this.slots = emptyPlan().slots;
+    this.summary = null;
+    this.match = null;
+    this.tournamentContext = null;
+    this.version++;
+    this.screen = "planner";
+  }
+
+  /** Bottom tab bar navigation — only valid while already on a tab screen. */
+  goToTab(screen: TabScreen): void {
+    if (!TAB_SCREENS.includes(this.screen)) return;
+    this.screen = screen;
+  }
+
+  /** Marks one inbox message read and persists (read state lives in the save). */
+  async markRead(id: string): Promise<void> {
+    if (!this.game) return;
+    this.game.markInboxRead(id);
+    this.version++;
+    await set(SAVE_KEY, this.game.serialize()).catch(() => {});
+  }
+
+  async markAllRead(): Promise<void> {
+    if (!this.game) return;
+    this.game.markAllInboxRead();
+    this.version++;
+    await set(SAVE_KEY, this.game.serialize()).catch(() => {});
+  }
+
+  setSlot(index: number, activity: ActivityType): void {
+    this.slots[index] = activity;
+  }
+
+  applyTemplate(name: keyof typeof TEMPLATES): void {
+    const build = TEMPLATES[name];
+    if (!build || !this.you) return;
+    this.slots = build(rankSports(this.you.sports));
+  }
+
+  async simulateWeek(): Promise<void> {
+    if (!this.game || this.screen !== "planner") return;
+    this.screen = "simulating";
+    this.summary = this.game.submitWeek({ slots: [...this.slots] });
+    this.version++;
+    await set(SAVE_KEY, this.game.serialize()).catch(() => {});
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    this.screen = "summary";
+  }
+
+  /** Back to planning; last week's plan stays as the starting point. */
+  nextWeek(): void {
+    this.summary = null;
+    this.screen = "planner";
+  }
+
+  /** Registers for a future tournament — at least entryDeadlineWeeks ahead;
+   * the engine throws otherwise. Persists immediately since this is a real
+   * commitment, not ephemeral UI state. */
+  async registerForTournament(weekIndex: number): Promise<void> {
+    if (!this.game) return;
+    this.game.registerForTournament(weekIndex);
+    this.version++;
+    await set(SAVE_KEY, this.game.serialize()).catch(() => {});
+  }
+
+  /** Backs out of a registration — whether it's still weeks away or, if
+   * called for the current week before playing it, equivalent to skipping. */
+  async withdrawRegistration(weekIndex: number): Promise<void> {
+    if (!this.game) return;
+    this.game.withdrawRegistration(weekIndex);
+    this.version++;
+    await set(SAVE_KEY, this.game.serialize()).catch(() => {});
+  }
+
+  /** Plays out this week's tournament — only valid once registered for it. */
+  enterTournament(): void {
+    if (!this.game) return;
+    const def = this.game.registeredTournamentThisWeek();
+    if (!def) return;
+    this.match = this.game.enterTournament();
+    this.tournamentContext = { name: def.name, round: 1, totalRounds: Math.log2(def.fieldSize) };
+    this.version++;
+    this.screen = "match";
+  }
+
+  /** The human is always side "a" in a tournament match. */
+  chooseTactic(tactic: Tactic): void {
+    if (this.match) setTactic(this.match, "a", tactic);
+  }
+
+  continueMatch(): void {
+    if (!this.match || this.match.phase !== "break") return;
+    setTactic(this.match, "b", aiChooseTactic(this.match, "b"));
+    resumeMatch(this.match);
+  }
+
+  exitMatch(): void {
+    this.match = null;
+    this.tournamentContext = null;
+    this.screen = "planner";
+  }
+
+  /**
+   * Called when the player dismisses a finished match's result panel —
+   * advances the tournament bracket: onward to the next round, or — on
+   * elimination or the final win — folds the result into this week's
+   * simulation and shows the weekly summary.
+   */
+  async finishMatch(): Promise<void> {
+    if (!this.game || !this.match || !this.tournamentContext) {
+      this.exitMatch();
+      return;
+    }
+    const outcome = this.game.resolveTournamentMatch(this.match);
+    if (outcome.status === "nextRound") {
+      this.match = outcome.match;
+      this.tournamentContext = { ...this.tournamentContext, round: outcome.round + 1 };
+      return;
+    }
+    this.tournamentContext = null;
+    this.match = null;
+    // simulateWeek() only runs from "planner" (guards against double-fires
+    // from its own button) — pass through it before handing off to it
+    this.screen = "planner";
+    await this.simulateWeek();
+  }
+
+  /** Discard the current career and return to character creation. */
+  async newGame(): Promise<void> {
+    await del(SAVE_KEY).catch(() => {});
+    this.game = null;
+    this.slots = emptyPlan().slots;
+    this.summary = null;
+    this.match = null;
+    this.tournamentContext = null;
+    this.draft = randomDraft();
+    this.version++;
+    this.screen = "create";
+  }
+}
+
+export const store = new GameStore();

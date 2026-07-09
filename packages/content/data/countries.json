@@ -1,0 +1,18 @@
+{
+  "SE": { "name": "Sweden", "lat": 59.33, "lon": 18.06, "costIndex": 1.15 },
+  "DK": { "name": "Denmark", "lat": 55.68, "lon": 12.57, "costIndex": 1.3 },
+  "FI": { "name": "Finland", "lat": 60.17, "lon": 24.94, "costIndex": 1.1 },
+  "NO": { "name": "Norway", "lat": 59.91, "lon": 10.75, "costIndex": 1.5 },
+  "DE": { "name": "Germany", "lat": 52.52, "lon": 13.4, "costIndex": 1.0 },
+  "AT": { "name": "Austria", "lat": 48.21, "lon": 16.37, "costIndex": 1.05 },
+  "GB": { "name": "Great Britain", "lat": 51.51, "lon": -0.13, "costIndex": 1.2 },
+  "NZ": { "name": "New Zealand", "lat": -41.29, "lon": 174.78, "costIndex": 1.15 },
+  "HK": { "name": "Hong Kong", "lat": 22.32, "lon": 114.17, "costIndex": 1.3 },
+  "PL": { "name": "Poland", "lat": 52.23, "lon": 21.01, "costIndex": 0.55 },
+  "US": { "name": "United States", "lat": 38.9, "lon": -77.04, "costIndex": 1.2 },
+  "CH": { "name": "Switzerland", "lat": 46.95, "lon": 7.45, "costIndex": 1.6 },
+  "TR": { "name": "Turkey", "lat": 41.01, "lon": 28.98, "costIndex": 0.45 },
+  "NL": { "name": "Netherlands", "lat": 52.37, "lon": 4.9, "costIndex": 1.15 },
+  "CZ": { "name": "Czech Republic", "lat": 50.08, "lon": 14.44, "costIndex": 0.6 },
+  "IN": { "name": "India", "lat": 19.08, "lon": 72.88, "costIndex": 0.35 }
+}

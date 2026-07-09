@@ -1,0 +1,63 @@
+:root {
+  --bg: #0f1420;
+  --card: #1a2130;
+  --card-2: #222b3d;
+  --border: #2c3750;
+  --text: #e8ecf4;
+  --muted: #8b94a7;
+  --accent: #6366f1;
+  --danger: #ef4444;
+  --warn: #f59e0b;
+  --ok: #22c55e;
+
+  /* sport colors */
+  --tt: #f59e0b;
+  --bd: #10b981;
+  --sq: #a78bfa;
+  --tn: #38bdf8;
+
+  /* other activities */
+  --physical: #fb7185;
+  --rest: #334155;
+  --work: #94a3b8;
+  --social: #f0abfc;
+  --errands: #a8a29e;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 16px;
+}
+
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+}
