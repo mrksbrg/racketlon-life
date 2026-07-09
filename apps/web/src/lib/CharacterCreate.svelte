@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { defaultContent } from "@racketlon/content";
   import { SPORTS } from "@racketlon/engine";
   import {
     ATTR_META,
@@ -15,6 +16,10 @@
   import { store } from "./store.svelte";
 
   const age = $derived(ageFromBirthDate(store.draft.birthDate));
+
+  const traits = $derived(
+    store.draft.traits.map((id) => defaultContent.traits[id]).filter((t) => t !== undefined),
+  );
 
   const rows: { key: StatKey; label: string; hint: string; color: string }[] = $derived([
     ...SPORTS.map((s) => ({ key: s as StatKey, ...SPORT_META[s] })),
@@ -100,6 +105,20 @@
       {@render statRow(row)}
     {/each}
   </div>
+
+  {#if traits.length > 0}
+    <div class="section-head">
+      <span class="section-label">Traits</span>
+    </div>
+    <div class="traits">
+      {#each traits as t (t.id)}
+        <div class="trait trait-{t.tone}">
+          <span class="trait-name">{t.name}</span>
+          <span class="trait-desc">{t.description}</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </div>
 
 <footer>
@@ -306,6 +325,51 @@
     flex-direction: column;
     gap: 10px;
     margin-bottom: 18px;
+  }
+
+  .traits {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .trait {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .trait-name {
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .trait-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .trait-positive {
+    background: color-mix(in srgb, var(--ok) 10%, var(--card));
+    border-color: color-mix(in srgb, var(--ok) 35%, var(--border));
+  }
+
+  .trait-positive .trait-name {
+    color: var(--ok);
+  }
+
+  .trait-negative {
+    background: color-mix(in srgb, var(--danger) 10%, var(--card));
+    border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  }
+
+  .trait-negative .trait-name {
+    color: var(--danger);
   }
 
   .row {

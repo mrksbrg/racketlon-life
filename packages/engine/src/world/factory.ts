@@ -144,6 +144,10 @@ export interface CharacterDraft {
   composure: number;
   /** 1–20, "Läkekött" → durability */
   resilience: number;
+  /** rolled once when the draft is created (see {@link rollTraits}) — carried
+   * through as-is so what's previewed on the creation screen is what the
+   * career actually gets, rather than re-rolled at world creation. */
+  traits: string[];
 }
 
 /** Level L (1–20) → mid-band internal skill, so it displays back as level L. */
@@ -156,7 +160,7 @@ function unitFromLevel(level: number): number {
   return level / 20;
 }
 
-function specFromDraft(draft: CharacterDraft, rng: Rng, content: ContentBundle): PlayerSpec {
+function specFromDraft(draft: CharacterDraft, rng: Rng): PlayerSpec {
   const skills = {} as Skills;
   for (const sport of SPORTS) skills[sport] = skillFromLevel(draft.sports[sport]);
   return {
@@ -176,7 +180,8 @@ function specFromDraft(draft: CharacterDraft, rng: Rng, content: ContentBundle):
     intelligence: unitFromLevel(draft.intelligence),
     clutch: unitFromLevel(draft.clutch),
     composure: unitFromLevel(draft.composure),
-    traits: rollTraits(rng, content),
+    // rolled on the creation screen already — see CharacterDraft.traits
+    traits: draft.traits,
     simTier: 0,
   };
 }
@@ -194,7 +199,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
   const rng = new Rng(childSeed(seed, "world"));
 
   const human: PlayerSpec = options.character
-    ? specFromDraft(options.character, rng, content)
+    ? specFromDraft(options.character, rng)
     : {
         // fallback career player: a Swedish club all-rounder in their late twenties
         id: "you",

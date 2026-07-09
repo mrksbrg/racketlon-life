@@ -1,5 +1,6 @@
+import { defaultContent } from "@racketlon/content";
 import type { CharacterDraft, Sport } from "@racketlon/engine";
-import { DEFAULT_START_MONDAY, SPORTS } from "@racketlon/engine";
+import { DEFAULT_START_MONDAY, Rng, SPORTS, rollTraits } from "@racketlon/engine";
 
 export const AGE_MIN = 15;
 export const AGE_MAX = 65;
@@ -266,6 +267,9 @@ export function randomDraft(): CharacterDraft {
     clutch: STAT_MIN,
     composure: STAT_MIN,
     resilience: STAT_MIN,
+    // rolled once here (not at world creation) so the creation screen can
+    // preview the exact traits the career will start with
+    traits: rollTraits(new Rng(`draft-${Math.random()}`), defaultContent),
   };
   rerollStats(draft);
   return draft;
