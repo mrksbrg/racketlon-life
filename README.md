@@ -1,3 +1,6 @@
+[![CodeScene Average Code Health](https://codescene.io/projects/82388/status-badges/average-code-health)](https://codescene.io/projects/82388)
+[![CodeScene Hotspot Code Health](https://codescene.io/projects/82388/status-badges/hotspot-code-health)](https://codescene.io/projects/82388)
+
 # Racketlon Life
 
 A mobile-friendly management game about an amateur racketlon career — table tennis,
