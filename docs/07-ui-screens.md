@@ -82,11 +82,15 @@ UI never needs to know multiple brackets exist for one event.
   view of your hidden skill — this is the Pokémon-GO progression feedback and
   the *only* place a true-skill-derived number surfaces), your Glicko-2
   ratings and FIR points, plus your five attributes and personality traits.
-- **Every other player:** Glicko-2 ratings + FIR points + results only. **No
-  levels, no attributes, no traits** — you infer their strength from the
-  estimate and their record. *(Note: `OpponentView` today exposes opponent
-  levels; that should be swapped for Glicko + FIR when the ranking layer
-  lands — see Open decisions.)*
+- **Every other player:** Glicko-2 ratings + FIR points + results, plus a
+  deliberately fuzzy per-sport **level range** (true level ±
+  `BALANCE.opponentInfo.levelRangeWidth`, e.g. level 10 shows as "8–12") —
+  never the exact level, and **no attributes, no traits**. The range is
+  built from the same hidden skill as your own exact level, just banded
+  wider before display (`model/sport.ts`'s `levelRangeForSkill`,
+  `OpponentProfileView.sports: OpponentSportView`) — you get a scouting
+  report, not their private ledger. `OpponentView` (the lighter field-list
+  row) drops sport info entirely; only the full profile shows the range.
 
 ---
 
@@ -242,12 +246,16 @@ Build inside **Me** first; split out when they earn the space:
 
 ## Open decisions
 
-1. **`OpponentView` exposes levels.** ⚠️ partially addressed: `OpponentView`
-   gained a `rating` field (combined Glicko, rounded) and the Tour screen's
-   "who's entered" list uses only that — but `sports.level` is still present
-   on the type (unused in any current UI) rather than removed, and FIR points
-   don't exist yet to add alongside it. Full cleanup (drop `sports.level`,
-   add FIR) waits on decision #2. (`facade.ts`)
+1. **`OpponentView` exposes levels.** ✅ Resolved. `OpponentView` (the
+   field-list row) dropped `sports` entirely — it only ever carried `rating`
+   (combined Glicko) plus identity. `OpponentProfileView` (the full "tap a
+   name" profile) keeps per-sport info, but now as a fuzzed
+   `OpponentSportView { levelMin, levelMax }` instead of the exact
+   `SportView { level, progress }` — the same true-skill-derived band
+   `HumanView` uses for your own character, just widened by
+   `BALANCE.opponentInfo.levelRangeWidth` before anyone else sees it, so an
+   exact level is never inferable. (`facade.ts`, `model/sport.ts`'s
+   `levelRangeForSkill`)
 2. **FIR points formula & window.** Points per placement per tier, and whether the
    ranking is a rolling 12-month window or cumulative — a `RankingSystem`
    addition distinct from the Glicko rating period. (04-simulation-systems.md

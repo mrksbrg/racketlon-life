@@ -274,6 +274,22 @@ export const BALANCE = {
     /** cumulative in-tournament energy spent × this = fatigue added to the
      * player's condition once the event concludes */
     fatigueConversionFactor: 0.5,
+    /** `projectedField`'s geographic entry bias (systems/travel.ts's
+     * `distanceKm` feeds `entryWeight` — see tournament/engine.ts):
+     * weight = 1 / (1 + km / geoBiasScaleKm). At this many km from the host,
+     * a player is half as likely to be drawn as a domestic one; roughly a
+     * short-haul flight's worth (Stockholm-Berlin is ~800km), so
+     * neighboring-country players are still very much in the mix, and only
+     * genuinely distant ones become rare. Rational (not exponential) decay
+     * so nobody's ever fully excluded by distance alone. */
+    geoBiasScaleKm: 1200,
+    /** FIR Tournament Regs 3.8.5 wildcards: how many near-cutoff domestic
+     * players `divisionAssignments` promotes into a tier's top division per
+     * event — see systems/division.ts's `promoteHostWildcards`. Modest and
+     * capped since this models only the Tournament-Director half of the
+     * regulation's wildcard allowance (the other half, from FIR itself, has
+     * no home-nation bias and isn't modeled). */
+    hostWildcardsToTopDivision: 2,
   },
   /**
    * FIR entry-fee ceilings (Tournament Regs 3.3.1, singles, EUR) — the
@@ -339,6 +355,14 @@ export const BALANCE = {
       "World Championships": ["A", "B", "C", "D"],
       "World Tour Finals": ["A", "B", "C", "D"],
     } as Record<string, readonly string[]>,
+  },
+  /** How much of an opponent's true skill leaks through to the human — see
+   * docs/07's "three information layers" and model/sport.ts's
+   * `levelRangeForSkill`. */
+  opponentInfo: {
+    /** an opponent's shown level range is their true level ± this many
+     * levels (e.g. true level 10 shows as "8–12" at the default of 2) */
+    levelRangeWidth: 2,
   },
   /** InboxSystem — the diegetic message feed (docs/07). */
   inbox: {

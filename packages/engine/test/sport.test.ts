@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { LEVEL_MAX, LEVEL_MIN_SKILL, SKILL_MAX, levelForSkill, levelProgress, skillForLevel } from "../src/index.js";
+import {
+  LEVEL_MAX,
+  LEVEL_MIN_SKILL,
+  SKILL_MAX,
+  levelForSkill,
+  levelProgress,
+  levelRangeForSkill,
+  skillForLevel,
+} from "../src/index.js";
 
 describe("convex level curve", () => {
   it("has 20 strictly-increasing, convex thresholds starting at 0", () => {
@@ -69,5 +77,33 @@ describe("convex level curve", () => {
   it("clamps out-of-range level inputs", () => {
     expect(skillForLevel(0)).toBe(skillForLevel(1));
     expect(skillForLevel(99)).toBe(skillForLevel(20));
+  });
+});
+
+describe("levelRangeForSkill", () => {
+  it("brackets the true level with a symmetric band, away from the clamp edges", () => {
+    const skill = skillForLevel(10);
+    const range = levelRangeForSkill(skill, 2);
+    expect(range.min).toBe(8);
+    expect(range.max).toBe(12);
+  });
+
+  it("never reveals the exact level by returning a single-value range in the open interior", () => {
+    for (let level = 3; level <= 18; level++) {
+      const range = levelRangeForSkill(skillForLevel(level), 2);
+      expect(range.max - range.min).toBe(4);
+      expect(level).toBeGreaterThanOrEqual(range.min);
+      expect(level).toBeLessThanOrEqual(range.max);
+    }
+  });
+
+  it("clamps to 1..LEVEL_MAX at the extremes instead of going out of range", () => {
+    expect(levelRangeForSkill(0, 2)).toEqual({ min: 1, max: 3 });
+    expect(levelRangeForSkill(SKILL_MAX, 2)).toEqual({ min: 18, max: LEVEL_MAX });
+  });
+
+  it("a zero band width degenerates to the exact level — callers, not this function, decide how much fog to add", () => {
+    const skill = skillForLevel(14);
+    expect(levelRangeForSkill(skill, 0)).toEqual({ min: 14, max: 14 });
   });
 });

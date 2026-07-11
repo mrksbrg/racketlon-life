@@ -29,7 +29,24 @@ function readCsv(name: string): Record<string, string>[] {
   return parseCsv(readFileSync(path, "utf8"));
 }
 
-function topByGender(players: WorldBundlePlayer[], gender: "m" | "f"): WorldBundlePlayer[] {
+/**
+ * Selects this gender's roster by systematic sampling across the *whole*
+ * rated population's skill range, rather than the global top
+ * `ROSTER_CAP_PER_GENDER`. Picking a pure top-N-by-skill roster (the old
+ * behavior) produced a field with almost no skill spread at all: e.g. the
+ * men's mapped skill only ranges ~200-735 (of 0-1000) end to end, but the
+ * global top 150 all clustered in ~620-735 — division D ended up just as
+ * strong as division A on average, since `divisionAssignments` had nothing
+ * but elite players to split.
+ *
+ * Sorting the whole population strongest-first and taking every
+ * `(pool.length - 1) / (cap - 1)`-th player instead spans that full range:
+ * index 0 (the true strongest) is always included, so division A stays
+ * genuinely elite, but the roster's weakest members are now genuinely weak
+ * too, not just "the relatively weakest of the elite" — giving B/C/D real
+ * variance once `divisionAssignments` bands them.
+ */
+function systematicSampleByGender(players: WorldBundlePlayer[], gender: "m" | "f"): WorldBundlePlayer[] {
   const pool = players
     .filter((p) => p.gender === gender)
     .sort((a, b) => averageSkill(b) - averageSkill(a) || a.playerId.localeCompare(b.playerId));
@@ -38,7 +55,14 @@ function topByGender(players: WorldBundlePlayer[], gender: "m" | "f"): WorldBund
       `Only ${pool.length} ${gender} players after mapping — need at least ${MIN_PER_GENDER} for a 64-draw`,
     );
   }
-  return pool.slice(0, ROSTER_CAP_PER_GENDER);
+  if (pool.length <= ROSTER_CAP_PER_GENDER) return pool;
+
+  const roster: WorldBundlePlayer[] = [];
+  for (let k = 0; k < ROSTER_CAP_PER_GENDER; k++) {
+    const idx = Math.round((k * (pool.length - 1)) / (ROSTER_CAP_PER_GENDER - 1));
+    roster.push(pool[idx]!);
+  }
+  return roster;
 }
 
 function main(): void {
@@ -71,7 +95,7 @@ function main(): void {
   }
   if (noCountry > 0) console.log(`Skipped ${noCountry} players with no country code`);
 
-  const roster = [...topByGender(mapped, "m"), ...topByGender(mapped, "f")].sort((a, b) =>
+  const roster = [...systematicSampleByGender(mapped, "m"), ...systematicSampleByGender(mapped, "f")].sort((a, b) =>
     a.playerId.localeCompare(b.playerId),
   );
 

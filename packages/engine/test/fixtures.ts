@@ -2,13 +2,20 @@ import type { ActivityType, ContentBundle, PlayerPlan, RealPlayerDef } from "../
 import { SLOTS_PER_WEEK } from "../src/index.js";
 
 /** A small deterministic real-player roster so world creation has a pool to
- * seed tier-1 NPCs from (mirrors the FIR world bundle). 16 per gender is more
- * than the 7 opponents a fieldSize-8 test tournament needs. */
+ * seed tier-1 NPCs from (mirrors the FIR world bundle). All null-firPoints
+ * (unranked), so `divisionAssignments` (systems/division.ts) bands them by
+ * skill alone, spread 100-900 across the pool. 60 per gender is enough that
+ * even a 3-band tier's single lowest band (IWT's "C") still clears 15 —
+ * the biggest single-division field a test needs (the 16-draw monrad test). */
+const ROSTER_SIZE_PER_GENDER = 60;
+
 function testRoster(): RealPlayerDef[] {
   const players: RealPlayerDef[] = [];
   for (const gender of ["m", "f"] as const) {
-    for (let i = 0; i < 16; i++) {
-      const base = 300 + i * 40; // spread of skills across the pool
+    for (let i = 0; i < ROSTER_SIZE_PER_GENDER; i++) {
+      // even spread across the pool, so every division band gets real
+      // representation once divisionAssignments bands unranked players by skill
+      const base = Math.round(100 + (i * 800) / (ROSTER_SIZE_PER_GENDER - 1));
       const rating = { skill: base, rdSkill: 60 };
       players.push({
         playerId: `test-${gender}-${i}`,
@@ -57,19 +64,17 @@ export const testContent: ContentBundle = {
   // (week 20, well past anything the default-count schedule tests slice)
   // exists solely for travel-cost tests.
   //
-  // testRoster() never sets firPoints, so every NPC lands in the tier's
-  // single lowest division (divisionAssignments' "all null -> lowest" rule)
-  // — SAT (["A","B"]) -> "B", IWT (["A","B","C"]) -> "C". humanDivisionDef
-  // resolves the human there too, matching real content's default. But
-  // humanEligibleDivisions (playing up — see tournament/engine.ts) also
-  // needs every *tougher* division's row to exist for these events, same as
-  // a real content author publishes every division per event (enforced by
-  // packages/content/test/content.test.ts) — so each event below also
-  // carries its tougher sibling rows. Nobody in this null-only roster is
-  // ever assigned to those tougher divisions, so their own field preview
-  // would have zero eligible NPCs; facade.ts's `eligibleDivisions` handles
-  // that by falling back to an empty entrants list rather than throwing —
-  // exactly the same shape a genuinely under-subscribed real class would hit.
+  // testRoster() never sets firPoints, so divisionAssignments bands every
+  // NPC by skill alone (systems/division.ts), spreading them across every
+  // band of a tier rather than dumping them all in the lowest one. The
+  // default fallback human (a deliberate beginner, see world/factory.ts) is
+  // still weak enough to land in the tier's lowest band regardless — SAT
+  // (["A","B"]) -> "B", IWT (["A","B","C"]) -> "C" — matching real content's
+  // default for a fresh career. humanEligibleDivisions (playing up — see
+  // tournament/engine.ts) also needs every *tougher* division's row to exist
+  // for these events, same as a real content author publishes every division
+  // per event (enforced by packages/content/test/content.test.ts) — so each
+  // event below also carries its tougher sibling rows.
   tournaments: {
     "monthly-open-1": {
       id: "monthly-open-1",
@@ -217,10 +222,10 @@ export const testContent: ContentBundle = {
     },
     // A 16-draw, solely for testing the monrad plate/banding structure at a
     // size where the 3-game cap actually bites (see tournament.test.ts's
-    // "monrad placement bracket" describe block). Division "C" needs all 16
-    // same-gender testRoster() players (all null firPoints, so all fall into
-    // IWT's lowest band) to fill its 15 opponent slots — the tightest fit
-    // this roster allows.
+    // "monrad placement bracket" describe block). Division "C" (IWT's
+    // lowest skill band) needs at least 15 same-gender testRoster() NPCs to
+    // fill its opponent slots — ROSTER_SIZE_PER_GENDER is sized so the
+    // lowest of IWT's 3 skill bands alone clears that.
     "intl-open-2": {
       id: "intl-open-2",
       eventId: "intl-open-2",

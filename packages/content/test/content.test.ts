@@ -66,6 +66,18 @@ describe("default content bundle", () => {
     }
   });
 
+  it("gives every real player's nationality a countries.json entry", () => {
+    // projectedField's geographic entry bias (tournament/engine.ts) needs
+    // every player's home country to resolve to real coordinates — a
+    // missing entry wouldn't fail loudly (it just falls back to a neutral,
+    // distance-blind weight), so this is the guard against a silently
+    // un-biased subset of the roster after a roster rebuild pulls in a
+    // nationality not yet in countries.json.
+    for (const p of defaultContent.players) {
+      expect(defaultContent.countries[p.nationality], `missing country ${p.nationality} (${p.playerId})`).toBeDefined();
+    }
+  });
+
   it("has no duplicate real-player ids", () => {
     const ids = defaultContent.players.map((p) => p.playerId);
     expect(new Set(ids).size).toBe(ids.length);
@@ -131,9 +143,16 @@ describe("default content bundle", () => {
       // bracket can't be bigger than the actual number of same-gender,
       // same-division players the imported roster contains
       for (const gender of ["m", "f"] as const) {
+        // divisionAssignments bands unranked players by skill — mirror that
+        // with the same average-skill proxy world creation's combinedRating
+        // starts from (see systems/division.ts, world/factory.ts)
         const pool = defaultContent.players
           .filter((p) => p.gender === gender)
-          .map((p) => ({ id: p.playerId, firPoints: p.firPoints }));
+          .map((p) => ({
+            id: p.playerId,
+            firPoints: p.firPoints,
+            skill: (p.ratings.tt.skill + p.ratings.bd.skill + p.ratings.sq.skill + p.ratings.tn.skill) / 4,
+          }));
 
         const byTier = new Map<string, typeof tournaments>();
         for (const t of tournaments) {

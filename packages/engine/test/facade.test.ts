@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MatchState, TournamentAdvanceResult } from "../src/index.js";
-import { Game, simulateMatchAuto } from "../src/index.js";
+import { BALANCE, Game, levelForSkill, simulateMatchAuto } from "../src/index.js";
 import { planWith, testContent } from "./fixtures.js";
 
 const WORK = planWith({ work: 5 });
@@ -139,20 +139,36 @@ describe("Game facade", () => {
     expect(game.opponentProfile("no-such-player")).toBeNull();
   });
 
-  it("opponentProfile exposes identity/sports/ratings/FIR standing for a real NPC, nothing hidden", () => {
+  it("opponentProfile exposes identity/ratings/FIR standing for a real NPC, but only a fuzzy level range", () => {
     const game = Game.newGame({ content: testContent, seed: "f13" });
+    const target = game.serialize().state.players.find((p) => p.identity.id === "test-m-0")!;
+    const trueLevel = levelForSkill(target.attributes.skills.tt);
+
     const profile = game.opponentProfile("test-m-0");
     expect(profile).not.toBeNull();
     expect(profile!.name.length).toBeGreaterThan(0);
     expect(profile!.age).toBeGreaterThan(0);
-    expect(profile!.sports.tt.level).toBeGreaterThanOrEqual(1);
     expect(profile!.ratings.tt.rating).toBeGreaterThan(0);
     expect(profile!.combinedRating).toBeGreaterThan(0);
-    // no traits/attributes/hidden fields leak onto the type at all — this is
-    // a compile-time guarantee (OpponentProfileView has no such fields), the
-    // runtime check just documents it
+    // the level range brackets the true level without exposing it exactly —
+    // a real leak would be a range collapsed to a single value away from
+    // the clamp boundaries (see levelRangeForSkill)
+    const { levelMin, levelMax } = profile!.sports.tt;
+    expect(levelMin).toBeGreaterThanOrEqual(1);
+    expect(levelMax).toBeLessThanOrEqual(20);
+    expect(trueLevel).toBeGreaterThanOrEqual(levelMin);
+    expect(trueLevel).toBeLessThanOrEqual(levelMax);
+    if (trueLevel > 1 + BALANCE.opponentInfo.levelRangeWidth && trueLevel < 20 - BALANCE.opponentInfo.levelRangeWidth) {
+      expect(levelMax - levelMin).toBe(2 * BALANCE.opponentInfo.levelRangeWidth);
+    }
+    // no traits/attributes/hidden fields, and no exact `level`/`progress`,
+    // leak onto the type at all — this is a compile-time guarantee
+    // (OpponentProfileView has no such fields), the runtime check just
+    // documents it
     expect(Object.keys(profile!)).not.toContain("traits");
     expect(Object.keys(profile!)).not.toContain("attrs");
+    expect(Object.keys(profile!.sports.tt)).not.toContain("level");
+    expect(Object.keys(profile!.sports.tt)).not.toContain("progress");
   });
 
   it("rejects saves from unknown versions", () => {

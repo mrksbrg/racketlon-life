@@ -16,6 +16,7 @@ import {
   combinedRating,
   drawRounds,
   isTournamentWeek,
+  projectedField,
   seedBracket,
   simulateMatchAuto,
   startTournament,
@@ -130,8 +131,10 @@ describe("bracket seeding", () => {
       condition: {
         fatigue: 0,
         formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
+        neglectWeeks: { tt: 0, bd: 0, sq: 0, tn: 0 },
         confidence: 0,
         injury: null,
+        agingSteps: { step1: false, step2: false },
       },
       ratings: { tt: glicko, bd: glicko, sq: glicko, tn: glicko },
       firPoints: null,
@@ -788,5 +791,102 @@ describe("drawRounds (draw tree view)", () => {
   it("stops recording once the human's own tournament concludes — never more than totalRounds rounds", () => {
     const { rounds } = playToDraw("draw-3");
     expect(rounds.length).toBeLessThanOrEqual(3); // log2(8)
+  });
+});
+
+describe("projectedField geographic entry bias", () => {
+  // HOME hosts the tournament; NEAR is ~111km away (1 degree of longitude at
+  // the equator), FAR is ~10000km away (90 degrees) — both well inside vs.
+  // far outside BALANCE.tournament.geoBiasScaleKm (1200km), so the draw
+  // should favor NEAR players clearly across many independent weeks.
+  function equidistantPlayers(count: number, nationality: string, skillBase: number): RealPlayerDef[] {
+    const rating = { skill: skillBase, rdSkill: 60 };
+    return Array.from({ length: count }, (_, i) => ({
+      playerId: `${nationality.toLowerCase()}-${i}`,
+      firstName: "Test",
+      lastName: `${nationality}${i}`,
+      nationality,
+      gender: "m" as const,
+      birthYear: 1995,
+      ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
+      firPoints: null,
+    }));
+  }
+
+  const geoContent: ContentBundle = {
+    ...testContent,
+    countries: {
+      HOME: { name: "Home", lat: 0, lon: 0, costIndex: 1 },
+      NEAR: { name: "Near", lat: 0, lon: 1, costIndex: 1 },
+      FAR: { name: "Far", lat: 0, lon: 90, costIndex: 1 },
+    },
+    players: [...equidistantPlayers(20, "NEAR", 600), ...equidistantPlayers(20, "FAR", 600)],
+    tournaments: {
+      "geo-open": {
+        id: "geo-open",
+        eventId: "geo-open",
+        division: "A",
+        name: "Geo Open",
+        city: "Hometown",
+        country: "HOME",
+        lat: 0,
+        lon: 0,
+        tier: "SAT",
+        date: "2026-01-26",
+        nights: 1,
+        entryFee: 0,
+        fieldSize: 8,
+        prizeByRoundsWon: [0, 0, 0, 0],
+      },
+      "geo-open-b": {
+        id: "geo-open-b",
+        eventId: "geo-open",
+        division: "B",
+        name: "Geo Open",
+        city: "Hometown",
+        country: "HOME",
+        lat: 0,
+        lon: 0,
+        tier: "SAT",
+        date: "2026-01-26",
+        nights: 1,
+        entryFee: 0,
+        fieldSize: 8,
+        prizeByRoundsWon: [0, 0, 0, 0],
+      },
+    },
+  };
+
+  it("draws NEAR-country players more often than equally-skilled FAR-country ones", () => {
+    const def = geoContent.tournaments["geo-open"]!;
+    const game = Game.newGame({ content: geoContent, seed: "geo-bias" });
+    const save = game.serialize();
+
+    let near = 0;
+    let far = 0;
+    for (let week = 0; week < 60; week++) {
+      const pool = projectedField(save.state, def, week, geoContent);
+      for (const p of pool) {
+        if (p.identity.nationality === "NEAR") near++;
+        else if (p.identity.nationality === "FAR") far++;
+      }
+    }
+    // NEAR and FAR players are equally skilled and equally numerous, so a
+    // distance-blind draw would land close to 50/50 — the bias should tilt
+    // this decisively toward NEAR.
+    expect(near).toBeGreaterThan(far * 1.5);
+  });
+
+  it("is a bias, not a cutoff — FAR-country players still get drawn sometimes", () => {
+    const def = geoContent.tournaments["geo-open"]!;
+    const game = Game.newGame({ content: geoContent, seed: "geo-bias-2" });
+    const save = game.serialize();
+
+    let far = 0;
+    for (let week = 0; week < 60; week++) {
+      const pool = projectedField(save.state, def, week, geoContent);
+      far += pool.filter((p) => p.identity.nationality === "FAR").length;
+    }
+    expect(far).toBeGreaterThan(0);
   });
 });

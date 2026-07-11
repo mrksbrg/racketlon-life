@@ -45,6 +45,29 @@ export function levelProgress(skill: number): number {
   return Math.min(1, Math.max(0, (skill - lo) / (hi - lo)));
 }
 
+export interface LevelRange {
+  min: number;
+  max: number;
+}
+
+/**
+ * A deliberately fuzzy view of a player's level, `bandWidth` levels either
+ * side of their true level (clamped to 1..LEVEL_MAX) — never the exact
+ * value. This is how an opponent's level should be shown: docs/07's "three
+ * information layers" rule says raw skill (and anything derived from it,
+ * including the exact level) is never shown for anyone but the player's own
+ * character — but a rough band is a reasonable middle ground between
+ * nothing and the exact number, roughly what a scout or a few rallies
+ * against them would tell you.
+ */
+export function levelRangeForSkill(skill: number, bandWidth: number): LevelRange {
+  const level = levelForSkill(skill);
+  return {
+    min: Math.max(1, level - bandWidth),
+    max: Math.min(LEVEL_MAX, level + bandWidth),
+  };
+}
+
 /**
  * Representative internal skill for a display level (1–20) — the midpoint of
  * that level's band, so it round-trips: `levelForSkill(skillForLevel(L)) === L`.

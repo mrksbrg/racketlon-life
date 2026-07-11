@@ -11,7 +11,7 @@ import type { Player } from "./model/player.js";
 import { fullName } from "./model/player.js";
 import type { WeekSummary } from "./model/summary.js";
 import type { Sport } from "./model/sport.js";
-import { SPORTS, levelForSkill, levelProgress } from "./model/sport.js";
+import { SPORTS, levelForSkill, levelProgress, levelRangeForSkill } from "./model/sport.js";
 import type { MatchState } from "./match/engine.js";
 import { simulateWeek } from "./orchestrator.js";
 import { recoveryAgeMultiplier } from "./systems/age.js";
@@ -237,16 +237,25 @@ export interface OpponentView {
   /** combined Glicko-2 rating, rounded — the layer other players are shown
    * through (docs/07's "three information layers"), never their true skill */
   rating: number;
-  sports: Record<Sport, SportView>;
+}
+
+/** An opponent's level, fuzzed to a range rather than the exact value — see
+ * `levelRangeForSkill`. Deliberately not `SportView`: that type's `level` +
+ * `progress` are precise enough to back out the true skill, which is fine
+ * for the human's own view but not for anyone else's. */
+export interface OpponentSportView {
+  levelMin: number;
+  levelMax: number;
 }
 
 /**
  * A public "Me, but for someone else" profile — everything about another
- * player that's fair to show (identity, per-sport levels, Glicko, real FIR
- * standing), and nothing that isn't (no traits, hidden attributes, form, or
- * condition — docs/07's three-information-layers rule applies to opponents
- * same as `OpponentView`, just with more Layer 1/2/3 detail than a field-list
- * row needs). Opened by tapping a player's name in a draw or tournament field.
+ * player that's fair to show (identity, a fuzzy per-sport level band,
+ * Glicko, real FIR standing), and nothing that isn't (no traits, hidden
+ * attributes, form, condition, or exact level — docs/07's
+ * three-information-layers rule applies to opponents same as `OpponentView`,
+ * just with more Layer 2/3 detail than a field-list row needs). Opened by
+ * tapping a player's name in a draw or tournament field.
  */
 export interface OpponentProfileView {
   id: string;
@@ -254,7 +263,7 @@ export interface OpponentProfileView {
   age: number;
   nationality: string;
   gender: "m" | "f";
-  sports: Record<Sport, SportView>;
+  sports: Record<Sport, OpponentSportView>;
   ratings: Record<Sport, RatingView>;
   combinedRating: number;
   firStanding: FirStandingView | null;
@@ -432,18 +441,19 @@ export class Game {
 
   /**
    * A public profile for any other player, by id — everything fair to show
-   * (identity, per-sport levels, Glicko, FIR standing), nothing hidden. Null
-   * if the id doesn't resolve to a player in this world (e.g. a stale
-   * reference). See `OpponentProfileView`.
+   * (identity, a fuzzy per-sport level band, Glicko, FIR standing), nothing
+   * hidden and no exact level. Null if the id doesn't resolve to a player in
+   * this world (e.g. a stale reference). See `OpponentProfileView`.
    */
   opponentProfile(id: string): OpponentProfileView | null {
     const p = this.state.players.find((pl) => pl.identity.id === id);
     if (!p) return null;
-    const sports = {} as Record<Sport, SportView>;
+    const sports = {} as Record<Sport, OpponentSportView>;
     const ratings = {} as Record<Sport, RatingView>;
     for (const sport of SPORTS) {
       const skill = p.attributes.skills[sport];
-      sports[sport] = { level: levelForSkill(skill), progress: levelProgress(skill) };
+      const range = levelRangeForSkill(skill, BALANCE.opponentInfo.levelRangeWidth);
+      sports[sport] = { levelMin: range.min, levelMax: range.max };
       const g = p.ratings[sport];
       ratings[sport] = { rating: Math.round(g.rating), rd: Math.round(g.rd) };
     }
@@ -576,11 +586,11 @@ export class Game {
         tournament: def,
         isThisWeek: weekIndex === thisWeekIndex,
         status,
-        entrants: projectedField(this.state, def, weekIndex).map(opponentView),
+        entrants: projectedField(this.state, def, weekIndex, this.content).map(opponentView),
         travelCost: travelCost(homeCountry, def, this.content),
         eligibleDivisions: eligible.map((eligibleDef) => ({
           def: eligibleDef,
-          entrants: safeProjectedField(this.state, eligibleDef, weekIndex).map(opponentView),
+          entrants: safeProjectedField(this.state, eligibleDef, weekIndex, this.content).map(opponentView),
         })),
       };
     });
@@ -794,9 +804,9 @@ function traitView(content: ContentBundle, id: string): TraitView | null {
  * Only used for `eligibleDivisions`' non-default choices; the primary
  * (registered or own-division) field is never expected to hit this.
  */
-function safeProjectedField(state: GameState, def: TournamentDef, weekIndex: number): Player[] {
+function safeProjectedField(state: GameState, def: TournamentDef, weekIndex: number, content: ContentBundle): Player[] {
   try {
-    return projectedField(state, def, weekIndex);
+    return projectedField(state, def, weekIndex, content);
   } catch {
     return [];
   }
@@ -812,17 +822,11 @@ function firStandingFor(state: GameState, playerId: string, gender: "m" | "f"): 
 }
 
 function opponentView(p: Player): OpponentView {
-  const sports = {} as Record<Sport, SportView>;
-  for (const sport of SPORTS) {
-    const skill = p.attributes.skills[sport];
-    sports[sport] = { level: levelForSkill(skill), progress: levelProgress(skill) };
-  }
   return {
     id: p.identity.id,
     name: fullName(p),
     nationality: p.identity.nationality,
     rating: Math.round(combinedRating(p)),
-    sports,
   };
 }
 

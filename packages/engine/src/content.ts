@@ -74,7 +74,9 @@ export interface RealPlayerDef {
    * is NOT docs/07's in-game Layer 3 accumulator (points earned from the
    * human's own placements, still unbuilt) — a static, real-world number,
    * never updated by gameplay. Null if this player has no FIR-counted
-   * result yet, which defaults them to the lowest division of every tier. */
+   * result yet, in which case `divisionAssignments` bands them by in-game
+   * skill instead (see systems/division.ts) rather than assuming unranked
+   * means weakest. */
   firPoints: number | null;
 }
 

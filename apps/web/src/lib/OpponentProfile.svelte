@@ -65,10 +65,15 @@
             <div class="sport-main">
               <div class="sport-line">
                 <span class="sport-name">{SPORT_LABELS[sport]}</span>
-                <span class="sport-level">Lv {s.level}</span>
+                <span class="sport-level">Lv {s.levelMin}–{s.levelMax}</span>
               </div>
               <div class="bar">
-                <div class="fill" style:width="{s.progress * 100}%" style:background={SPORT_COLORS[sport]}></div>
+                <div
+                  class="band"
+                  style:left="{((s.levelMin - 1) / 20) * 100}%"
+                  style:width="{((s.levelMax - s.levelMin + 1) / 20) * 100}%"
+                  style:background={SPORT_COLORS[sport]}
+                ></div>
               </div>
             </div>
             <div class="sport-rating">
@@ -78,8 +83,9 @@
           </div>
         {/each}
         <p class="footnote">
-          What the world can see about {p.name.split(" ")[0]}: FIR standing, Glicko estimate, and level per sport.
-          Everything else about them stays their own business.
+          What the world can see about {p.name.split(" ")[0]}: FIR standing, Glicko estimate, and a rough level range
+          per sport — a few rallies' worth of scouting, not their real book. Everything else about them stays their
+          own business.
         </p>
       </section>
     </main>
@@ -298,15 +304,21 @@
   }
 
   .bar {
+    position: relative;
     height: 4px;
     border-radius: 2px;
     background: var(--card-2);
     overflow: hidden;
   }
 
-  .fill {
+  /* a floating segment over the 1-20 track, not a from-the-left fill — this
+     is a range, not a precise value, so there's no exact-position marker */
+  .band {
+    position: absolute;
+    top: 0;
     height: 100%;
     border-radius: 2px;
+    opacity: 0.85;
   }
 
   .sport-rating {

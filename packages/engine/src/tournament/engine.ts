@@ -21,7 +21,7 @@ import { staminaRecoveryMult } from "../systems/effects.js";
 import { rankingPointsFor } from "../systems/ranking-points.js";
 import type { RatingResultsBook } from "../systems/ranking.js";
 import { applyTournamentRatings, cloneRatings, combinedRating, recordMatchResults } from "../systems/ranking.js";
-import { travelCost } from "../systems/travel.js";
+import { distanceKm, travelCost } from "../systems/travel.js";
 
 /**
  * Monrad-style placement bracket: a real main draw plus real plate
@@ -266,11 +266,18 @@ export function isTournamentWeek(content: ContentBundle, weekIndex: number): boo
  * — the same field NPCs carry — rather than their growing in-career total
  * (`firPointsTotal`, systems/ranking-points.ts). Feeding the growing total in
  * here would let the human become the *only* ranked entrant against an
- * otherwise-null NPC pool for a division, which `divisionAssignments` would
- * then place in the tier's top band — a band `projectedField` can't fill
- * with tier-1 NPCs, since none of them are ever assigned to it. Division
- * climbing for the human is a natural follow-up once NPC divisions are
- * themselves populated from a realistic (non-null-heavy) points spread.
+ * otherwise-unranked NPC pool for a division, which `divisionAssignments`
+ * would then place in the tier's top band by points alone — a band
+ * `projectedField` might not be able to fill with tier-1 NPCs banded there
+ * on points. Since `divisionAssignments` now bands unranked players
+ * (including the human) by in-game skill instead of dumping them all in the
+ * lowest band, the human's own division already climbs naturally as their
+ * skill grows over a career — no separate follow-up needed.
+ *
+ * Also passes the event's host country through as `divisionAssignments`'
+ * `hostWildcards` — a strong-but-borderline local human can find themselves
+ * wildcarded straight into the tougher class at their own country's event
+ * (FIR Tournament Regs 3.8.5), same as any NPC.
  */
 export function humanEligibleDivisions(state: GameState, defs: TournamentDef[]): TournamentDef[] {
   const human = getPlayer(state, state.career.playerId);
@@ -280,8 +287,11 @@ export function humanEligibleDivisions(state: GameState, defs: TournamentDef[]):
 
   const samePool = state.players
     .filter((p) => p.identity.gender === human.identity.gender)
-    .map((p) => ({ id: p.identity.id, firPoints: p.firPoints }));
-  const assignments = divisionAssignments(samePool, tierDivisions);
+    .map((p) => ({ id: p.identity.id, firPoints: p.firPoints, skill: combinedRating(p), nationality: p.identity.nationality }));
+  const assignments = divisionAssignments(samePool, tierDivisions, {
+    hostCountry: defs[0]!.country,
+    count: BALANCE.tournament.hostWildcardsToTopDivision,
+  });
   const ownDivision = divisionOf(assignments, human.identity.id);
   const ownIndex = tierDivisions.indexOf(ownDivision);
 
@@ -320,6 +330,44 @@ export function simulateMatchAuto(m: MatchState): void {
 }
 
 /**
+ * A player's relative likelihood of entering `def` based on how far their
+ * home country is from the host city — closer players travel more often in
+ * real amateur/semi-pro tour play, both because flights are cheaper (see
+ * `systems/travel.ts`) and because regional players simply have more of
+ * these events within reach. Rational decay (not exponential) so distant
+ * countries stay possible, just less likely, rather than effectively
+ * excluded — this is a bias, not a residency requirement. Domestic entrants
+ * (distance 0) get the max weight of 1; falls back to neutral (1, i.e. no
+ * bias either way) if either country is missing coordinates, matching
+ * `travelCost`'s own "content gaps shouldn't crash or unfairly penalize"
+ * convention.
+ */
+function entryWeight(content: ContentBundle, homeCountry: string, def: TournamentDef): number {
+  const home = content.countries[homeCountry];
+  if (!home) return 1;
+  const km = distanceKm(home.lat, home.lon, def.lat, def.lon);
+  return 1 / (1 + km / BALANCE.tournament.geoBiasScaleKm);
+}
+
+/**
+ * Weighted sampling without replacement (Efraimidis-Spirakis): each item
+ * draws a key `u^(1/weight)` from a fresh uniform `u`, and the `n` largest
+ * keys win — equivalent to repeatedly drawing proportional to weight, but a
+ * single deterministic pass over a seeded `Rng` instead of a stateful
+ * repeated-draw loop.
+ */
+function weightedSampleWithoutReplacement<T>(
+  rng: Rng,
+  items: readonly T[],
+  weight: (item: T) => number,
+  n: number,
+): T[] {
+  const keyed = items.map((item) => ({ item, key: Math.pow(rng.next(), 1 / weight(item)) }));
+  keyed.sort((a, b) => b.key - a.key);
+  return keyed.slice(0, n).map((k) => k.item);
+}
+
+/**
  * Deterministically projects which tier-1 NPCs would fill a given week's
  * tournament field — independent of whether the human ultimately enters.
  * Lets the Tour screen show "who's entered" ahead of the tournament actually
@@ -334,36 +382,60 @@ export function simulateMatchAuto(m: MatchState): void {
  * `humanDivisionDef` on a borderline player's band. Men's and women's fields
  * are always the same size (`def.fieldSize`); only the human's own draw is
  * ever generated, since nothing in the game currently depends on the other one.
+ *
+ * Within the eligible pool, entrants are drawn with `entryWeight` — closer
+ * players are more likely to show up, but the draw is still a weighted
+ * *sample*, not a cutoff, so distant entrants remain possible.
+ *
+ * Also passes the host country through to `divisionAssignments`' host
+ * wildcards, so a division's own top band ("A") can include a couple of
+ * strong domestic players who'd otherwise have just missed the cut — see
+ * that function's doc comment for the FIR Tournament Regs 3.8.5 basis.
  */
-export function projectedField(state: GameState, def: TournamentDef, weekIndex: number): Player[] {
+export function projectedField(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+): Player[] {
+  return sampleDivisionField(state, def, weekIndex, content, def.fieldSize - 1);
+}
+
+function sampleDivisionField(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+  needed: number,
+): Player[] {
   const rng = new Rng(childSeed(state.seed, "tournament", weekIndex, def.id));
   const human = getPlayer(state, state.career.playerId);
   const tierDivisions = BALANCE.division.byTier[def.tier];
   if (!tierDivisions) throw new Error(`No BALANCE.division.byTier entry for tier "${def.tier}"`);
   const sameGender = state.players.filter((p) => p.identity.gender === human.identity.gender);
   const assignments = divisionAssignments(
-    sameGender.map((p) => ({ id: p.identity.id, firPoints: p.firPoints })),
+    sameGender.map((p) => ({
+      id: p.identity.id,
+      firPoints: p.firPoints,
+      skill: combinedRating(p),
+      nationality: p.identity.nationality,
+    })),
     tierDivisions,
+    { hostCountry: def.country, count: BALANCE.tournament.hostWildcardsToTopDivision },
   );
   const pool = sameGender.filter((p) => p.simTier === 1 && divisionOf(assignments, p.identity.id) === def.division);
-  const needed = def.fieldSize - 1;
   if (pool.length < needed) {
     throw new Error(
       `Not enough tier-1 ${human.identity.gender} players in division ${def.division} ` +
-        `(${pool.length}) for a ${def.fieldSize}-player draw`,
+        `(${pool.length}) for a ${needed}-player draw`,
     );
   }
-  const shuffled = [...pool];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = rng.int(i + 1);
-    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
-  }
-  return shuffled.slice(0, needed);
+  return weightedSampleWithoutReplacement(rng, pool, (p) => entryWeight(content, p.identity.nationality, def), needed);
 }
 
-function pickEntrants(state: GameState, def: TournamentDef, weekIndex: number): Player[] {
+function pickEntrants(state: GameState, def: TournamentDef, weekIndex: number, content: ContentBundle): Player[] {
   const human = getPlayer(state, state.career.playerId);
-  return [human, ...projectedField(state, def, weekIndex)];
+  return [human, ...projectedField(state, def, weekIndex, content)];
 }
 
 /** Seeds entrants by Glicko rating (what a real seeding committee would see,
@@ -554,7 +626,7 @@ export function startTournament(
   if (entryIdx !== -1) state.career.tournamentEntries.splice(entryIdx, 1);
 
   const rngSeed = childSeed(state.seed, "tournament", week, def.id);
-  const entrants = pickEntrants(state, def, week);
+  const entrants = pickEntrants(state, def, week, content);
   const bracketBySeed = seedBracket(entrants, def.fieldSize);
   const totalRounds = Math.log2(def.fieldSize);
 
