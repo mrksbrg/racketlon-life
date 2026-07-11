@@ -123,37 +123,43 @@ Where the player spends most of their time. Later gains a **goals** strip that
 drives goal-based autofill.
 Source: `you`, `weekLabel`, `previewPlan`, `submitWeek`.
 
-### Tour — the annual world tour — ✅ built (calendar + advance registration; real season is M2)
-Full-season calendar of tournaments the player can register for ahead of
-time: date, and (once M2's real calendar + TravelSystem land) city, tier,
-distance/hotel. Tap a tournament to expand entry fee/field/prize detail
-inline (a lightweight drill-in, not a separate route yet — see below),
-including **who else has entered** — the projected NPC field, shown as
-name + Glicko rating only (never a true-skill-derived level, per the layers
-rule above).
+### Tour — the annual world tour — ✅ built (real calendar, divisions, travel cost)
+Full-season calendar of ~16 real-style named tournaments (New Zealand Open,
+Hong Kong Open, World Championships, …), each split into skill divisions
+(A/B/C/D — `systems/division.ts`) and shown with city, tier, and a
+flights/hotel-and-food travel cost breakdown (`systems/travel.ts`). Tap a
+tournament to expand entry fee/field/prize/travel detail inline (a
+lightweight drill-in, not a separate route yet — see below), including
+**who else has entered** — the projected NPC field, shown as name + Glicko
+rating only (never a true-skill-derived level, per the layers rule above),
+and a **class picker** to "play up" into a tougher division than your own.
 
 Built as `Tour.svelte` + `Game.tournamentSchedule(count)`, reachable via a
 persistent bottom `TabBar` (Plan/Tour) shown on both tab screens, per the nav
-model above. Since only one `TournamentDef` exists until M2 replaces the
-recurring placeholder, every row is currently the same "Monthly Open" —
-`tournamentSchedule` projects its next N occurrences forward from
-`isTournamentWeek`/`advanceWeek` without touching `GameState`, each tagged
-with a `status`: **open** (registerable), **registered** (committed), or
-**closed** (the `entryDeadlineWeeks` window passed without registering — no
-same-week fallback, so planning ahead is a real requirement). A registered
-entry can be withdrawn any time before it's played; the entry fee isn't
-charged until the tournament week arrives and it's actually played
+model above. `store.svelte.ts` requests the *whole* season
+(`SEASON_HORIZON`, generous headroom over the ~16-event calendar), not just
+a rolling few weeks — the player can see and plan around anything on the
+calendar, not only their immediate horizon. Each entry is tagged with a
+`status`: **open** (registerable), **registered** (committed), or **closed**
+(the `entryDeadlineWeeks` window passed without registering — no same-week
+fallback, so planning ahead is a real requirement; most far-future entries
+show closed until they enter that window). A registered entry can be
+withdrawn any time before it's played; the entry fee (plus travel cost)
+isn't charged until the tournament week arrives and it's actually played
 (`Game.enterTournament`). The planner shows a "Play ▸"/"Withdraw" banner only
 for a tournament the human is registered for this week, or a muted
 informational note ("entry closed") if one's happening but wasn't registered
-for in time.
+for in time. While playing, the Draw screen can also show any other
+division of the same event advancing in lockstep (`Game.otherDivisionDraws`)
+— a fully-AI "watch class A while you play class B" spectator bracket.
 
 **Still to build**: a genuinely separate Tournament-detail full-screen flow
-(bracket/draw, opponents' Glicko+FIR, your projected path) — folded into an
-expandable card for now since there's only one tournament shape to show;
-worth splitting out once M2 gives tournaments real per-event identity
-(different fields/tiers/cities). City/tier/distance/hotel columns wait on
-M2's FIR season calendar + TravelSystem.
+(bracket/draw, opponents' Glicko+FIR, your projected path) — still folded
+into an expandable card for now. Hotel *tier* choice and travel *fatigue*
+remain open (see docs/06's M2 TravelSystem note — travel currently costs
+money only, no energy/condition effect). The calendar itself is a single
+fixed 2026 season with no recurrence; nothing yet defines what happens once
+a career runs past it.
 
 ### Rankings — FIR points **and** Glicko, kept distinct
 Two segments the player toggles between; never merged:

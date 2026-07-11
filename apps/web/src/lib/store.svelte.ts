@@ -35,6 +35,11 @@ import { adjust, attrPointsRemaining, randomDraft, randomName, rerollStats, spor
 
 const SAVE_KEY = "racketlon-life-save";
 
+/** How many upcoming tournament weeks `tourEntries` requests — generous
+ * headroom over the current ~16-event season calendar so the Tour screen
+ * shows the whole season, not just a rolling few weeks ahead. */
+const SEASON_HORIZON = 30;
+
 export type Screen =
   | "loading"
   | "create"
@@ -232,10 +237,14 @@ class GameStore {
     return this.game.registeredTournamentThisWeek();
   });
 
-  /** Next several occurrences of the recurring tournament — the Tour screen's calendar. */
+  /** The whole season's calendar, not just a rolling few weeks — the Tour
+   * screen renders these as collapsed cards, so showing the full season is
+   * cheap. SEASON_HORIZON is generous headroom over the ~16-event calendar
+   * (packages/content/data/tournaments.json), not a tight count to keep in
+   * sync as events are added. */
   readonly tourEntries: TourEntry[] = $derived.by(() => {
     this.version;
-    return this.game ? this.game.tournamentSchedule(6) : [];
+    return this.game ? this.game.tournamentSchedule(SEASON_HORIZON) : [];
   });
 
   readonly weekLabel: string = $derived.by(() => {
