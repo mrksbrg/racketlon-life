@@ -23,12 +23,23 @@ import {
   moneyDeltaFromCounts,
 } from "./systems/effects.js";
 import { combinedRating } from "./systems/ranking.js";
+import { firWorldRanking } from "./systems/ranking-points.js";
 import type { HumanSnapshot } from "./systems/types.js";
 import type { TravelCost } from "./systems/travel.js";
 import { travelCost } from "./systems/travel.js";
-import type { TournamentAdvanceResult, TournamentDef, TournamentSession } from "./tournament/engine.js";
+import type {
+  DivisionCode,
+  DrawRound,
+  DrawSection,
+  TournamentAdvanceResult,
+  TournamentDef,
+  TournamentSession,
+} from "./tournament/engine.js";
 import {
   advanceTournament,
+  drawRounds,
+  humanDivisionDef,
+  humanEligibleDivisions,
   projectedField,
   startTournament,
   tournamentCalendar,
@@ -69,6 +80,17 @@ export interface RatingView {
   rd: number;
 }
 
+/** Layer-3 view: real FIR World Ranking standing — the official competitive
+ * ladder (see systems/ranking-points.ts), shown ahead of Glicko since it's
+ * what actually determines category placement and bragging rights. Null
+ * until the player has a single counted result on file. */
+export interface FirStandingView {
+  points: number;
+  rank: number;
+  /** how many players of this player's gender have any counted points */
+  totalRanked: number;
+}
+
 export interface InjuryView {
   /** a Sport, or "overuse" when it wasn't attributable to one */
   type: string;
@@ -98,6 +120,9 @@ export interface TraitView {
 }
 
 export interface HumanView {
+  /** stable identity id — lets the UI tell "this is you" apart from an
+   * `OpponentProfileView`'s id without guessing at a magic string */
+  id: string;
   name: string;
   age: number;
   nationality: string;
@@ -108,13 +133,16 @@ export interface HumanView {
   ratings: Record<Sport, RatingView>;
   /** combined Glicko-2 across the four sports, rounded */
   combinedRating: number;
+  /** real FIR World Ranking standing — null until a counted result exists */
+  firStanding: FirStandingView | null;
   /** the five character-creation attributes, banded 1–20 */
   attrs: AttrsView;
   /** rolled personality traits — identity/flavor, shown to the player themself */
   traits: TraitView[];
   fatigue: number;
   money: number;
-  form: number;
+  /** 0..20 per sport — see PlayerCondition.formBySport */
+  formBySport: Record<Sport, number>;
   confidence: number;
   injury: InjuryView | null;
   /** milestone titles earned (e.g. "champion") */
@@ -133,6 +161,11 @@ export interface TournamentResultView {
   totalRounds: number;
   won: boolean;
   prizeMoney: number;
+  /** best position of the tied band this result landed in (1 = champion) */
+  finishingPosition: number;
+  /** how many entrants share `finishingPosition` — 1 means untied */
+  tiedCount: number;
+  rankingPoints: number;
 }
 
 /** Aggregated tournament tallies — used for both lifetime and per-year rows. */
@@ -153,8 +186,9 @@ export interface YearStats extends StatTotals {
 export interface CareerStatsView {
   weeksPlayed: number;
   lifetime: StatTotals;
-  /** best career finish as roundsWon/totalRounds; null if none played yet */
-  bestFinish: { roundsWon: number; totalRounds: number } | null;
+  /** best career finish, by finishingPosition (lowest = best); null if none
+   * played yet — see {@link TournamentResultView} */
+  bestFinish: { finishingPosition: number; tiedCount: number } | null;
   /** per-year breakdown, most recent year first */
   byYear: YearStats[];
   /** every tournament played, most recent first */
@@ -168,13 +202,32 @@ export type TourEntryStatus = "open" | "registered" | "closed";
 export interface TourEntry {
   weekIndex: number;
   weekLabel: string;
+  /** the class actually registered for, once `status === "registered"` —
+   * otherwise the human's own (easiest) eligible class, same as
+   * `eligibleDivisions[0].def` */
   tournament: TournamentDef;
   isThisWeek: boolean;
   status: TourEntryStatus;
   /** the projected tier-1 NPC field — "who else has entered" */
   entrants: OpponentView[];
-  /** flights + hotel/food forecast for this trip from home — see systems/travel.ts */
+  /** flights + hotel/food forecast for this trip from home — see
+   * systems/travel.ts. Identical across every division of one event (they
+   * share a host city), so it doesn't vary per `eligibleDivisions` entry. */
   travelCost: TravelCost;
+  /** every class the human may register for — their own division first,
+   * then progressively tougher ones ("playing up"). Always at least one
+   * entry. See `humanEligibleDivisions`. */
+  eligibleDivisions: DivisionChoice[];
+}
+
+/** One selectable class for a tournament entry — everything the Tour
+ * screen's class chooser needs to render an option without a second
+ * facade round-trip. */
+export interface DivisionChoice {
+  def: TournamentDef;
+  /** this class's own projected tier-1 NPC field (differs from the default
+   * division's field once the player considers playing up) */
+  entrants: OpponentView[];
 }
 
 export interface OpponentView {
@@ -185,6 +238,26 @@ export interface OpponentView {
    * through (docs/07's "three information layers"), never their true skill */
   rating: number;
   sports: Record<Sport, SportView>;
+}
+
+/**
+ * A public "Me, but for someone else" profile — everything about another
+ * player that's fair to show (identity, per-sport levels, Glicko, real FIR
+ * standing), and nothing that isn't (no traits, hidden attributes, form, or
+ * condition — docs/07's three-information-layers rule applies to opponents
+ * same as `OpponentView`, just with more Layer 1/2/3 detail than a field-list
+ * row needs). Opened by tapping a player's name in a draw or tournament field.
+ */
+export interface OpponentProfileView {
+  id: string;
+  name: string;
+  age: number;
+  nationality: string;
+  gender: "m" | "f";
+  sports: Record<Sport, SportView>;
+  ratings: Record<Sport, RatingView>;
+  combinedRating: number;
+  firStanding: FirStandingView | null;
 }
 
 /** An inbox message with its arrival week resolved to a dated label. */
@@ -266,6 +339,7 @@ export class Game {
       ratings[sport] = { rating: Math.round(g.rating), rd: Math.round(g.rd) };
     }
     return {
+      id: human.identity.id,
       name: fullName(human),
       age: ageOn(this.state.calendar.mondayISO, human.identity.birthDate),
       nationality: human.identity.nationality,
@@ -273,6 +347,7 @@ export class Game {
       sports,
       ratings,
       combinedRating: Math.round(combinedRating(human)),
+      firStanding: firStandingFor(this.state, human.identity.id, human.identity.gender),
       attrs: {
         stamina: levelFromUnit(human.attributes.stamina),
         intelligence: levelFromUnit(human.attributes.intelligence),
@@ -285,7 +360,7 @@ export class Game {
         .filter((t): t is TraitView => t !== null),
       fatigue: Math.round(human.condition.fatigue),
       money: this.state.career.money,
-      form: human.condition.form,
+      formBySport: { ...human.condition.formBySport },
       confidence: human.condition.confidence,
       injury: human.condition.injury,
       titles: [...this.state.career.titles],
@@ -315,6 +390,9 @@ export class Game {
         totalRounds: Number(d.totalRounds ?? 0),
         won: e.type === "tournament.won",
         prizeMoney: Number(d.prizeMoney ?? 0),
+        finishingPosition: Number(d.finishingPosition ?? 0),
+        tiedCount: Number(d.tiedCount ?? 1),
+        rankingPoints: Number(d.rankingPoints ?? 0),
       });
     }
     results.reverse(); // log is chronological; show most recent first
@@ -322,7 +400,10 @@ export class Game {
     const tally = (rs: TournamentResultView[]): StatTotals => ({
       tournamentsPlayed: rs.length,
       tournamentsWon: rs.filter((r) => r.won).length,
-      finalsReached: rs.filter((r) => r.totalRounds > 0 && r.roundsWon >= r.totalRounds - 1).length,
+      // an untied top-2 finish — a real final was played, not just a plate
+      // run that happened to end on a couple of wins (roundsWon alone can't
+      // tell those apart under the monrad plate cap; see summary.ts)
+      finalsReached: rs.filter((r) => r.finishingPosition <= 2 && r.tiedCount === 1).length,
       prizeMoney: rs.reduce((sum, r) => sum + r.prizeMoney, 0),
     });
 
@@ -332,9 +413,11 @@ export class Game {
       ...tally(results.filter((r) => r.year === year)),
     }));
 
-    const bestFinish = results.reduce<{ roundsWon: number; totalRounds: number } | null>(
+    const bestFinish = results.reduce<{ finishingPosition: number; tiedCount: number } | null>(
       (best, r) =>
-        !best || r.roundsWon > best.roundsWon ? { roundsWon: r.roundsWon, totalRounds: r.totalRounds } : best,
+        !best || r.finishingPosition < best.finishingPosition
+          ? { finishingPosition: r.finishingPosition, tiedCount: r.tiedCount }
+          : best,
       null,
     );
 
@@ -344,6 +427,36 @@ export class Game {
       bestFinish,
       byYear,
       results,
+    };
+  }
+
+  /**
+   * A public profile for any other player, by id — everything fair to show
+   * (identity, per-sport levels, Glicko, FIR standing), nothing hidden. Null
+   * if the id doesn't resolve to a player in this world (e.g. a stale
+   * reference). See `OpponentProfileView`.
+   */
+  opponentProfile(id: string): OpponentProfileView | null {
+    const p = this.state.players.find((pl) => pl.identity.id === id);
+    if (!p) return null;
+    const sports = {} as Record<Sport, SportView>;
+    const ratings = {} as Record<Sport, RatingView>;
+    for (const sport of SPORTS) {
+      const skill = p.attributes.skills[sport];
+      sports[sport] = { level: levelForSkill(skill), progress: levelProgress(skill) };
+      const g = p.ratings[sport];
+      ratings[sport] = { rating: Math.round(g.rating), rd: Math.round(g.rd) };
+    }
+    return {
+      id: p.identity.id,
+      name: fullName(p),
+      age: ageOn(this.state.calendar.mondayISO, p.identity.birthDate),
+      nationality: p.identity.nationality,
+      gender: p.identity.gender,
+      sports,
+      ratings,
+      combinedRating: Math.round(combinedRating(p)),
+      firStanding: firStandingFor(this.state, p.identity.id, p.identity.gender),
     };
   }
 
@@ -375,13 +488,13 @@ export class Game {
   previewPlan(plan: PlayerPlan): Forecast {
     const human = humanPlayer(this.state);
     const counts = countsFromSlots(plan);
-    const { talent } = human.attributes;
     const { fatigue } = human.condition;
     const age = ageOn(this.state.calendar.mondayISO, human.identity.birthDate);
 
     const sports = {} as Record<Sport, GainBucket>;
     for (const sport of SPORTS) {
-      let expected = expectedWeeklyGain(counts, sport, human.attributes.skills[sport], talent, fatigue, this.content, age);
+      const potential = human.attributes.potential[sport];
+      let expected = expectedWeeklyGain(counts, sport, human.attributes.skills[sport], potential, fatigue, this.content, age);
       expected += BALANCE.training.physicalAllSportGain * (counts.physical ?? 0);
       sports[sport] = gainBucket(expected);
     }
@@ -403,10 +516,14 @@ export class Game {
   /**
    * The real-calendar tournament landing this week, if any — regardless of
    * whether the human registered for it. Informational only; whether it can
-   * actually be *played* is `registeredTournamentThisWeek`.
+   * actually be *played* is `registeredTournamentThisWeek`. Resolved to the
+   * human's own division (see `humanDivisionDef`) — an event may run
+   * several simultaneous division brackets, but the human only ever sees
+   * their own.
    */
   tournamentThisWeek(): TournamentDef | null {
-    return tournamentForWeek(this.content, this.state.calendar.weekIndex);
+    const defs = tournamentForWeek(this.content, this.state.calendar.weekIndex);
+    return defs ? humanDivisionDef(this.state, defs) : null;
   }
 
   /**
@@ -414,16 +531,17 @@ export class Game {
    * least `entryDeadlineWeeks` in advance — the gate `enterTournament`
    * actually checks. There is no same-week fallback: miss the deadline and
    * this stays null even though `tournamentThisWeek` still reports the event.
+   *
+   * Looks up the *actual* registered entry's def, not `humanDivisionDef`'s
+   * own-division default — the human may have registered for a tougher,
+   * played-up class (see `registerForTournament`), and this must return
+   * whichever one they actually committed to.
    */
   registeredTournamentThisWeek(): TournamentDef | null {
     if (this.tournamentSession) return null;
-    const def = this.tournamentThisWeek();
-    if (!def) return null;
     const week = this.state.calendar.weekIndex;
-    const registered = this.state.career.tournamentEntries.some(
-      (e) => e.weekIndex === week && e.tournamentId === def.id,
-    );
-    return registered ? def : null;
+    const entry = this.state.career.tournamentEntries.find((e) => e.weekIndex === week);
+    return entry ? (this.content.tournaments[entry.tournamentId] ?? null) : null;
   }
 
   /**
@@ -444,12 +562,14 @@ export class Game {
       .slice(0, count);
 
     return upcomingWeeks.map((weekIndex) => {
-      const def = calendar.get(weekIndex)!;
-      const registered = this.state.career.tournamentEntries.some(
-        (e) => e.weekIndex === weekIndex && e.tournamentId === def.id,
-      );
+      const defs = calendar.get(weekIndex)!;
+      const eligible = humanEligibleDivisions(this.state, defs);
+      const registeredEntry = this.state.career.tournamentEntries.find((e) => e.weekIndex === weekIndex);
+      // the actual registered class if there is one (may be a played-up
+      // class not first in `eligible`), else the default (own) class
+      const def = registeredEntry ? (this.content.tournaments[registeredEntry.tournamentId] ?? eligible[0]!) : eligible[0]!;
       const withinWindow = weekIndex - thisWeekIndex >= deadline;
-      const status: TourEntryStatus = registered ? "registered" : withinWindow ? "open" : "closed";
+      const status: TourEntryStatus = registeredEntry ? "registered" : withinWindow ? "open" : "closed";
       return {
         weekIndex,
         weekLabel: weekLabelAt(this.state.calendar, weekIndex),
@@ -458,6 +578,10 @@ export class Game {
         status,
         entrants: projectedField(this.state, def, weekIndex).map(opponentView),
         travelCost: travelCost(homeCountry, def, this.content),
+        eligibleDivisions: eligible.map((eligibleDef) => ({
+          def: eligibleDef,
+          entrants: safeProjectedField(this.state, eligibleDef, weekIndex).map(opponentView),
+        })),
       };
     });
   }
@@ -467,39 +591,84 @@ export class Game {
    * entry fee isn't charged until that week actually arrives and
    * `enterTournament` is called. Must be at least `entryDeadlineWeeks`
    * ahead of the tournament's own week; no same-week or late entry.
+   *
+   * Defaults to the human's own division; pass `division` to play up into a
+   * tougher one instead (see `humanEligibleDivisions` — playing down is
+   * never offered). Calling this again before the deadline switches an
+   * existing registration to a different eligible class rather than
+   * erroring — changing your mind about which class to enter is a normal
+   * planning action, not a bug.
    */
-  registerForTournament(weekIndex: number): void {
-    const def = tournamentForWeek(this.content, weekIndex);
-    if (!def) {
+  registerForTournament(weekIndex: number, division?: DivisionCode): void {
+    const defs = tournamentForWeek(this.content, weekIndex);
+    if (!defs) {
       throw new Error(`Week ${weekIndex} has no tournament to register for`);
+    }
+    const eligible = humanEligibleDivisions(this.state, defs);
+    const def = division ? eligible.find((d) => d.division === division) : eligible[0];
+    if (!def) {
+      throw new Error(`Division "${division}" is not open to you for the tournament in week ${weekIndex}`);
     }
     const deadline = BALANCE.tournament.entryDeadlineWeeks;
     if (weekIndex - this.state.calendar.weekIndex < deadline) {
       throw new Error(`Entry deadline has passed for the tournament in week ${weekIndex}`);
     }
-    const already = this.state.career.tournamentEntries.some(
-      (e) => e.weekIndex === weekIndex && e.tournamentId === def.id,
-    );
-    if (already) return;
+    const existing = this.state.career.tournamentEntries.find((e) => e.weekIndex === weekIndex);
+    if (existing) {
+      if (existing.tournamentId === def.id) return; // idempotent
+      existing.tournamentId = def.id; // switching to a different eligible class
+      this.log.push({
+        week: this.state.calendar.weekIndex,
+        type: "tournament.registered",
+        subject: this.state.career.playerId,
+        data: { name: def.name, forWeek: weekIndex, division: def.division },
+      });
+      return;
+    }
     this.state.career.tournamentEntries.push({ weekIndex, tournamentId: def.id });
     this.log.push({
       week: this.state.calendar.weekIndex,
       type: "tournament.registered",
       subject: this.state.career.playerId,
-      data: { name: def.name, forWeek: weekIndex },
+      data: { name: def.name, forWeek: weekIndex, division: def.division },
     });
   }
 
-  /** Backs out of a future (or this week's, before playing it) registration. */
+  /**
+   * Backs out of a future (or this week's, before playing it) registration.
+   * Looks up only by `weekIndex` (not `tournamentId`) — safe because
+   * `registerForTournament` guarantees at most one entry per week.
+   *
+   * FIR Tournament Regs 3.14.1 / Players & Draws 3.13: a player who withdraws
+   * after the regular entry deadline still owes the entry fee. That deadline
+   * is `entryDeadlineWeeks` before the tournament's own week (the same
+   * window `registerForTournament` enforces for new entries) — so a
+   * withdrawal inside that window is charged; anything earlier stays free.
+   */
   withdrawRegistration(weekIndex: number): void {
     const idx = this.state.career.tournamentEntries.findIndex((e) => e.weekIndex === weekIndex);
     if (idx === -1) return;
+    const entry = this.state.career.tournamentEntries[idx]!;
+    const pastDeadline = weekIndex - this.state.calendar.weekIndex < BALANCE.tournament.entryDeadlineWeeks;
     this.state.career.tournamentEntries.splice(idx, 1);
+
+    if (pastDeadline) {
+      const def = this.content.tournaments[entry.tournamentId];
+      if (def) {
+        this.state.career.money -= def.entryFee;
+        this.log.push({
+          week: this.state.calendar.weekIndex,
+          type: "tournament.withdrawalFee",
+          subject: this.state.career.playerId,
+          data: { name: def.name, forWeek: weekIndex, fee: def.entryFee },
+        });
+      }
+    }
     this.log.push({
       week: this.state.calendar.weekIndex,
       type: "tournament.withdrew",
       subject: this.state.career.playerId,
-      data: { forWeek: weekIndex },
+      data: { forWeek: weekIndex, feeCharged: pastDeadline },
     });
   }
 
@@ -525,6 +694,29 @@ export class Game {
   }
 
   /**
+   * The bracket/draw the human has played through so far this tournament,
+   * oldest round first — null if no tournament is in progress. Lets the UI
+   * show an actual draw tree: which round, main draw or plate, which
+   * position range — see `tournament/engine.ts`'s `drawRounds`.
+   */
+  tournamentDraw(): DrawRound[] | null {
+    if (!this.tournamentSession) return null;
+    return drawRounds(this.state, this.tournamentSession);
+  }
+
+  /**
+   * The section (main draw or plate, with its round name and position
+   * range) the human's current pending match belongs to — for the match
+   * screen's header. Null if no match is pending.
+   */
+  currentDrawSection(): DrawSection | null {
+    if (!this.tournamentSession?.pendingMatch) return null;
+    const rounds = drawRounds(this.state, this.tournamentSession);
+    const latest = rounds[rounds.length - 1];
+    return latest?.sections.find((s) => s.matchups.some((m) => m.winnerId === null)) ?? null;
+  }
+
+  /**
    * Advances the bracket once the human's match has finished: records the
    * result, carries energy into the next round, or — on elimination or the
    * final win — awards prize money and converts the day's exertion into
@@ -544,7 +736,7 @@ export class Game {
         skills: { ...human.attributes.skills },
         fatigue: human.condition.fatigue,
         money: this.state.career.money,
-        form: human.condition.form,
+        formBySport: { ...human.condition.formBySport },
       };
     }
     return this.weekSnapshot;
@@ -566,7 +758,7 @@ function expectedWeeklyGain(
   counts: ActivityCounts,
   sport: Sport,
   startSkill: number,
-  talent: number,
+  potential: number,
   fatigue: number,
   content: ContentBundle,
   age: number,
@@ -577,7 +769,7 @@ function expectedWeeklyGain(
   let skill = startSkill;
   let total = 0;
   for (let i = 0; i < sessions; i++) {
-    const gain = expectedSessionGain(def.trainingBase, skill, talent, fatigue, age);
+    const gain = expectedSessionGain(def.trainingBase, skill, potential, fatigue, age);
     total += gain;
     skill += gain;
   }
@@ -593,6 +785,30 @@ function traitView(content: ContentBundle, id: string): TraitView | null {
   const def = content.traits[id];
   if (!def) return null;
   return { id: def.id, name: def.name, category: def.category, tone: def.tone, description: def.description };
+}
+
+/**
+ * `projectedField`, but tolerant of a tougher played-up class not having
+ * enough tier-1 NPCs to fill its draw right now — the same shape a
+ * genuinely under-subscribed real class would present, rather than a crash.
+ * Only used for `eligibleDivisions`' non-default choices; the primary
+ * (registered or own-division) field is never expected to hit this.
+ */
+function safeProjectedField(state: GameState, def: TournamentDef, weekIndex: number): Player[] {
+  try {
+    return projectedField(state, def, weekIndex);
+  } catch {
+    return [];
+  }
+}
+
+/** This player's real FIR World Ranking standing (points, rank, field size),
+ * or null if they have no counted result yet — shared by `get you()` and
+ * `opponentProfile()` so both read the exact same ladder. */
+function firStandingFor(state: GameState, playerId: string, gender: "m" | "f"): FirStandingView | null {
+  const standings = firWorldRanking(state, gender);
+  const row = standings.find((s) => s.playerId === playerId);
+  return row ? { points: row.points, rank: row.rank, totalRanked: standings.length } : null;
 }
 
 function opponentView(p: Player): OpponentView {

@@ -119,6 +119,42 @@ describe("Game facade", () => {
     expect(perYearPlayed).toBe(2);
   });
 
+  it("firStanding is null until the human has a counted FIR result", () => {
+    const game = Game.newGame({ content: testContent, seed: "f10" });
+    expect(game.you.firStanding).toBeNull();
+  });
+
+  it("firStanding appears once a tournament is played, ranked against same-gender players", () => {
+    const game = Game.newGame({ content: testContent, seed: "f11" });
+    playTournamentAt(game, 3);
+    const standing = game.you.firStanding;
+    expect(standing).not.toBeNull();
+    expect(standing!.points).toBeGreaterThan(0);
+    expect(standing!.rank).toBeGreaterThanOrEqual(1);
+    expect(standing!.rank).toBeLessThanOrEqual(standing!.totalRanked);
+  });
+
+  it("opponentProfile returns null for an unknown id", () => {
+    const game = Game.newGame({ content: testContent, seed: "f12" });
+    expect(game.opponentProfile("no-such-player")).toBeNull();
+  });
+
+  it("opponentProfile exposes identity/sports/ratings/FIR standing for a real NPC, nothing hidden", () => {
+    const game = Game.newGame({ content: testContent, seed: "f13" });
+    const profile = game.opponentProfile("test-m-0");
+    expect(profile).not.toBeNull();
+    expect(profile!.name.length).toBeGreaterThan(0);
+    expect(profile!.age).toBeGreaterThan(0);
+    expect(profile!.sports.tt.level).toBeGreaterThanOrEqual(1);
+    expect(profile!.ratings.tt.rating).toBeGreaterThan(0);
+    expect(profile!.combinedRating).toBeGreaterThan(0);
+    // no traits/attributes/hidden fields leak onto the type at all — this is
+    // a compile-time guarantee (OpponentProfileView has no such fields), the
+    // runtime check just documents it
+    expect(Object.keys(profile!)).not.toContain("traits");
+    expect(Object.keys(profile!)).not.toContain("attrs");
+  });
+
   it("rejects saves from unknown versions", () => {
     const game = Game.newGame({ content: testContent, seed: "f6" });
     const save = game.serialize();

@@ -9,8 +9,9 @@ Every player — human or AI, real or generated — uses the same shape
 Player
 ├─ identity     immutable: id, name, nationality, club, birthDate, gender, isReal
 ├─ attributes   slow, mostly hidden: skills {tt,bd,sq,tn} 0–1000,
-│               talent, durability, professionalism
-├─ condition    fast, visible: fatigue 0–100, form −10..+10,
+│               potential {tt,bd,sq,tn} 0..1 (hidden per-sport ceiling),
+│               durability, professionalism
+├─ condition    fast, visible: fatigue 0–100, formBySport {tt,bd,sq,tn} 0..20,
 │               confidence −10..+10, injury | null
 ├─ ratings      per sport Glicko-2 {rating, rd, volatility}  ← observed layer
 └─ simTier      0 human · 1 active NPC · 2 background
@@ -19,8 +20,10 @@ Player
 ### Skills vs ratings — the core rule
 
 - **Internal skills (0–1000)** are the ground truth the match engine uses.
-- **Effective strength** = skill + temporary modifiers (form, fatigue, injury,
-  confidence, equipment, travel fatigue, age curve). This is what actually plays.
+- **Effective strength** = (skill × form factor) + temporary modifiers (fatigue,
+  injury, confidence, equipment, travel fatigue, age curve). Form scales how
+  much of true skill shows up that day; everything else is additive. This is
+  what actually plays.
 - **Glicko-2 per sport** is an *observed measurement* — a noisy estimate of the hidden
   skill, updated after match results. It is also the *seed* for initial skills of real
   players. It is an **add-on**, shown alongside but **independent of** the FIR ranking.
@@ -28,10 +31,16 @@ Player
   not skill-derived and not Glicko-derived. Official competitive ladder. See
   [07-ui-screens.md](07-ui-screens.md#the-three-information-layers) for how the three
   layers (hidden skill · Glicko estimate · FIR points) are kept distinct on screen.
-- **Levels 1–20** are fixed 50-point display bands over the internal scale
-  ([sport.ts](../packages/engine/src/model/sport.ts)). They exist purely for progression
-  feedback — no separate XP currency. Shown only for the human's own player; other
-  players never expose a true-skill-derived number.
+- **Levels 1–20** are **convex display bands** over the internal scale
+  (`LEVEL_MIN_SKILL` in [sport.ts](../packages/engine/src/model/sport.ts)): bands widen
+  from ~22 skill at the bottom to ~78 at the top (~3.5×), so low levels come fast and the
+  top is a real grind — compounding with the training taper toward each sport's hidden
+  potential ceiling, which keeps level 20 a rare peak. They exist purely for progression
+  feedback — no separate XP currency, and match/Glicko never read the level, only raw
+  skill. Shown only for the human's own player; other players never expose a
+  true-skill-derived number. The character-creation point-buy mirrors the same convexity
+  (higher levels cost more points — see `sportStepCost` in
+  [character.ts](../apps/web/src/lib/character.ts)).
 
 ### Aging ✅ (continuous modifiers; birthday events/retirement still M4)
 

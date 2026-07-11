@@ -5,13 +5,20 @@
  */
 export const BALANCE = {
   training: {
-    /** gains taper linearly toward zero as skill approaches this value */
-    taperEnd: 1050,
     /** floor for the taper multiplier so progress never fully stalls */
     minTaper: 0.05,
-    /** talent multiplier = talentFloor + talent × talentSpan (talent is 0..1) */
-    talentFloor: 0.75,
-    talentSpan: 0.5,
+    /** potential multiplier = potentialFloor + potential × potentialSpan
+     * (potential is 0..1, per sport) */
+    potentialFloor: 0.75,
+    potentialSpan: 0.5,
+    /** per-sport soft skill ceiling = ceilingFloor + potential × ceilingSpan
+     * (0..1000 scale) — gains taper toward zero as skill approaches it, but
+     * `minTaper` keeps a trickle of progress possible past it (soft cap, not
+     * a hard wall — see systems/effects.ts's `skillCeiling`). A potential-1
+     * sport tops out right at SKILL_MAX; a potential-0 sport plateaus around
+     * level 12. */
+    ceilingFloor: 550,
+    ceilingSpan: 450,
     /** session quality degrades linearly above this fatigue… */
     fatiguePenaltyFrom: 60,
     /** …down to this multiplier at fatigue 100 */
@@ -29,6 +36,33 @@ export const BALANCE = {
     weeklyBase: 10,
     /** emit condition.warning at or above this fatigue */
     warnAt: 75,
+  },
+  /**
+   * Per-sport "tournament readiness" (docs/07). Not a hidden attribute —
+   * visible to the player, distinct from the hidden potential ceiling above.
+   * Deliberately has no pull toward a neutral middle: it only
+   * moves in response to what you actually did (or didn't do) that week, so
+   * the mechanic stays legible — see systems/training.ts/recovery.ts.
+   */
+  form: {
+    /** every new player starts here, in every sport — room to grow into
+     * peak readiness, and room to fall if a sport is ignored from week 1 */
+    initial: 12,
+    max: 20,
+    /** +this per session trained this week, in that sport, up to `sessionsCap` */
+    gainPerSession: 2,
+    sessionsCap: 3,
+    /** a sport with zero sessions this week loses this much */
+    decayPerWeek: 2,
+    /** extra decay across every sport when fatigue crosses this (same
+     * threshold the old global form-decay code used) */
+    highFatigueThreshold: 80,
+    highFatiguePenalty: 1,
+    /** match-effective skill = skill × (matchFloor + matchSpan × form/max) —
+     * even totally out of form (0), most of true skill still shows up, so a
+     * neglected sport is a real handicap without ever feeling like a wipeout */
+    matchFloor: 0.7,
+    matchSpan: 0.3,
   },
   economy: {
     /** rent, food, phone… charged every week. Whole economy rescaled ~10x
@@ -98,8 +132,8 @@ export const BALANCE = {
   match: {
     /** logistic scale per sport: p(point) = 1/(1+e^(−Δeff/scale)). Smaller = skill matters more. */
     scales: { tt: 300, bd: 340, sq: 360, tn: 400 },
-    /** effective strength modifiers */
-    formWeight: 3, // ±10 form → ±30 eff
+    /** effective strength modifiers (form is applied multiplicatively to
+     * skill instead — see BALANCE.form.matchFloor/matchSpan) */
     fatigueWeight: 0.5, // 100 pre-match fatigue → −50 eff
     energyWeight: 0.35, // fully drained in-match energy → −35 eff
     /**
@@ -108,6 +142,14 @@ export const BALANCE = {
      * squash is the grind).
      */
     energyCostPerPoint: { tt: 0.15, bd: 0.6, sq: 0.75, tn: 0.45 },
+    /** energy-cost multiplier from the Stamina attribute (0..1) —
+     * staminaCostFloor + (1−stamina) × staminaCostSpan, so a stamina-1 player
+     * burns energy at 0.8× the baseline rate per point and a stamina-0 player
+     * at 1.2×. Centered so stamina 0.5 (an "average" player) reproduces
+     * exactly today's flat rate — existing balance is unchanged at the
+     * midpoint, only spread out around it. */
+    staminaCostFloor: 0.8,
+    staminaCostSpan: 0.4,
     /**
      * A single 5-step dial chosen at match start, the 11-point side change,
      * and between sets — ordered by energy cost, low to high:
@@ -167,12 +209,40 @@ export const BALANCE = {
      * planning ahead is a real requirement, not just an option */
     entryDeadlineWeeks: 2,
     /** flat energy recovery between rounds (changeover/rest), on top of
-     * whatever energy the player has left */
+     * whatever energy the player has left — scaled per-player by
+     * staminaRecoveryFloor/Span below */
     energyRecoveryBetweenRounds: 20,
+    /** between-round recovery multiplier from Stamina (0..1) —
+     * staminaRecoveryFloor + stamina × staminaRecoverySpan, so a stamina-0
+     * player only recovers 0.7× the base 20 (14) between rounds while a
+     * stamina-1 player recovers 1.3× (26) — the "not enough time to fully
+     * recover" toll hits low-stamina players harder as a tournament goes on.
+     * Centered the same way as staminaCostFloor/Span: stamina 0.5 reproduces
+     * exactly today's flat 20. */
+    staminaRecoveryFloor: 0.7,
+    staminaRecoverySpan: 0.6,
     /** cumulative in-tournament energy spent × this = fatigue added to the
      * player's condition once the event concludes */
     fatigueConversionFactor: 0.5,
   },
+  /**
+   * FIR entry-fee ceilings (Tournament Regs 3.3.1, singles, EUR) — the
+   * maximum a tier's tournaments may charge. Content authors currently price
+   * every division of a tier's events at the ceiling (the regulation's own
+   * per-class discounts — 2nd class, seniors, doubles — don't apply yet,
+   * since the game has no such classes). World Tour Finals has no FIR fee of
+   * its own (an invitational season finale); it's priced as World
+   * Championships, same as its ranking-points column (see ranking-matrix.json).
+   * Enforced by packages/content/test/content.test.ts.
+   */
+  entryFeeCeiling: {
+    "World Championships": 80,
+    "World Tour Finals": 80,
+    SWT: 70,
+    IWT: 60,
+    CHA: 50,
+    SAT: 40,
+  } as Record<string, number>,
   /**
    * TravelSystem cost model (docs/06 M2, pulled forward alongside the real
    * calendar): flights scale with great-circle distance, hotel/food scale
@@ -188,6 +258,37 @@ export const BALANCE = {
     perKm: 0.11,
     /** baseline hotel + food per night, before the host country's costIndex */
     dailyCostBase: 90,
+  },
+  /**
+   * FIR real-player import (docs/05, world/factory.ts's `specFromRealPlayer`).
+   * The build-time Glicko→skill mapping anchors live in
+   * packages/content/src/import/mapRatings.ts (seed-independent); this is the
+   * one world-creation-time constant, since per-world sampling spread is a
+   * runtime concern, not a build one.
+   */
+  import: {
+    /** exact per-world skill sampled from N(mappedSkill, rdSampleK · rdSkill)
+     * — well-measured players (low RD) land close to their rating every
+     * career; rarely-seen players (high RD) vary more between worlds */
+    rdSampleK: 1,
+  },
+  /**
+   * Tournament skill divisions (A/B/C/D), gated by real FIR ranking points —
+   * see systems/division.ts. Keyed by the exact `tier` strings in content;
+   * a tier missing here is a content-authoring bug (division.ts throws
+   * rather than guessing). World Tour Finals mirroring World Championships
+   * (4 divisions) is an unconfirmed assumption, same pattern as that tier's
+   * existing fieldSize assumption.
+   */
+  division: {
+    byTier: {
+      SAT: ["A", "B"],
+      CHA: ["A", "B"],
+      IWT: ["A", "B", "C"],
+      SWT: ["A", "B", "C", "D"],
+      "World Championships": ["A", "B", "C", "D"],
+      "World Tour Finals": ["A", "B", "C", "D"],
+    } as Record<string, readonly string[]>,
   },
   /** InboxSystem — the diegetic message feed (docs/07). */
   inbox: {

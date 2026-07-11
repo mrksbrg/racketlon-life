@@ -9,6 +9,7 @@ import {
   luckTell,
   maxRemainingFor,
   playPoint,
+  pointsToWin,
   resumeMatch,
   setTactic,
   totalPoints,
@@ -19,8 +20,9 @@ function ref(id: string, skill: number, overrides: Partial<MatchPlayerRef> = {})
     id,
     name: id,
     skills: { tt: skill, bd: skill, sq: skill, tn: skill },
-    form: 0,
+    formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
     fatigue: 20,
+    stamina: 0.5,
     age: 25, // neutral age-modifier window — these tests aren't about aging
     ...overrides,
   };
@@ -259,5 +261,56 @@ describe("match engine", () => {
     const ttSafeCost = beforeTT.a - tt.energy.a;
     const ttAggroCost = beforeTT.b - tt.energy.b;
     expect(ttSafeCost - ttAggroCost).toBeLessThan(safeCost - aggressiveCost);
+  });
+
+  describe("pointsToWin (magic number)", () => {
+    /** A match with the first three sets pre-filled and the tennis set open. */
+    function atTennis(a: [number, number], b: [number, number], c: [number, number]): MatchState {
+      const m = createMatch(ref("a", 500), ref("b", 500), "ptw");
+      m.sets[0] = { a: a[0], b: a[1], done: true };
+      m.sets[1] = { a: b[0], b: b[1], done: true };
+      m.sets[2] = { a: c[0], b: c[1], done: true };
+      m.setIndex = 3;
+      m.phase = "break";
+      m.breakReason = "setEnd";
+      return m;
+    }
+
+    it("with an 8-point lead into tennis, the leader needs 22 − lead points", () => {
+      // a leads 60–52 after three sets (diff 8): needs 14 tennis points to clinch
+      const m = atTennis([21, 15], [21, 18], [18, 19]);
+      expect(totalPoints(m, "a") - totalPoints(m, "b")).toBe(8);
+      expect(pointsToWin(m)).toEqual({ side: "a", points: 14 });
+    });
+
+    it("names side b as the leader when b is ahead", () => {
+      const m = atTennis([15, 21], [18, 21], [19, 18]);
+      const ptw = pointsToWin(m);
+      expect(ptw?.side).toBe("b");
+      expect(ptw?.points).toBe(14);
+    });
+
+    it("with a lead of 2 or less, the leader must effectively win the tennis set", () => {
+      // diff 1 → cannot clinch on totals alone; needs to win the set (21 points)
+      const m = atTennis([21, 20], [21, 20], [21, 20]);
+      expect(totalPoints(m, "a") - totalPoints(m, "b")).toBe(3); // 63-60
+      // diff 3 → 22-3 = 19
+      expect(pointsToWin(m)).toEqual({ side: "a", points: 19 });
+      const tight = atTennis([21, 20], [21, 20], [20, 21]);
+      expect(totalPoints(tight, "a") - totalPoints(tight, "b")).toBe(1);
+      expect(pointsToWin(tight)).toEqual({ side: "a", points: 21 });
+    });
+
+    it("returns null when the totals are level (a gummiarm looms)", () => {
+      const m = atTennis([21, 19], [19, 21], [20, 20]);
+      expect(totalPoints(m, "a")).toBe(totalPoints(m, "b"));
+      expect(pointsToWin(m)).toBeNull();
+    });
+
+    it("returns null once the match is finished", () => {
+      const m = runMatch("ptw-done", 700, 300);
+      expect(m.phase).toBe("finished");
+      expect(pointsToWin(m)).toBeNull();
+    });
   });
 });

@@ -1,10 +1,10 @@
 import { BALANCE } from "../balance.js";
 import { ageOn } from "../core/date.js";
-import { round1 } from "../core/util.js";
+import { clamp, round1 } from "../core/util.js";
 import type { Player } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import { SKILL_MAX, SPORTS, levelForSkill } from "../model/sport.js";
-import { countEntries, expectedSessionGain } from "./effects.js";
+import { countEntries, expectedSessionGain, formDelta } from "./effects.js";
 import type { GameSystem, SystemContext } from "./types.js";
 
 /**
@@ -12,6 +12,12 @@ import type { GameSystem, SystemContext } from "./types.js";
  * player *brought into* the week (FatigueSystem runs after Training), so
  * overtraining last week makes this week's sessions worse — a consequence
  * the player can see coming.
+ *
+ * Also updates per-sport form (BALANCE.form): a sport actually trained this
+ * week gains form, one left untouched (including an injury-blocked sport —
+ * you couldn't practice it either way) decays. This is the one place that
+ * already has this week's per-sport session counts, so form and skill are
+ * updated from the same loop.
  */
 export const TrainingSystem: GameSystem = {
   id: "training",
@@ -19,6 +25,7 @@ export const TrainingSystem: GameSystem = {
     for (const player of ctx.state.players) {
       const counts = ctx.plans.get(player.identity.id);
       if (!counts) continue;
+      const sessionsBySport: Record<Sport, number> = { tt: 0, bd: 0, sq: 0, tn: 0 };
       for (const [type, sessions] of countEntries(counts)) {
         const def = ctx.content.activities[type];
         if (def.sport !== undefined && def.trainingBase !== undefined) {
@@ -26,6 +33,7 @@ export const TrainingSystem: GameSystem = {
             ctx.log.emit("injury.blocked", player.identity.id, { sport: def.sport, sessions });
             continue;
           }
+          sessionsBySport[def.sport] += sessions;
           trainSport(ctx, player, def.sport, def.trainingBase, sessions);
         } else if (type === "physical") {
           for (const sport of SPORTS) {
@@ -33,6 +41,7 @@ export const TrainingSystem: GameSystem = {
           }
         }
       }
+      updateForm(ctx, player, sessionsBySport);
     }
   },
 };
@@ -44,7 +53,7 @@ function trainSport(
   base: number,
   sessions: number,
 ): void {
-  const { talent } = player.attributes;
+  const potential = player.attributes.potential[sport];
   const { fatigue } = player.condition;
   const age = ageOn(ctx.state.calendar.mondayISO, player.identity.birthDate);
   let gain = 0;
@@ -52,7 +61,7 @@ function trainSport(
     const expected = expectedSessionGain(
       base,
       player.attributes.skills[sport] + gain,
-      talent,
+      potential,
       fatigue,
       age,
     );
@@ -66,6 +75,25 @@ function trainSport(
       sessions,
       gain: round1(applied),
     });
+  }
+}
+
+const FORM_RUSTY_THRESHOLD = 6;
+
+/** Applies this week's per-sport form change and emits a note when a sport
+ * crosses into "rusty" or reaches full readiness — mirrors the level-up
+ * event's crossing pattern (fires once, on the week it happens). */
+function updateForm(ctx: SystemContext, player: Player, sessionsBySport: Record<Sport, number>): void {
+  const f = BALANCE.form;
+  for (const sport of SPORTS) {
+    const before = player.condition.formBySport[sport];
+    const after = clamp(before + formDelta(sessionsBySport[sport]), 0, f.max);
+    player.condition.formBySport[sport] = after;
+    if (after < FORM_RUSTY_THRESHOLD && before >= FORM_RUSTY_THRESHOLD) {
+      ctx.log.emit("form.rusty", player.identity.id, { sport });
+    } else if (after >= f.max && before < f.max) {
+      ctx.log.emit("form.sharp", player.identity.id, { sport });
+    }
   }
 }
 

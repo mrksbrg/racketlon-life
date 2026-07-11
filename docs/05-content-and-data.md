@@ -36,8 +36,8 @@ results.csv   optional: per-match history for trajectory-based talent estimation
 - **RD = uncertainty**: at world creation, sample skill from `N(mapped, k·RD)` with the
   per-world seed. Well-measured players land close to their rating; rarely-seen players
   vary between worlds. Replayability without falsifying strong data.
-- **Hidden attributes** (talent, durability, professionalism) are generated
-  deterministically from `hash(externalId, worldSeed)` within plausible bands.
+- **Hidden attributes** (per-sport potential, durability, professionalism) are
+  generated deterministically from `hash(externalId, worldSeed)` within plausible bands.
 - **Birth dates**: not in FIR data, but `PlayerIdentity.birthDate` is a required
   field the engine assumes everywhere (age-based training/injury/recovery
   modifiers, match-day age bonus — see docs/04's Age modifiers) — **every
@@ -55,7 +55,7 @@ results.csv   optional: per-match history for trajectory-based talent estimation
 
 `NewPlayerSystem` runs monthly — a continuous drip, never a year-end batch.
 **Archetypes are content**: juniors, late starters, ex-tennis/ex-squash converts,
-TT specialists, comeback players — each with per-sport skill priors, talent
+TT specialists, comeback players — each with per-sport skill priors, potential
 distribution, entry age band, and backstory templates.
 
 - Distribution: ~80 % grassroots, ~15 % interesting talents, ~5 % potential stars.

@@ -3,10 +3,13 @@ import type {
   ActivityType,
   CareerStatsView,
   CharacterDraft,
+  DivisionCode,
+  DrawRound,
   Forecast,
   HumanView,
   InboxView,
   MatchState,
+  OpponentProfileView,
   SaveGame,
   Sport,
   SportView,
@@ -40,7 +43,9 @@ export type Screen =
   | "me"
   | "simulating"
   | "summary"
-  | "match";
+  | "match"
+  | "draw"
+  | "opponent";
 
 /** Screens reachable from the bottom tab bar (docs/07's nav model — full-screen
  * flows like match/summary/create run over the top, without it). */
@@ -55,6 +60,9 @@ export interface TournamentContext {
   name: string;
   round: number;
   totalRounds: number;
+  /** e.g. "Quarterfinal" or "Plate Semifinal" — see DrawSection.roundName */
+  roundName: string;
+  isMainDraw: boolean;
 }
 
 const DAY = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 } as const;
@@ -166,6 +174,11 @@ class GameStore {
   match = $state<MatchState | null>(null);
   matchSpeed = $state<MatchSpeed>(2);
   tournamentContext = $state<TournamentContext | null>(null);
+  /** id of the player whose profile is open, and the screen to return to —
+   * set together by `viewOpponent`, so the profile can be reached from any
+   * tab/draw/field-list context and hand back to exactly where it opened. */
+  viewingOpponentId = $state<string | null>(null);
+  private previousScreen = $state<Screen>("planner");
 
   /** Game is a non-reactive class; bumped after every simulated week so views refresh. */
   private version = $state(0);
@@ -180,6 +193,13 @@ class GameStore {
   readonly careerStats: CareerStatsView | null = $derived.by(() => {
     this.version;
     return this.game ? this.game.careerStats() : null;
+  });
+
+  /** The open opponent profile, if any — see `viewOpponent`. */
+  readonly opponentProfile: OpponentProfileView | null = $derived.by(() => {
+    this.version;
+    if (!this.game || !this.viewingOpponentId) return null;
+    return this.game.opponentProfile(this.viewingOpponentId);
   });
 
   /** Diegetic message feed, newest first. */
@@ -238,10 +258,14 @@ class GameStore {
   readonly sportPointsLeft: number = $derived(sportPointsRemaining(this.draft));
   readonly attrPointsLeft: number = $derived(attrPointsRemaining(this.draft));
 
-  /** Both pools fully spent and a name entered — everything Start needs. */
+  /** Within budget on both pools and a name entered — everything Start needs.
+   * We allow leftover points (`>= 0`, not exact `=== 0`): the progressive
+   * sport costs mean the last point or two can't always land on exactly zero,
+   * and requiring an exact spend would softlock the flow. The label still
+   * nudges the player to spend what's left. */
   readonly canStartCareer: boolean = $derived(
-    this.sportPointsLeft === 0 &&
-      this.attrPointsLeft === 0 &&
+    this.sportPointsLeft >= 0 &&
+      this.attrPointsLeft >= 0 &&
       this.draft.firstName.trim().length > 0 &&
       this.draft.lastName.trim().length > 0,
   );
@@ -328,6 +352,30 @@ class GameStore {
     this.screen = screen;
   }
 
+  /** Opens a public profile for another player — reachable from a draw, a
+   * tournament field, a match in progress, or anywhere else a name is shown.
+   * Tapping your own name while already on a tab screen jumps straight to
+   * the full Me tab (the richer view of the same person, and tab-to-tab
+   * navigation is always safe there). But mid-match or mid-draw, "Me" would
+   * strand that in-progress flow with no way back — so there it opens the
+   * same lightweight overlay as any other player and hands back to
+   * `previousScreen` on close, exactly like an opponent's would. */
+  viewOpponent(id: string): void {
+    if (id === this.you?.id && TAB_SCREENS.includes(this.screen)) {
+      this.screen = "me";
+      return;
+    }
+    this.previousScreen = this.screen;
+    this.viewingOpponentId = id;
+    this.screen = "opponent";
+  }
+
+  /** Returns from the opponent profile to wherever it was opened from. */
+  closeOpponent(): void {
+    this.viewingOpponentId = null;
+    this.screen = this.previousScreen;
+  }
+
   /** Marks one inbox message read and persists (read state lives in the save). */
   async markRead(id: string): Promise<void> {
     if (!this.game) return;
@@ -370,11 +418,14 @@ class GameStore {
   }
 
   /** Registers for a future tournament — at least entryDeadlineWeeks ahead;
-   * the engine throws otherwise. Persists immediately since this is a real
-   * commitment, not ephemeral UI state. */
-  async registerForTournament(weekIndex: number): Promise<void> {
+   * the engine throws otherwise. Defaults to the human's own class; pass
+   * `division` to play up into a tougher one instead (see
+   * `TourEntry.eligibleDivisions`). Also how to switch an existing
+   * registration to a different eligible class. Persists immediately since
+   * this is a real commitment, not ephemeral UI state. */
+  async registerForTournament(weekIndex: number, division?: DivisionCode): Promise<void> {
     if (!this.game) return;
-    this.game.registerForTournament(weekIndex);
+    this.game.registerForTournament(weekIndex, division);
     this.version++;
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
   }
@@ -388,15 +439,44 @@ class GameStore {
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
   }
 
+/** Round-name/main-vs-plate context for the human's current match — falls
+   * back to a plain "Round N" if the engine has no section info yet (e.g.
+   * mid-transition), so the UI always has something sane to show. */
+  private sectionInfo(round: number): { roundName: string; isMainDraw: boolean } {
+    const section = this.game?.currentDrawSection();
+    return section ? { roundName: section.roundName, isMainDraw: section.isMainDraw } : { roundName: `Round ${round}`, isMainDraw: true };
+  }
+
   /** Plays out this week's tournament — only valid once registered for it. */
   enterTournament(): void {
     if (!this.game) return;
     const def = this.game.registeredTournamentThisWeek();
     if (!def) return;
     this.match = this.game.enterTournament();
-    this.tournamentContext = { name: def.name, round: 1, totalRounds: Math.log2(def.fieldSize) };
+    this.tournamentContext = {
+      name: def.name,
+      round: 1,
+      totalRounds: Math.log2(def.fieldSize),
+      ...this.sectionInfo(1),
+    };
     this.version++;
     this.screen = "match";
+  }
+
+  /** The bracket/draw for the tournament in progress, oldest round first —
+   * empty when there's no active tournament. */
+  get drawRounds(): DrawRound[] {
+    return this.game?.tournamentDraw() ?? [];
+  }
+
+  /** Opens the full draw/bracket view over the current match. */
+  viewDraw(): void {
+    if (this.match) this.screen = "draw";
+  }
+
+  /** Returns from the draw view back to the match in progress. */
+  closeDraw(): void {
+    if (this.match) this.screen = "match";
   }
 
   /** The human is always side "a" in a tournament match. */
@@ -430,7 +510,8 @@ class GameStore {
     const outcome = this.game.resolveTournamentMatch(this.match);
     if (outcome.status === "nextRound") {
       this.match = outcome.match;
-      this.tournamentContext = { ...this.tournamentContext, round: outcome.round + 1 };
+      const round = outcome.round + 1;
+      this.tournamentContext = { ...this.tournamentContext, round, ...this.sectionInfo(round) };
       return;
     }
     this.tournamentContext = null;

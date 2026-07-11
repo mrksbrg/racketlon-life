@@ -1,5 +1,29 @@
-import type { ActivityType, ContentBundle, PlayerPlan } from "../src/index.js";
+import type { ActivityType, ContentBundle, PlayerPlan, RealPlayerDef } from "../src/index.js";
 import { SLOTS_PER_WEEK } from "../src/index.js";
+
+/** A small deterministic real-player roster so world creation has a pool to
+ * seed tier-1 NPCs from (mirrors the FIR world bundle). 16 per gender is more
+ * than the 7 opponents a fieldSize-8 test tournament needs. */
+function testRoster(): RealPlayerDef[] {
+  const players: RealPlayerDef[] = [];
+  for (const gender of ["m", "f"] as const) {
+    for (let i = 0; i < 16; i++) {
+      const base = 300 + i * 40; // spread of skills across the pool
+      const rating = { skill: base, rdSkill: 60 };
+      players.push({
+        playerId: `test-${gender}-${i}`,
+        firstName: "Test",
+        lastName: `${gender.toUpperCase()}${i}`,
+        nationality: "SE",
+        gender,
+        birthYear: 1990 + (i % 15),
+        ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
+        firPoints: null,
+      });
+    }
+  }
+  return players;
+}
 
 /** Minimal content bundle so engine tests don't depend on @racketlon/content. */
 export const testContent: ContentBundle = {
@@ -32,9 +56,41 @@ export const testContent: ContentBundle = {
   // entry-fee-only assertions elsewhere valid. A 4th, foreign tournament
   // (week 20, well past anything the default-count schedule tests slice)
   // exists solely for travel-cost tests.
+  //
+  // testRoster() never sets firPoints, so every NPC lands in the tier's
+  // single lowest division (divisionAssignments' "all null -> lowest" rule)
+  // — SAT (["A","B"]) -> "B", IWT (["A","B","C"]) -> "C". humanDivisionDef
+  // resolves the human there too, matching real content's default. But
+  // humanEligibleDivisions (playing up — see tournament/engine.ts) also
+  // needs every *tougher* division's row to exist for these events, same as
+  // a real content author publishes every division per event (enforced by
+  // packages/content/test/content.test.ts) — so each event below also
+  // carries its tougher sibling rows. Nobody in this null-only roster is
+  // ever assigned to those tougher divisions, so their own field preview
+  // would have zero eligible NPCs; facade.ts's `eligibleDivisions` handles
+  // that by falling back to an empty entrants list rather than throwing —
+  // exactly the same shape a genuinely under-subscribed real class would hit.
   tournaments: {
     "monthly-open-1": {
       id: "monthly-open-1",
+      eventId: "monthly-open-1",
+      division: "B",
+      name: "Monthly Open",
+      city: "Testville",
+      country: "SE",
+      lat: 60,
+      lon: 15,
+      tier: "SAT",
+      date: "2026-01-26",
+      nights: 1,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
+    "monthly-open-1-a": {
+      id: "monthly-open-1-a",
+      eventId: "monthly-open-1",
+      division: "A",
       name: "Monthly Open",
       city: "Testville",
       country: "SE",
@@ -49,6 +105,24 @@ export const testContent: ContentBundle = {
     },
     "monthly-open-2": {
       id: "monthly-open-2",
+      eventId: "monthly-open-2",
+      division: "B",
+      name: "Monthly Open",
+      city: "Testville",
+      country: "SE",
+      lat: 60,
+      lon: 15,
+      tier: "SAT",
+      date: "2026-02-23",
+      nights: 1,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
+    "monthly-open-2-a": {
+      id: "monthly-open-2-a",
+      eventId: "monthly-open-2",
+      division: "A",
       name: "Monthly Open",
       city: "Testville",
       country: "SE",
@@ -63,6 +137,24 @@ export const testContent: ContentBundle = {
     },
     "monthly-open-3": {
       id: "monthly-open-3",
+      eventId: "monthly-open-3",
+      division: "B",
+      name: "Monthly Open",
+      city: "Testville",
+      country: "SE",
+      lat: 60,
+      lon: 15,
+      tier: "SAT",
+      date: "2026-03-23",
+      nights: 1,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
+    "monthly-open-3-a": {
+      id: "monthly-open-3-a",
+      eventId: "monthly-open-3",
+      division: "A",
       name: "Monthly Open",
       city: "Testville",
       country: "SE",
@@ -77,6 +169,8 @@ export const testContent: ContentBundle = {
     },
     "intl-open-1": {
       id: "intl-open-1",
+      eventId: "intl-open-1",
+      division: "C",
       name: "International Open",
       city: "Foreignville",
       country: "NO",
@@ -89,6 +183,92 @@ export const testContent: ContentBundle = {
       fieldSize: 8,
       prizeByRoundsWon: [0, 200, 500, 1500],
     },
+    "intl-open-1-a": {
+      id: "intl-open-1-a",
+      eventId: "intl-open-1",
+      division: "A",
+      name: "International Open",
+      city: "Foreignville",
+      country: "NO",
+      lat: 60,
+      lon: 5,
+      tier: "IWT",
+      date: "2026-05-25",
+      nights: 2,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
+    "intl-open-1-b": {
+      id: "intl-open-1-b",
+      eventId: "intl-open-1",
+      division: "B",
+      name: "International Open",
+      city: "Foreignville",
+      country: "NO",
+      lat: 60,
+      lon: 5,
+      tier: "IWT",
+      date: "2026-05-25",
+      nights: 2,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
+    // A 16-draw, solely for testing the monrad plate/banding structure at a
+    // size where the 3-game cap actually bites (see tournament.test.ts's
+    // "monrad placement bracket" describe block). Division "C" needs all 16
+    // same-gender testRoster() players (all null firPoints, so all fall into
+    // IWT's lowest band) to fill its 15 opponent slots — the tightest fit
+    // this roster allows.
+    "intl-open-2": {
+      id: "intl-open-2",
+      eventId: "intl-open-2",
+      division: "C",
+      name: "International Open Cup",
+      city: "Foreignville",
+      country: "NO",
+      lat: 60,
+      lon: 5,
+      tier: "IWT",
+      date: "2026-08-03", // weekIndex 30
+      nights: 3,
+      entryFee: 300,
+      fieldSize: 16,
+      prizeByRoundsWon: [0, 150, 350, 800, 2000],
+    },
+    "intl-open-2-a": {
+      id: "intl-open-2-a",
+      eventId: "intl-open-2",
+      division: "A",
+      name: "International Open Cup",
+      city: "Foreignville",
+      country: "NO",
+      lat: 60,
+      lon: 5,
+      tier: "IWT",
+      date: "2026-08-03",
+      nights: 3,
+      entryFee: 300,
+      fieldSize: 16,
+      prizeByRoundsWon: [0, 150, 350, 800, 2000],
+    },
+    "intl-open-2-b": {
+      id: "intl-open-2-b",
+      eventId: "intl-open-2",
+      division: "B",
+      name: "International Open Cup",
+      city: "Foreignville",
+      country: "NO",
+      lat: 60,
+      lon: 5,
+      tier: "IWT",
+      date: "2026-08-03",
+      nights: 3,
+      entryFee: 300,
+      fieldSize: 16,
+      prizeByRoundsWon: [0, 150, 350, 800, 2000],
+    },
   },
   // a small pool covering every tone, plus one exclude pair, enough to
   // exercise rollTraits() without depending on @racketlon/content
@@ -100,6 +280,25 @@ export const testContent: ContentBundle = {
     creature_of_habit: { id: "creature_of_habit", name: "Creature of Habit", category: "training", tone: "neutral", rarity: "common", description: "Test" },
     aggressive: { id: "aggressive", name: "Aggressive", category: "competition", tone: "neutral", rarity: "uncommon", description: "Test" },
   },
+  // A trimmed FIR points matrix (real Annex A values) for the two tiers these
+  // test tournaments use — SAT only needs positions 1–8 (its one fieldSize-8
+  // fixture), IWT needs 1–16 (its fieldSize-16 fixture too). See
+  // packages/content/data/ranking-matrix.json.
+  rankingMatrix: {
+    SAT: {
+      A: [633, 538, 475, 443, 380, 361, 342, 323],
+      B: [253, 215, 190, 177, 152, 144, 137, 129],
+      C: [101, 86, 76, 71, 61, 58, 55, 52],
+      D: [41, 34, 30, 28, 24, 23, 22, 21],
+    },
+    IWT: {
+      A: [1125, 956, 844, 788, 675, 641, 608, 574, 534, 478, 450, 422, 394, 366, 338, 309],
+      B: [450, 383, 338, 315, 270, 257, 243, 230, 214, 191, 180, 169, 158, 146, 135, 124],
+      C: [180, 153, 135, 126, 108, 103, 97, 92, 86, 77, 72, 68, 63, 59, 54, 50],
+      D: [72, 61, 54, 50, 43, 41, 39, 37, 34, 31, 29, 27, 25, 23, 22, 20],
+    },
+  },
+  players: testRoster(),
 };
 
 /** Builds a 21-slot plan from activity counts, padding with rest. */

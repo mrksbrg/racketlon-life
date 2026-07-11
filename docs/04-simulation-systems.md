@@ -7,13 +7,13 @@ Each system is one file in `packages/engine/src/systems/`. ✅ = built.
 |---|--------|-----------|-------|--------|-------|
 | 1 | Planning ✅ | M0 | humanPlan, players | ctx.plans | — |
 | 2 | Travel | M2 | plans, tournaments | travel fatigue, location | travel.* |
-| 3 | Training ✅ | M0 | plans, skills, fatigue | skills | training.progress, training.levelUp |
+| 3 | Training ✅ | M0 | plans, skills, fatigue | skills, condition.formBySport | training.progress, training.levelUp, form.rusty, form.sharp |
 | 4 | Economy ✅ | M0 | plans | career.money | economy.week, economy.broke |
 | 5 | Tournament ✅ | M1 | calendar, tier-1 pool, ratings | career.money, condition.fatigue, career.tournamentEntries | tournament.registered/withdrew/entered/won/eliminated |
 | 6 | Match ✅ | M0 | effective strength | point-by-point results | — (invoked by Tournament/friendly, not its own pipeline step) |
 | 7 | Ranking ✅ | M1 | results, placements | Glicko-2 ratings (FIR points still pending) | ranking.moved |
 | 8 | Fatigue ✅ | M0 | plans | condition.fatigue | — |
-| 9 | Recovery ✅ | M0 | condition | fatigue, form | condition.warning |
+| 9 | Recovery ✅ | M0 | condition | fatigue, formBySport (high-fatigue penalty only) | condition.warning |
 | 10 | Injury ✅ | M1 | week load, durability, rng | condition.injury | injury.occurred/blocked/recovered |
 | 11 | Progression ✅ | M1 | results, milestones | titles, bestRating | progression.title/personalBest |
 | 12 | Aging (modifiers) ✅ / (birthday events) M4 | M1 / M4 | birthDate vs calendar | age modifiers (M1, done); birthday event (M4, pending) | birthday (M4) |
@@ -32,11 +32,19 @@ focus mostly on the weakest sport, intensity from professionalism. Compact plans
 to the same counts shape, so no later system knows who is human.
 
 ### TrainingSystem
-Per session: `gain = base × taper(skill) × talentMult × fatigueMult × noise`
-([effects.ts](../packages/engine/src/systems/effects.ts)). Session quality uses the
-fatigue a player *brought into* the week — overtraining hurts next week, visibly.
-Physical training gives a small all-sport conditioning gain. Level-band crossings emit
-`training.levelUp`.
+Per session: `gain = base × taper(skill, ceiling) × potentialMult × fatigueMult × noise`
+([effects.ts](../packages/engine/src/systems/effects.ts)), where `ceiling` is the
+sport's hidden soft cap derived from `potential` (`skillCeiling`) — a low-potential
+sport plateaus earlier than a high-potential one, even at identical training. Session
+quality also uses the fatigue a player *brought into* the week — overtraining hurts
+next week, visibly. Physical training gives a small all-sport conditioning gain.
+Level-band crossings emit `training.levelUp`.
+
+Same loop also updates **per-sport form** (0..20, "tournament readiness"): a sport
+actually trained this week gains form (capped per week), one left untouched — including
+one blocked by injury — decays. Crossing into "rusty" or reaching full readiness emits
+`form.rusty`/`form.sharp` for the weekly summary. Spreading limited weekly training slots
+across four sports means real trade-offs: sharpening one lets others go rusty.
 
 ### EconomySystem
 Human only. `money += work income − activity costs − weekly living expenses`.
@@ -44,8 +52,11 @@ Negative balance emits `economy.broke` (story hook: extra work offers at low mon
 
 ### FatigueSystem / RecoverySystem
 Fatigue accumulates from activities (rest/social are negative); recovery applies a flat
-natural weekly reduction, drifts form toward neutral, and warns at ≥ 75 fatigue.
-From M1: recovery rate scales with age and quality of rest (hotels, home vs travel).
+natural weekly reduction and warns at ≥ 75 fatigue. Recovery also applies an extra
+form penalty, uniformly across all four sports, when fatigue is deep enough — form
+itself is otherwise driven entirely by TrainingSystem's neglect/practice logic, with no
+pull toward a neutral middle. From M1: recovery rate scales with age and quality of
+rest (hotels, home vs travel).
 
 ### SummarySystem
 Read-only. Diffs the human snapshot (taken by the orchestrator before systems run),

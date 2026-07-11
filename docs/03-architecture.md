@@ -27,11 +27,12 @@ UI plan (21 slots)
       → simulateWeek(state, plan, content, log)          orchestrator.ts
           PlanningSystem      resolve human slots + AI compact plans → counts
           (TravelSystem)                                              M2
-          TrainingSystem      skills += f(base, taper, talent, fatigue, rng)
+          TrainingSystem      skills += f(base, taper, potential, fatigue, rng);
+                              formBySport += trained ? gain : -decay
           EconomySystem       money += work − costs − living expenses
           (Tournament → Match → Ranking)                              M1
           FatigueSystem       fatigue += Σ activity fatigue
-          RecoverySystem      natural recovery, form drift, warnings
+          RecoverySystem      natural recovery, high-fatigue form penalty, warnings
           (InjurySystem)                                              M1
           (Aging / NewPlayer / Retirement)                            M4
           (StorySystem → offers, AchievementSystem)                   M3

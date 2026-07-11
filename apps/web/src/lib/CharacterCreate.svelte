@@ -11,6 +11,7 @@
     ageFromBirthDate,
     canLower,
     canRaise,
+    nextRaiseCost,
     statValue,
   } from "./character";
   import { store } from "./store.svelte";
@@ -32,7 +33,7 @@
 
   const startLabel = $derived.by(() => {
     if (!store.draft.firstName.trim() || !store.draft.lastName.trim()) return "Enter a name";
-    if (store.sportPointsLeft !== 0 || store.attrPointsLeft !== 0) return "Spend all points";
+    if (store.sportPointsLeft < 0 || store.attrPointsLeft < 0) return "Over budget";
     return "Start career ▸";
   });
 </script>
@@ -130,6 +131,7 @@
 
 {#snippet statRow(row: { key: StatKey; label: string; hint: string; color: string })}
   {@const value = statValue(store.draft, row.key)}
+  {@const cost = nextRaiseCost(store.draft, row.key)}
   <div class="row">
     <span class="dot" style:background={row.color}></span>
     <div class="meta">
@@ -143,7 +145,14 @@
     </div>
     <div class="steppers">
       <button aria-label="Lower {row.label}" disabled={!canLower(store.draft, row.key)} onclick={() => store.adjustStat(row.key, -1)}>−</button>
-      <button aria-label="Raise {row.label}" disabled={!canRaise(store.draft, row.key)} onclick={() => store.adjustStat(row.key, 1)}>+</button>
+      <button
+        class="raise"
+        aria-label="Raise {row.label} — costs {cost} point{cost === 1 ? '' : 's'}"
+        disabled={!canRaise(store.draft, row.key)}
+        onclick={() => store.adjustStat(row.key, 1)}
+      >
+        +{#if cost > 1}<span class="stepcost">{cost}</span>{/if}
+      </button>
     </div>
   </div>
 {/snippet}
@@ -431,6 +440,7 @@
   }
 
   .steppers button {
+    position: relative;
     width: 28px;
     height: 28px;
     border-radius: 7px;
@@ -443,6 +453,28 @@
 
   .steppers button:disabled {
     opacity: 0.3;
+  }
+
+  /* tiny cost badge on the raise button when a level costs more than 1 point
+     — makes the progressive sport cost legible at the point of action */
+  .stepcost {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 14px;
+    height: 14px;
+    padding: 0 3px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 14px;
+    text-align: center;
+  }
+
+  .raise:disabled .stepcost {
+    background: var(--muted);
   }
 
   footer {

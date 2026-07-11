@@ -43,10 +43,10 @@
       <div class="field-label">Field ({entry.entrants.length + 1} entered)</div>
       <div class="field-you">You</div>
       {#each entry.entrants as opp (opp.id)}
-        <div class="field-row">
+        <button class="field-row" onclick={() => store.viewOpponent(opp.id)}>
           <span>{opp.name}</span>
           <span class="field-rating">{opp.rating}</span>
-        </div>
+        </button>
       {/each}
     </div>
 
@@ -148,6 +148,11 @@
     justify-content: space-between;
     font-size: 13.5px;
     padding: 4px 0;
+  }
+
+  .field-row {
+    width: 100%;
+    text-align: left;
   }
 
   .field-you {

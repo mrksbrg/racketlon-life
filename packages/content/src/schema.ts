@@ -57,6 +57,12 @@ export const countriesSchema = z.record(z.string().length(2), countrySchema);
 const tournamentSchema = z
   .object({
     id: z.string(),
+    /** shared across every division of the same physical event, e.g.
+     * "hamburg-open-2026" — `id` itself is per-division-unique */
+    eventId: z.string().min(1),
+    /** skill-tier bracket within the event — how many divisions a tier gets
+     * is BALANCE.division.byTier, not enforced here */
+    division: z.enum(["A", "B", "C", "D"]),
     name: z.string().min(1),
     /** host city, for display and TravelSystem distance */
     city: z.string().min(1),
@@ -94,3 +100,43 @@ const traitSchema = z.object({
 });
 
 export const traitsSchema = z.record(z.string(), traitSchema);
+
+/** The FIR world bundle (data/world-bundle.json), produced by `npm run
+ * build:world` from the private scraper output. See src/import/. */
+const realPlayerRatingSchema = z.object({
+  skill: z.number().min(0).max(1000),
+  rdSkill: z.number().min(0),
+});
+
+const realPlayerSchema = z.object({
+  playerId: z.string().min(1),
+  firstName: z.string(),
+  lastName: z.string(),
+  nationality: z.string().length(2),
+  gender: z.enum(["m", "f"]),
+  birthYear: z.number().int().nullable(),
+  ratings: z.object({
+    tt: realPlayerRatingSchema,
+    bd: realPlayerRatingSchema,
+    sq: realPlayerRatingSchema,
+    tn: realPlayerRatingSchema,
+  }),
+  firPoints: z.number().nullable(),
+});
+
+/**
+ * FIR Ranking Points Matrix (Open events, Ranking Regs Annex A):
+ * tier → class band (A..E) → points indexed by (finishingPosition − 1).
+ * Tier keys are the free-form `tier` strings used in tournaments.json; each
+ * class array must be non-empty (its last entry is the published "49+" row).
+ */
+export const rankingMatrixSchema = z.record(
+  z.string().min(1),
+  z.record(z.string().min(1), z.array(z.number().min(0)).min(1)),
+);
+
+export const worldBundleSchema = z.object({
+  note: z.string().optional(),
+  counts: z.object({ men: z.number(), women: z.number(), total: z.number() }).optional(),
+  players: z.array(realPlayerSchema),
+});

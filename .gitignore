@@ -8,3 +8,7 @@ build/
 coverage/
 .vite/
 .claude/settings.local.json
+
+# FIR scraper output — private working inputs to the world-bundle build.
+# Only the derived packages/content/data/world-bundle.json is committed.
+packages/content/import-data/

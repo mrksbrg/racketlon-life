@@ -78,7 +78,7 @@ export function flagEmoji(code: string): string {
     .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
 }
 
-/** Word for a −10..10 form/confidence value, so the raw number reads plainly. */
+/** Word for a −10..10 confidence value, so the raw number reads plainly. */
 export function conditionWord(value: number): string {
   if (value >= 6) return "Excellent";
   if (value >= 2) return "Good";
@@ -87,12 +87,45 @@ export function conditionWord(value: number): string {
   return "Rock bottom";
 }
 
-/** How far a career-best finish got, e.g. "Champion", "Final", "Semi-final". */
-export function finishLabel(roundsWon: number, totalRounds: number): string {
-  const fromFinal = totalRounds - roundsWon;
-  if (fromFinal <= 0) return "Champion";
-  if (fromFinal === 1) return "Final";
-  if (fromFinal === 2) return "Semi-final";
-  if (fromFinal === 3) return "Quarter-final";
-  return `Round ${roundsWon + 1}`;
+/** Word for a 0..20 per-sport form value — "tournament readiness" driven by
+ * training neglect (see BALANCE.form). */
+export function formWord(value: number): string {
+  if (value >= 17) return "Match sharp";
+  if (value >= 11) return "Tournament ready";
+  if (value >= 6) return "A bit rusty";
+  return "Undercooked";
+}
+
+/** Traffic-light color for a 0..20 form value, matching `formWord`'s bands. */
+export function formColor(value: number): string {
+  if (value >= 17) return "var(--ok)";
+  if (value >= 11) return "var(--accent)";
+  if (value >= 6) return "var(--warn)";
+  return "var(--danger)";
+}
+
+/** How far a finish got, e.g. "Champion", "Runner-up", "Tied for 5th–8th".
+ * Reads finishingPosition/tiedCount (the tied plate band's best position and
+ * its size), not roundsWon — under the monrad plate cap, wins alone don't
+ * reliably say how deep a run went (see engine systems/summary.ts). */
+export function finishLabel(finishingPosition: number, tiedCount: number): string {
+  if (finishingPosition === 1) return "Champion";
+  if (finishingPosition === 2) return "Runner-up";
+  const last = finishingPosition + tiedCount - 1;
+  return tiedCount > 1 ? `Tied for ${ordinal(finishingPosition)}–${ordinal(last)}` : `Finished ${ordinal(finishingPosition)}`;
+}
+
+function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
 }

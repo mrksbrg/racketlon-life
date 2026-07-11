@@ -1,9 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import CharacterCreate from "./lib/CharacterCreate.svelte";
+  import Draw from "./lib/Draw.svelte";
   import Inbox from "./lib/Inbox.svelte";
   import MatchScreen from "./lib/MatchScreen.svelte";
   import Me from "./lib/Me.svelte";
+  import OpponentProfile from "./lib/OpponentProfile.svelte";
   import Planner from "./lib/Planner.svelte";
   import Summary from "./lib/Summary.svelte";
   import Tour from "./lib/Tour.svelte";
@@ -40,6 +42,10 @@
   <Summary />
 {:else if store.screen === "match"}
   <MatchScreen />
+{:else if store.screen === "draw"}
+  <Draw />
+{:else if store.screen === "opponent"}
+  <OpponentProfile />
 {/if}
 
 <style>

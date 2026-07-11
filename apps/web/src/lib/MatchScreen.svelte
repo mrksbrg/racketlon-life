@@ -7,6 +7,7 @@
     fatigueTell,
     luckTell,
     playPoint,
+    pointsToWin,
     tacticsForSport,
     totalPoints,
   } from "@racketlon/engine";
@@ -102,22 +103,39 @@
     <div class="top">
       <span class="label">
         {#if store.tournamentContext}
-          {store.tournamentContext.name} — Round {store.tournamentContext.round} of {store.tournamentContext.totalRounds}
+          {store.tournamentContext.name} — {store.tournamentContext.roundName}
         {/if}
       </span>
-      <button class="close" onclick={exit}>✕</button>
+      <div class="top-actions">
+        <button class="draw-link" onclick={() => store.viewDraw()}>Draw</button>
+        <button class="close" onclick={exit}>✕</button>
+      </div>
     </div>
 
+    {#if store.tournamentContext}
+      <p class="spectators" class:plate={!store.tournamentContext.isMainDraw}>
+        {store.tournamentContext.isMainDraw
+          ? "👀 Centre court — a crowd has gathered to watch"
+          : "Back court — a plate match, low-key"}
+      </p>
+    {/if}
+
     <div class="players">
-      <span class="pname you">{m.players.a.name}</span>
-      <span class="totals" class:leading-a={totalA > totalB} class:leading-b={totalB > totalA}>
-        {totalA} – {totalB}
-      </span>
-      <span class="pname">{m.players.b.name}</span>
+      <button class="pname you" onclick={() => store.viewOpponent(m.players.a.id)}>{m.players.a.name}</button>
+      <div class="score-col">
+        <span class="totals" class:leading-a={totalA > totalB} class:leading-b={totalB > totalA}>
+          {totalA} – {totalB}
+        </span>
+        <span class="diff" class:up={totalA > totalB} class:down={totalB > totalA}>
+          {#if totalA === totalB}level{:else if totalA > totalB}you +{totalA - totalB}{:else}−{totalB - totalA}{/if}
+        </span>
+      </div>
+      <button class="pname" onclick={() => store.viewOpponent(m.players.b.id)}>{m.players.b.name}</button>
     </div>
 
     <p class="opp-read">
-      {m.players.b.name} is {FATIGUE_READ[oppFatigue]}, {TACTIC_READ[m.tactics.b]}{#if LUCK_READ[oppLuck]}, {LUCK_READ[oppLuck]}{/if}
+      <button class="opp-name" onclick={() => store.viewOpponent(m.players.b.id)}>{m.players.b.name}</button>
+      is {FATIGUE_READ[oppFatigue]}, {TACTIC_READ[m.tactics.b]}{#if LUCK_READ[oppLuck]}, {LUCK_READ[oppLuck]}{/if}
     </p>
 
     <div class="sets">
@@ -135,6 +153,18 @@
         </div>
       {/each}
     </div>
+
+    {#if m.setIndex === 3 && !m.gummiarm && m.phase !== "finished"}
+      {@const ptw = pointsToWin(m)}
+      <p class="to-win">
+        {#if ptw}
+          <strong>{ptw.side === "a" ? "You need" : `${m.players.b.name} needs`} {ptw.points} point{ptw.points === 1 ? "" : "s"}</strong>
+          in the tennis to win the match
+        {:else}
+          Dead level — the tennis set, or a gummiarm, decides it
+        {/if}
+      </p>
+    {/if}
 
     {#if m.phase === "finished"}
       {@const won = m.winner === "a"}
@@ -216,10 +246,36 @@
     letter-spacing: 0.05em;
   }
 
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .draw-link {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+
   .close {
     color: var(--muted);
     font-size: 18px;
     padding: 4px 8px;
+  }
+
+  .spectators {
+    margin: -6px 0 0;
+    font-size: 11.5px;
+    color: var(--muted);
+    font-style: italic;
+  }
+
+  .spectators.plate {
+    opacity: 0.7;
   }
 
   .players {
@@ -240,10 +296,50 @@
     color: var(--accent);
   }
 
+  .score-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+
   .totals {
     font-size: 22px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
+  }
+
+  .diff {
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .diff.up {
+    color: var(--ok);
+  }
+
+  .diff.down {
+    color: var(--danger, #d66);
+  }
+
+  .to-win {
+    margin: -4px 0 0;
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+  }
+
+  .to-win strong {
+    color: var(--accent);
+    font-weight: 800;
   }
 
   .opp-read {
@@ -252,6 +348,15 @@
     color: var(--muted);
     font-size: 12px;
     font-style: italic;
+  }
+
+  .opp-name {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--text);
+    text-decoration: underline;
+    text-decoration-color: var(--muted);
+    text-underline-offset: 2px;
   }
 
   .sets {

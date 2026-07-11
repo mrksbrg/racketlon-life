@@ -1,16 +1,54 @@
 import { describe, expect, it } from "vitest";
-import type { MatchState, Player, TournamentAdvanceResult } from "../src/index.js";
+import type {
+  CharacterDraft,
+  ContentBundle,
+  EventLog,
+  GameState,
+  MatchState,
+  Player,
+  RealPlayerDef,
+  TournamentAdvanceResult,
+} from "../src/index.js";
 import {
   BALANCE,
   Game,
+  advanceTournament,
   combinedRating,
+  drawRounds,
   isTournamentWeek,
   seedBracket,
   simulateMatchAuto,
+  startTournament,
   tournamentCalendar,
   travelCost,
 } from "../src/index.js";
 import { planWith, testContent } from "./fixtures.js";
+
+/** A handful of ranked male players on top of testContent's all-null roster
+ * — needed to actually fill a non-lowest division's field, e.g. when
+ * "playing up" a class (testContent's own roster only ever populates the
+ * lowest band — see fixtures.ts). Mirrors division.test.ts's helper of the
+ * same shape. */
+function rankedMalePlayers(count: number): RealPlayerDef[] {
+  const rating = { skill: 500, rdSkill: 60 };
+  return Array.from({ length: count }, (_, i) => ({
+    playerId: `ranked-m-${i}`,
+    firstName: "Ranked",
+    lastName: `M${i}`,
+    nationality: "SE",
+    gender: "m" as const,
+    birthYear: 1995,
+    ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
+    firPoints: 1000 - i,
+  }));
+}
+
+/** testContent, but with enough ranked male players that SAT's "A" (tougher,
+ * played-up) division actually has a fillable field, not just a listable one. */
+const contentWithRankedField: ContentBundle = {
+  ...testContent,
+  players: [...testContent.players, ...rankedMalePlayers(10)],
+};
 
 const WORK_PLAN = planWith({ work: 5 });
 const DEADLINE = BALANCE.tournament.entryDeadlineWeeks;
@@ -58,10 +96,10 @@ describe("isTournamentWeek", () => {
 
   it("places each tournament on the week its real date falls into, no recurrence", () => {
     const calendar = tournamentCalendar(testContent);
-    expect(calendar.size).toBe(4); // 3 domestic + 1 foreign (travel-cost fixture)
-    expect(calendar.get(3)?.id).toBe("monthly-open-1");
-    expect(calendar.get(7)?.id).toBe("monthly-open-2");
-    expect(calendar.get(11)?.id).toBe("monthly-open-3");
+    expect(calendar.size).toBe(5); // 3 domestic + 1 foreign (travel-cost) + 1 16-draw (banding test)
+    expect(calendar.get(3)?.[0]?.id).toBe("monthly-open-1");
+    expect(calendar.get(7)?.[0]?.id).toBe("monthly-open-2");
+    expect(calendar.get(11)?.[0]?.id).toBe("monthly-open-3");
   });
 });
 
@@ -80,7 +118,7 @@ describe("bracket seeding", () => {
       },
       attributes: {
         skills: { tt: 0, bd: 0, sq: 0, tn: 0 },
-        talent: 0.5,
+        potential: { tt: 0.5, bd: 0.5, sq: 0.5, tn: 0.5 },
         durability: 0.5,
         professionalism: 0.5,
         stamina: 0.5,
@@ -89,8 +127,14 @@ describe("bracket seeding", () => {
         composure: 0.5,
         traits: [],
       },
-      condition: { fatigue: 0, form: 0, confidence: 0, injury: null },
+      condition: {
+        fatigue: 0,
+        formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
+        confidence: 0,
+        injury: null,
+      },
       ratings: { tt: glicko, bd: glicko, sq: glicko, tn: glicko },
+      firPoints: null,
       simTier: 1,
     };
   }
@@ -188,6 +232,103 @@ describe("tournament registration", () => {
   it("withdrawing an unregistered week is a harmless no-op", () => {
     const game = Game.newGame({ content: testContent, seed: "reg-8" });
     expect(() => game.withdrawRegistration(3)).not.toThrow();
+  });
+
+  it("withdrawing before the regular entry deadline stays free", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-9" });
+    game.registerForTournament(3);
+    const before = game.you.money;
+    game.withdrawRegistration(3);
+    expect(game.you.money).toBe(before);
+  });
+
+  it("charges the entry fee when withdrawing after the regular entry deadline has passed (FIR 3.14.1)", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-10" });
+    game.registerForTournament(3);
+    advanceUntil(game, () => game.weekIndex === 3 - DEADLINE + 1); // one week into the deadline window
+    const before = game.you.money;
+    game.withdrawRegistration(3);
+    const def = testContent.tournaments["monthly-open-1"]!;
+    expect(game.you.money).toBe(before - def.entryFee);
+  });
+
+  it("charges the entry fee for a no-show — registered but never entered once the tournament week passes", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-11" });
+    game.registerForTournament(3);
+    advanceUntil(game, () => game.weekIndex === 3); // arrive at the tournament week...
+    const before = game.you.money;
+    game.submitWeek(WORK_PLAN); // ...and let it pass without calling enterTournament()
+    const def = testContent.tournaments["monthly-open-1"]!;
+    const workDelta = 5 * 800 - BALANCE.economy.weeklyExpenses;
+    expect(game.you.money).toBe(before - def.entryFee + workDelta);
+  });
+
+  it("does not double-charge a no-show fee if the tournament was actually played", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-12" });
+    registerAndAdvanceTo(game, 3);
+    const before = game.you.money;
+    const { result } = playTournamentToWeekEnd(game, WORK_PLAN);
+    const def = testContent.tournaments["monthly-open-1"]!;
+    const workDelta = 5 * 800 - BALANCE.economy.weeklyExpenses;
+    // exactly one fee deduction (the normal entry fee), not two
+    expect(game.you.money).toBe(before - def.entryFee + result.prizeMoney + workDelta);
+  });
+
+  describe("class choice (playing up)", () => {
+    it("lists the human's own division first, then tougher ones", () => {
+      const game = Game.newGame({ content: testContent, seed: "class-1" });
+      const entry = game.tournamentSchedule(1)[0]!;
+      // SAT bands are ["A","B"]; a fresh (null-firPoints) human's own
+      // division is the lowest, "B", with "A" (tougher) also offered
+      expect(entry.eligibleDivisions.map((c) => c.def.division)).toEqual(["B", "A"]);
+    });
+
+    it("defaults tournamentSchedule's own-division fields to the first eligible class", () => {
+      const game = Game.newGame({ content: testContent, seed: "class-2" });
+      const entry = game.tournamentSchedule(1)[0]!;
+      expect(entry.tournament.division).toBe(entry.eligibleDivisions[0]!.def.division);
+    });
+
+    it("registers for a tougher played-up class when one is given", () => {
+      const game = Game.newGame({ content: contentWithRankedField, seed: "class-3" });
+      game.registerForTournament(3, "A");
+      const entry = game.tournamentSchedule(1)[0]!;
+      expect(entry.status).toBe("registered");
+      expect(entry.tournament.division).toBe("A");
+      expect(entry.tournament.id).toBe("monthly-open-1-a");
+    });
+
+    it("registeredTournamentThisWeek reflects the actually-chosen class, not the default", () => {
+      const game = Game.newGame({ content: testContent, seed: "class-4" });
+      game.registerForTournament(3, "A");
+      advanceUntil(game, () => game.weekIndex === 3);
+      expect(game.registeredTournamentThisWeek()?.division).toBe("A");
+    });
+
+    it("entering after playing up actually plays the tougher division's draw", () => {
+      const game = Game.newGame({ content: contentWithRankedField, seed: "class-5" });
+      game.registerForTournament(3, "A");
+      advanceUntil(game, () => game.weekIndex === 3);
+      const match = game.enterTournament();
+      expect(match.phase).toBe("break"); // sanity: a real match was set up
+      // tournamentThisWeek stays the informational own-division default,
+      // deliberately ignoring registration (see its own doc comment) — only
+      // registeredTournamentThisWeek (checked above) reflects the real choice
+      expect(game.tournamentThisWeek()?.division).toBe("B");
+    });
+
+    it("switches an existing registration to a different eligible class instead of erroring", () => {
+      const game = Game.newGame({ content: contentWithRankedField, seed: "class-6" });
+      game.registerForTournament(3); // default (own) class, "B"
+      expect(() => game.registerForTournament(3, "A")).not.toThrow();
+      expect(game.tournamentSchedule(1)[0]!.tournament.division).toBe("A");
+    });
+
+    it("throws for a division the human isn't eligible for", () => {
+      const game = Game.newGame({ content: testContent, seed: "class-7" });
+      // SAT only offers "A" and "B" — "C" doesn't exist for this tier at all
+      expect(() => game.registerForTournament(3, "C" as never)).toThrow(/not open to you/i);
+    });
   });
 });
 
@@ -327,6 +468,199 @@ describe("tournament facade flow", () => {
   });
 });
 
+describe("monrad placement bracket", () => {
+  /** A maxed-out draft, comfortably stronger than every testRoster() NPC
+   * (skill ~300–940) — used only to reliably produce a round-1 *win*, since
+   * the default fresh-career human is a deliberate beginner who essentially
+   * never beats a tier-1 field. */
+  const STRONG_DRAFT: CharacterDraft = {
+    firstName: "Strong",
+    lastName: "Contender",
+    nationality: "SE",
+    gender: "m",
+    birthDate: "2000-01-01",
+    sports: { tt: 20, bd: 20, sq: 20, tn: 20 },
+    stamina: 20,
+    intelligence: 20,
+    clutch: 20,
+    composure: 20,
+    resilience: 20,
+    traits: [],
+  };
+
+  /** Finds a seed whose round-1 match resolves with the given outcome for
+   * the human, and returns the game plus that already-finished match so a
+   * test can keep advancing from exactly that point. Winning needs the
+   * strong draft; losing happens naturally with the default beginner. */
+  function enterAndPlayFirstRound(wantHumanWin: boolean): { game: Game; match: MatchState } {
+    for (let i = 0; i < 200; i++) {
+      const game = Game.newGame({
+        content: testContent,
+        seed: `monrad-r1-${i}`,
+        character: wantHumanWin ? STRONG_DRAFT : undefined,
+      });
+      registerAndAdvanceTo(game, 3);
+      const match = game.enterTournament();
+      simulateMatchAuto(match);
+      if ((match.winner === "a") === wantHumanWin) return { game, match };
+    }
+    throw new Error(`no seed found with a round-1 ${wantHumanWin ? "win" : "loss"} for the human`);
+  }
+
+  /** A concluded (non-"nextRound") advance result — what a fully played-out
+   * tournament always ends on. */
+  type ConcludedResult = Exclude<TournamentAdvanceResult, { status: "nextRound" }>;
+
+  /** Plays every remaining round with AI tactics for the human too. */
+  function playOutFrom(game: Game, firstMatch: MatchState): ConcludedResult {
+    let match = firstMatch;
+    let result = game.resolveTournamentMatch(match);
+    while (result.status === "nextRound") {
+      match = result.match;
+      simulateMatchAuto(match);
+      result = game.resolveTournamentMatch(match);
+    }
+    return result;
+  }
+
+  it("does not eliminate the human after a round-1 loss — the bracket keeps going", () => {
+    const { game, match } = enterAndPlayFirstRound(false);
+    const result = game.resolveTournamentMatch(match);
+    expect(result.status).toBe("nextRound");
+  });
+
+  it("still guarantees exactly totalRounds matches after a round-1 loss, landing outside 1st", () => {
+    const { game, match } = enterAndPlayFirstRound(false);
+    let played = 1; // round 1 already simulated above
+    let current = match;
+    let result = game.resolveTournamentMatch(current);
+    while (result.status === "nextRound") {
+      current = result.match;
+      simulateMatchAuto(current);
+      result = game.resolveTournamentMatch(current);
+      played++;
+    }
+    expect(result.status).not.toBe("nextRound");
+    expect(played).toBe(result.totalRounds);
+    expect(result.finishingPosition).toBeGreaterThan(1); // lost at least one match
+    expect(result.finishingPosition).toBeLessThanOrEqual(8);
+  });
+
+  it("a round-1 win keeps the human in the hunt for the title, not just a bye", () => {
+    const { game, match } = enterAndPlayFirstRound(true);
+    const result = playOutFrom(game, match);
+    expect(result.status).not.toBe("nextRound");
+    // could still end up anywhere from champion (1) to mid-table depending on
+    // later rounds, but never in the bottom half reserved for round-1 losers
+    expect(result.finishingPosition).toBeLessThanOrEqual(4);
+  });
+
+  it("finishingPosition === 1 exactly when status is won, across many random paths", () => {
+    // The strong draft (see above) makes both outcomes reachable across a
+    // handful of seeds — a weak default human essentially never wins here,
+    // which would leave the "won" branch below untested.
+    let sawWon = false;
+    let sawEliminated = false;
+    for (let i = 0; i < 20; i++) {
+      const game = Game.newGame({ content: testContent, seed: `monrad-invariant-${i}`, character: STRONG_DRAFT });
+      registerAndAdvanceTo(game, 3);
+      const match = game.enterTournament();
+      simulateMatchAuto(match);
+      const result = playOutFrom(game, match);
+      expect(result.status).not.toBe("nextRound");
+      if (result.status === "won") {
+        sawWon = true;
+        expect(result.finishingPosition).toBe(1);
+      } else {
+        sawEliminated = true;
+        expect(result.finishingPosition).toBeGreaterThan(1);
+        expect(result.roundsWon).toBeLessThan(result.totalRounds);
+      }
+      expect(result.finishingPosition).toBeGreaterThanOrEqual(1);
+      expect(result.finishingPosition).toBeLessThanOrEqual(8);
+    }
+    // sanity: this run actually exercised both branches above
+    expect(sawWon).toBe(true);
+    expect(sawEliminated).toBe(true);
+  });
+
+  it("gives every entrant in an 8-draw a distinct finishing position 1..8 (the 3-game cap never bites)", () => {
+    // Drives startTournament/advanceTournament directly (bypassing the
+    // facade's session bookkeeping) so the *whole* field's final placement —
+    // not just the human's — can be inspected once the draw concludes. An
+    // 8-draw's 3 total rounds exactly equal the plate cap, so nobody should
+    // ever end up tied — see the module doc comment.
+    const game = Game.newGame({ content: testContent, seed: "monrad-full-field" });
+    advanceUntil(game, () => game.weekIndex === 3);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["monthly-open-1"]!;
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      const result = advanceTournament(state, session, match, log);
+      if (result.status !== "nextRound") break;
+    }
+
+    // every group is fully decided once the tournament concludes
+    expect(session.groups.every((g) => g.frozen || g.participants.length === 1)).toBe(true);
+    // ...and for an 8-draw specifically, every group has shrunk to size 1 —
+    // nobody was frozen into a tied band
+    expect(session.groups.every((g) => g.participants.length === 1)).toBe(true);
+
+    const positions = new Map<string, number>();
+    let offset = 0;
+    for (const group of session.groups) {
+      for (const id of group.participants) positions.set(id, offset + 1);
+      offset += group.participants.length;
+    }
+
+    expect(positions.size).toBe(def.fieldSize); // every entrant placed exactly once
+    expect([...positions.values()].sort((a, b) => a - b)).toEqual(
+      Array.from({ length: def.fieldSize }, (_, i) => i + 1),
+    );
+  });
+
+  it("bands a 16-draw into 1st, 2nd, and seven tied pairs once the 3-game cap bites", () => {
+    // The 3-game plate cap can't be satisfied for a 16-draw (log2(16) = 4
+    // rounds, one more than the cap), so unlike an 8-draw this DOES produce
+    // ties. The shape is fully determined by the cap + bracket size alone
+    // (see the module doc comment's worked example), regardless of who
+    // actually wins which match:
+    //   - the champion and runner-up are always distinct (the unbeaten
+    //     lineage is never capped, so the final is always played out)
+    //   - every other lineage freezes the instant it would need a 4th game,
+    //     which — for exactly this bracket size — always happens at group
+    //     size 2, never larger and never smaller
+    const game = Game.newGame({ content: testContent, seed: "monrad-16-full-field" });
+    advanceUntil(game, () => game.weekIndex === 30, planWith({ work: 5 }), 35);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["intl-open-2"]!;
+    expect(def.fieldSize).toBe(16);
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      const result = advanceTournament(state, session, match, log);
+      if (result.status !== "nextRound") break;
+    }
+
+    expect(session.groups.every((g) => g.frozen || g.participants.length === 1)).toBe(true);
+
+    const sizes = session.groups.map((g) => g.participants.length).sort((a, b) => a - b);
+    expect(sizes).toEqual([1, 1, 2, 2, 2, 2, 2, 2, 2]); // 2 distinct + 7 tied pairs
+    expect(sizes.reduce((a, b) => a + b, 0)).toBe(16);
+
+    // every entrant appears in exactly one group
+    const allIds = session.groups.flatMap((g) => g.participants);
+    expect(new Set(allIds).size).toBe(16);
+  });
+});
+
 describe("tournamentSchedule", () => {
   it("returns the requested number of upcoming dated tournaments", () => {
     const game = Game.newGame({ content: testContent, seed: "sched-1" });
@@ -388,5 +722,71 @@ describe("tournamentSchedule", () => {
       return JSON.stringify({ summary, save: game.serialize() });
     }
     expect(run("tour-det-2")).toBe(run("tour-det-2"));
+  });
+});
+
+describe("drawRounds (draw tree view)", () => {
+  /** Drives startTournament/advanceTournament directly, resolving the
+   * human's matches with AI tactics, and returns the session + its draw
+   * view after each round. */
+  function playToDraw(seed: string): { session: ReturnType<typeof startTournament>; rounds: ReturnType<typeof drawRounds> } {
+    const game = Game.newGame({ content: testContent, seed });
+    advanceUntil(game, () => game.weekIndex === 3);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["monthly-open-1"]!;
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      const result = advanceTournament(state, session, match, log);
+      if (result.status !== "nextRound") break;
+    }
+    return { session, rounds: drawRounds(state, session) };
+  }
+
+  it("labels round 0 of an 8-draw as a Quarterfinal, main draw, positions 1-8", () => {
+    const { rounds } = playToDraw("draw-1");
+    const r0 = rounds[0]!;
+    expect(r0.round).toBe(0);
+    expect(r0.sections).toHaveLength(1);
+    const [section] = r0.sections;
+    expect(section!.isMainDraw).toBe(true);
+    expect(section!.roundName).toBe("Quarterfinal");
+    expect(section!.positionFrom).toBe(1);
+    expect(section!.positionTo).toBe(8);
+    expect(section!.matchups).toHaveLength(4);
+    // exactly one matchup is the human's
+    const yours = section!.matchups.filter((m) => m.isYouA || m.isYouB);
+    expect(yours).toHaveLength(1);
+  });
+
+  it("names round 1 Semifinal (main) and Plate Semifinal (plate) once the field has split", () => {
+    const { rounds } = playToDraw("draw-1");
+    expect(rounds.length).toBeGreaterThanOrEqual(2);
+    const r1 = rounds[1]!;
+    const names = r1.sections.map((s) => s.roundName).sort();
+    expect(names).toEqual(["Plate Semifinal", "Semifinal"]);
+    // positions partition 1-8 with no gaps or overlaps
+    const main = r1.sections.find((s) => s.isMainDraw)!;
+    const plate = r1.sections.find((s) => !s.isMainDraw)!;
+    expect(main.positionFrom).toBe(1);
+    expect(main.positionTo).toBe(4);
+    expect(plate.positionFrom).toBe(5);
+    expect(plate.positionTo).toBe(8);
+  });
+
+  it("every prior round's matchups are fully decided (a real winnerId), only the latest round can be pending", () => {
+    const { rounds } = playToDraw("draw-2");
+    rounds.slice(0, -1).forEach((round) => {
+      for (const section of round.sections) {
+        for (const m of section.matchups) expect(m.winnerId).not.toBeNull();
+      }
+    });
+  });
+
+  it("stops recording once the human's own tournament concludes — never more than totalRounds rounds", () => {
+    const { rounds } = playToDraw("draw-3");
+    expect(rounds.length).toBeLessThanOrEqual(3); // log2(8)
   });
 });

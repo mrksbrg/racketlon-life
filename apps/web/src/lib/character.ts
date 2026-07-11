@@ -10,13 +10,49 @@ const AGE_SD = 10;
 /** Point-buy rules for the creation screen — every stat on a 1–20 scale. */
 export const STAT_MIN = 1;
 export const STAT_MAX = 20;
-/** Racket skills and character traits are separately weighted pools — dumping
- * everything into one axis (e.g. maxing traits while sports sit at rock
- * bottom) shouldn't be possible. Sports get the bigger average per stat
- * (11 of 20) since they're the primary, visible progression axis; traits are
- * supporting stats (6 of 20 avg). */
-export const SPORT_POINT_BUDGET = 44;
+/** Racket skills and character attributes are separate pools — you can't dump
+ * everything into one axis. **Sports are cost-progressive**: raising a sport
+ * to a higher level costs more points than a low one (mirroring the convex
+ * in-game level curve — see `sportStepCost`), so the 50-point budget forces
+ * specialization (one strong sport + weak others, or a flat-mediocre spread,
+ * never strong-in-all-four). Attributes stay **flat** (1 point per level) —
+ * a separate, simpler mechanic. */
+export const SPORT_POINT_BUDGET = 50;
 export const ATTR_POINT_BUDGET = 30;
+
+/**
+ * Marginal creation cost to raise a sport INTO `level` (from `level-1`).
+ * Progressive tiers mirror the convex in-game curve: 1 pt/level through 5,
+ * then 2 through 9, 3 through 13, 4 through 17, 5 through 20. Level 1 is a
+ * free floor (cost 0). Cumulative: L5=4, L10=15, L15=32, L20=55 — so a single
+ * maxed sport eats more than the whole budget. */
+function sportStepCost(level: number): number {
+  if (level <= 1) return 0;
+  if (level <= 5) return 1;
+  if (level <= 9) return 2;
+  if (level <= 13) return 3;
+  if (level <= 17) return 4;
+  return 5;
+}
+
+/** Cumulative creation cost to have a sport AT `level` (level 1 = free). */
+export function sportCostForLevel(level: number): number {
+  let cost = 0;
+  for (let l = 2; l <= level; l++) cost += sportStepCost(l);
+  return cost;
+}
+
+/** Cumulative point cost of a stat at `level` in its pool — progressive for
+ * sports, flat (= level) for attributes. */
+function costForLevel(key: StatKey, level: number): number {
+  return isSportKey(key) ? sportCostForLevel(level) : level;
+}
+
+/** Points to raise `key` by one level, from its current value — the tier cost
+ * for a sport, a flat 1 for an attribute. */
+function raiseCost(key: StatKey, currentLevel: number): number {
+  return isSportKey(key) ? sportStepCost(currentLevel + 1) : 1;
+}
 
 /** The five character attributes, in display order. */
 export type CharAttr = "stamina" | "intelligence" | "clutch" | "composure" | "resilience";
@@ -137,7 +173,7 @@ export function budgetFor(pool: "sport" | "attr"): number {
 }
 
 export function sportPointsSpent(draft: CharacterDraft): number {
-  return SPORTS.reduce((sum, k) => sum + statValue(draft, k), 0);
+  return SPORTS.reduce((sum, k) => sum + costForLevel(k, statValue(draft, k)), 0);
 }
 
 export function attrPointsSpent(draft: CharacterDraft): number {
@@ -157,9 +193,18 @@ export function poolPointsRemaining(draft: CharacterDraft, key: StatKey): number
   return poolFor(key) === "sport" ? sportPointsRemaining(draft) : attrPointsRemaining(draft);
 }
 
-/** True when a +1 on `key` is legal (headroom on the stat and points left in its own pool). */
+/** True when a +1 on `key` is legal — headroom on the stat, and enough points
+ * left in its pool to cover this specific step (progressive for sports). */
 export function canRaise(draft: CharacterDraft, key: StatKey): boolean {
-  return statValue(draft, key) < STAT_MAX && poolPointsRemaining(draft, key) > 0;
+  const value = statValue(draft, key);
+  return value < STAT_MAX && poolPointsRemaining(draft, key) >= raiseCost(key, value);
+}
+
+/** Point cost of the next `+1` on `key`, for surfacing on the stepper. 0 when
+ * already at the cap. */
+export function nextRaiseCost(draft: CharacterDraft, key: StatKey): number {
+  const value = statValue(draft, key);
+  return value >= STAT_MAX ? 0 : raiseCost(key, value);
 }
 
 export function canLower(draft: CharacterDraft, key: StatKey): boolean {
@@ -224,9 +269,14 @@ function rerollPool(draft: CharacterDraft, keys: readonly StatKey[], budget: num
   const weights = new Map<StatKey, number>();
   for (const k of keys) weights.set(k, Math.pow(Math.random(), 1.7) + 0.04);
 
-  let remaining = budget - keys.length * STAT_MIN;
+  // start from the budget minus what the floor levels already cost (0 per
+  // sport, 1 per attribute), then rain points down one level at a time,
+  // each raise costing the progressive tier for that step (see raiseCost)
+  let remaining = budget - keys.reduce((s, k) => s + costForLevel(k, STAT_MIN), 0);
   while (remaining > 0) {
-    const eligible = keys.filter((k) => statValue(draft, k) < STAT_MAX);
+    const eligible = keys.filter(
+      (k) => statValue(draft, k) < STAT_MAX && raiseCost(k, statValue(draft, k)) <= remaining,
+    );
     if (eligible.length === 0) break;
     const total = eligible.reduce((s, k) => s + weights.get(k)!, 0);
     let r = Math.random() * total;
@@ -238,8 +288,8 @@ function rerollPool(draft: CharacterDraft, keys: readonly StatKey[], budget: num
         break;
       }
     }
+    remaining -= raiseCost(chosen, statValue(draft, chosen));
     setStat(draft, chosen, statValue(draft, chosen) + 1);
-    remaining--;
   }
 }
 

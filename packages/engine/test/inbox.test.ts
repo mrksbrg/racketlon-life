@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/index.js";
+import type { ContentBundle, RealPlayerDef } from "../src/index.js";
+import { Game, generateInboxMessages, simulateMatchAuto } from "../src/index.js";
 import { planWith, testContent } from "./fixtures.js";
 
 const WORK = planWith({ work: 5 });
@@ -7,6 +8,39 @@ const WORK = planWith({ work: 5 });
 /** Advances by submitting `n` weeks of the given plan. */
 function advance(game: Game, n: number): void {
   for (let i = 0; i < n; i++) game.submitWeek(WORK);
+}
+
+/** A handful of ranked male players on top of testContent's all-null roster
+ * — the FIR ranking digest only lists players with a counted result, so
+ * testing its sorting/inclusion needs *some* non-null population. Mirrors
+ * division.test.ts's helper of the same shape. */
+function rankedMalePlayers(count: number): RealPlayerDef[] {
+  const rating = { skill: 500, rdSkill: 60 };
+  return Array.from({ length: count }, (_, i) => ({
+    playerId: `ranked-m-${i}`,
+    firstName: "Ranked",
+    lastName: `M${i}`,
+    nationality: "SE",
+    gender: "m" as const,
+    birthYear: 1995,
+    ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
+    firPoints: 1000 - i,
+  }));
+}
+
+/** Registers for, advances to, and fully plays out the week-3 tournament
+ * (win or lose) so the human's career.firResults gets a real entry. */
+function playWeekThreeTournament(game: Game): void {
+  game.registerForTournament(3);
+  for (let i = 0; i < 10 && game.weekIndex !== 3; i++) game.submitWeek(WORK);
+  let match = game.enterTournament();
+  for (;;) {
+    simulateMatchAuto(match);
+    const result = game.resolveTournamentMatch(match);
+    if (result.status !== "nextRound") break;
+    match = result.match;
+  }
+  game.submitWeek(WORK);
 }
 
 describe("inbox generation", () => {
@@ -18,17 +52,37 @@ describe("inbox generation", () => {
     expect(inbox.some((m) => m.category === "ranking")).toBe(true);
   });
 
-  it("the opening ranking digest lists the whole field with the human flagged", () => {
+  it("the opening ranking digest reports the human as unranked when nobody has FIR points on file", () => {
+    // testContent's roster (and a fresh human) are all null-firPoints — the
+    // real FIR World Ranking only lists players with a counted result, so an
+    // opening digest legitimately has nobody on it yet.
     const game = Game.newGame({ content: testContent, seed: "inbox-rank" });
     const digest = game.inbox.find((m) => m.category === "ranking");
-    expect(digest?.ranking?.length).toBeGreaterThan(0);
-    // exactly one row is the human; yourRank is set
-    const you = digest?.ranking?.filter((r) => r.isYou) ?? [];
-    expect(you.length).toBeLessThanOrEqual(1);
-    expect(typeof digest?.yourRank).toBe("number");
-    // rows are sorted best-first
-    const ratings = digest!.ranking!.map((r) => r.rating);
-    expect([...ratings].sort((a, b) => b - a)).toEqual(ratings);
+    expect(digest?.rankingMen).toEqual([]);
+    expect(digest?.rankingWomen).toEqual([]);
+    expect(digest?.yourRankMen).toBeUndefined();
+    expect(digest?.yourRankWomen).toBeUndefined();
+    expect(digest?.body).toMatch(/hasn't earned any counted ranking points/i);
+  });
+
+  it("lists ranked players sorted best-first by FIR points, with the human included once they've earned some", () => {
+    const content: ContentBundle = { ...testContent, players: [...testContent.players, ...rankedMalePlayers(5)] };
+    const game = Game.newGame({ content, seed: "inbox-rank-2" });
+    playWeekThreeTournament(game);
+    advance(game, 5); // reach the next calendar-month boundary for a fresh digest
+
+    // game.inbox is already newest-first; the fallback human is male, so
+    // they (and every ranked NPC here) land in rankingMen, never rankingWomen
+    const digest = game.inbox.find((m) => m.category === "ranking" && m.rankingMen && m.rankingMen.length > 0);
+    expect(digest).toBeTruthy();
+    expect(digest?.rankingWomen).toEqual([]);
+    const you = digest!.rankingMen!.filter((r) => r.isYou);
+    expect(you).toHaveLength(1);
+    expect(typeof digest!.yourRankMen).toBe("number");
+    expect(digest!.yourRankWomen).toBeUndefined();
+    // rows are sorted best (most points) first
+    const points = digest!.rankingMen!.map((r) => r.points);
+    expect([...points].sort((a, b) => b - a)).toEqual(points);
   });
 
   it("invites the human to a tournament while its entry window is open", () => {
@@ -85,5 +139,52 @@ describe("inbox generation", () => {
     advance(game, 8); // ~two months of weeks
     const laterDigests = game.inbox.filter((m) => m.category === "ranking").length;
     expect(laterDigests).toBeGreaterThan(startDigests);
+  });
+
+  it("sends a results email the week a tournament concludes", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-result-1" });
+    playWeekThreeTournament(game);
+    const results = game.inbox.filter((m) => m.category === "result");
+    expect(results).toHaveLength(1);
+    const msg = results[0]!;
+    expect(msg.week).toBe(3);
+    expect(msg.from).toBe("Monthly Open");
+    expect(msg.subject).toMatch(/monthly open/i);
+    expect(typeof msg.resultWon).toBe("boolean");
+    expect(msg.body.length).toBeGreaterThan(0);
+    // the subject/icon logic depends on this matching resultWon exactly
+    expect(msg.subject.includes("Champion")).toBe(msg.resultWon);
+  });
+
+  it("never sends the same tournament's results email twice, even if the week is re-scanned", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-result-2" });
+    playWeekThreeTournament(game);
+    const state = game.serialize().state;
+    const weekThreeEvents = game.eventsForWeek(3);
+
+    // re-run the exact same generation the InboxSystem would for week 3 —
+    // the message id already exists in career.inbox, so nothing new appears
+    const again = generateInboxMessages(state, testContent, 3, weekThreeEvents);
+    expect(again.filter((m) => m.category === "result")).toHaveLength(0);
+    expect(game.inbox.filter((m) => m.category === "result")).toHaveLength(1);
+  });
+
+  it("sends independent results emails for two different tournaments", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-result-3" });
+    playWeekThreeTournament(game);
+    game.registerForTournament(7);
+    advance(game, 3); // reach and play through week 7's tournament
+    let match = game.enterTournament();
+    for (;;) {
+      simulateMatchAuto(match);
+      const result = game.resolveTournamentMatch(match);
+      if (result.status !== "nextRound") break;
+      match = result.match;
+    }
+    game.submitWeek(WORK);
+
+    const results = game.inbox.filter((m) => m.category === "result");
+    expect(results).toHaveLength(2);
+    expect(new Set(results.map((m) => m.id)).size).toBe(2);
   });
 });

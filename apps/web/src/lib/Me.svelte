@@ -11,6 +11,8 @@
     flagEmoji,
     formatInjury,
     formatMoney,
+    formColor,
+    formWord,
   } from "./ui";
 
   type StatView = "lifetime" | "byYear";
@@ -53,15 +55,23 @@
       </div>
     </section>
 
-    <!-- Headline ratings -->
+    <!-- Headline ratings: real FIR standing leads, Glicko is the secondary estimate -->
     <section class="rating-strip">
       <div class="rating-big">
-        <div class="rating-num">{you.combinedRating}</div>
-        <div class="rating-cap">Glicko rating</div>
+        <div class="rating-num">{you.firStanding ? you.firStanding.points : "—"}</div>
+        <div class="rating-cap">FIR points</div>
+        <div class="rating-sub">
+          {#if you.firStanding}
+            Rank #{you.firStanding.rank} of {you.firStanding.totalRanked}
+          {:else}
+            Unranked — play a FIR tournament
+          {/if}
+        </div>
       </div>
       <div class="rating-side">
-        <div class="side-num">{you.bestRating}</div>
-        <div class="side-cap">Career best</div>
+        <div class="side-num">{you.combinedRating}</div>
+        <div class="side-cap">Glicko</div>
+        <div class="side-sub">best {you.bestRating}</div>
       </div>
       <div class="rating-side">
         <div class="side-num money" class:negative={you.money < 0}>{formatMoney(you.money)}</div>
@@ -75,6 +85,7 @@
       {#each SPORTS as sport (sport)}
         {@const s = you.sports[sport]}
         {@const r = you.ratings[sport]}
+        {@const form = you.formBySport[sport]}
         <div class="sport">
           <span class="tag" style:background={SPORT_COLORS[sport]}>{SPORT_SHORT[sport]}</span>
           <div class="sport-main">
@@ -85,6 +96,13 @@
             <div class="bar">
               <div class="fill" style:width="{s.progress * 100}%" style:background={SPORT_COLORS[sport]}></div>
             </div>
+            <div class="form-line">
+              <span class="form-word" style:color={formColor(form)}>{formWord(form)}</span>
+              <span class="form-num">{form}/20</span>
+            </div>
+            <div class="bar form-bar">
+              <div class="fill" style:width="{(form / 20) * 100}%" style:background={formColor(form)}></div>
+            </div>
           </div>
           <div class="sport-rating">
             <span class="sr-num">{r.rating}</span>
@@ -92,7 +110,11 @@
           </div>
         </div>
       {/each}
-      <p class="footnote">Levels are your own progression; Glicko is the world's estimate of you (±&nbsp;uncertainty).</p>
+      <p class="footnote">
+        Levels are your own progression; Glicko is the world's estimate of you (±&nbsp;uncertainty). Form is your
+        tournament readiness — it rises when you train a sport and fades when you neglect it, so staying sharp in all
+        four at once is hard.
+      </p>
     </section>
 
     <!-- Attributes -->
@@ -140,10 +162,6 @@
           <div class="cond-val">{you.fatigue}<span class="unit">/100</span></div>
         </div>
         <div class="cond">
-          <div class="cond-cap">Form</div>
-          <div class="cond-val">{conditionWord(you.form)}</div>
-        </div>
-        <div class="cond">
           <div class="cond-cap">Confidence</div>
           <div class="cond-val">{conditionWord(you.confidence)}</div>
         </div>
@@ -173,7 +191,7 @@
           <div class="stat"><span class="sv">{stats.lifetime.tournamentsWon}</span><span class="sc">Won</span></div>
           <div class="stat"><span class="sv">{stats.lifetime.finalsReached}</span><span class="sc">Finals</span></div>
           <div class="stat">
-            <span class="sv">{stats.bestFinish ? finishLabel(stats.bestFinish.roundsWon, stats.bestFinish.totalRounds) : "—"}</span>
+            <span class="sv">{stats.bestFinish ? finishLabel(stats.bestFinish.finishingPosition, stats.bestFinish.tiedCount) : "—"}</span>
             <span class="sc">Best finish</span>
           </div>
           <div class="stat"><span class="sv small">{formatMoney(stats.lifetime.prizeMoney)}</span><span class="sc">Prize money</span></div>
@@ -209,7 +227,7 @@
                 <span class="r-week">{r.weekLabel}</span>
               </div>
               <div class="r-right">
-                <span class="r-finish" class:win={r.won}>{finishLabel(r.roundsWon, r.totalRounds)}</span>
+                <span class="r-finish" class:win={r.won}>{finishLabel(r.finishingPosition, r.tiedCount)}</span>
                 {#if r.prizeMoney > 0}<span class="r-prize">{formatMoney(r.prizeMoney)}</span>{/if}
               </div>
             </div>
@@ -339,6 +357,19 @@
     margin-top: 4px;
   }
 
+  .rating-sub {
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+    margin-top: 2px;
+  }
+
+  .side-sub {
+    font-size: 10.5px;
+    color: var(--muted);
+    margin-top: 1px;
+  }
+
   .rating-side {
     display: flex;
     flex-direction: column;
@@ -420,6 +451,26 @@
   .fill {
     height: 100%;
     border-radius: 2px;
+  }
+
+  .form-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-top: 2px;
+  }
+
+  .form-word {
+    font-weight: 600;
+  }
+
+  .form-num {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .form-bar {
+    height: 3px;
   }
 
   .sport-rating {

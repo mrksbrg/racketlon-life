@@ -28,7 +28,7 @@ export function combinedRating(player: Player): number {
   return SPORTS.reduce((sum, s) => sum + player.ratings[s].rating, 0) / SPORTS.length;
 }
 
-export interface RankingStanding {
+export interface GlickoStanding {
   rank: number;
   playerId: string;
   name: string;
@@ -38,12 +38,18 @@ export interface RankingStanding {
 }
 
 /**
- * The whole population ranked by combined Glicko-2 rating, best first. This is
- * the strength *estimate* ladder — a stand-in for real FIR placement points,
- * which don't exist yet (their formula is a deferred design decision, docs/07).
- * Deterministic tie-break on id so equal ratings never reshuffle.
+ * The whole population ranked by combined Glicko-2 rating, best first — a
+ * strength *estimate* ladder, NOT the FIR World Ranking. This is deliberately
+ * not called anything with "ranking" or "world" in isolation: official FIR
+ * standings and category placement are always based on real FIR points
+ * (`systems/ranking-points.ts`'s `firWorldRanking`), never on this. Glicko
+ * describes a player's relative strength (what opponent lists and the Me
+ * screen show); it never determines who's actually "ranked" or which
+ * division someone plays in. Deterministic tie-break on id so equal ratings
+ * never reshuffle. Currently unused in-engine (kept as a general-purpose
+ * strength ladder for future flavor UI, e.g. a "form guide").
  */
-export function worldRanking(state: GameState): RankingStanding[] {
+export function glickoRanking(state: GameState): GlickoStanding[] {
   return state.players
     .map((p) => ({
       playerId: p.identity.id,

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SPORTS } from "@racketlon/engine";
   import { store } from "./store.svelte";
-  import { SPORT_COLORS, SPORT_SHORT, formatInjury, formatMoney } from "./ui";
+  import { SPORT_COLORS, SPORT_SHORT, formColor, formatInjury, formatMoney } from "./ui";
 
   function confirmNewGame() {
     if (confirm("Start a new career? Your current save will be lost.")) {
@@ -29,11 +29,15 @@
     {/if}
     <div class="levels">
       {#each SPORTS as sport (sport)}
+        {@const form = store.you.formBySport[sport]}
         <div class="level">
           <span class="tag" style:background={SPORT_COLORS[sport]}>{SPORT_SHORT[sport]}</span>
           <span class="num">{store.you.sports[sport].level}</span>
           <div class="bar">
             <div class="fill" style:width="{store.you.sports[sport].progress * 100}%" style:background={SPORT_COLORS[sport]}></div>
+          </div>
+          <div class="bar form-bar" title="Form: {form}/20">
+            <div class="fill" style:width="{(form / 20) * 100}%" style:background={formColor(form)}></div>
           </div>
         </div>
       {/each}
@@ -141,6 +145,12 @@
     border-radius: 2px;
     background: var(--card-2);
     overflow: hidden;
+  }
+
+  .form-bar {
+    height: 2px;
+    margin-top: 2px;
+    opacity: 0.85;
   }
 
   .fill {

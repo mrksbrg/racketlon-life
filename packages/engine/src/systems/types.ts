@@ -4,6 +4,7 @@ import type { Rng } from "../core/rng.js";
 import type { GameState } from "../core/state.js";
 import type { ActivityCounts, PlayerPlan } from "../model/plan.js";
 import type { Skills } from "../model/player.js";
+import type { Sport } from "../model/sport.js";
 import type { WeekSummary } from "../model/summary.js";
 
 /** Snapshot of the human player before systems run; SummarySystem diffs against it. */
@@ -11,7 +12,7 @@ export interface HumanSnapshot {
   skills: Skills;
   fatigue: number;
   money: number;
-  form: number;
+  formBySport: Record<Sport, number>;
 }
 
 export interface WeekOutputs {

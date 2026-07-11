@@ -12,7 +12,30 @@ import type { Calendar } from "./date.js";
 // v6: PlayerAttributes gained `traits` (personality traits rolled at
 // creation) — an old save's human has no traits array, so it's discarded
 // rather than left with an undefined field the Me screen can't render.
-export const SAVE_VERSION = 6;
+// v7: the `players` roster is now real FIR players (world/factory.ts), not
+// procedurally generated NPCs — an old save's `players` array holds
+// `npc-N`-ids with random names/skills that no longer correspond to anything
+// in content.players, so it's discarded to character creation rather than
+// mixing real and fake opponents.
+// v8: `Player` gained `firPoints` (real FIR ranking points, for tournament
+// division placement — see systems/division.ts) — a new required field an
+// old save's players don't have. Discarding the save also incidentally
+// covers old saves' `career.tournamentEntries` referencing pre-division
+// tournament ids (e.g. "hamburg-open-2026") that no longer exist in content
+// now that every event is keyed per-division (e.g. "hamburg-open-2026-a").
+// v9: `Career` gained `firResults` (the human's FIR ranking-points ledger,
+// the docs/07 "Layer 3" accumulator earned from tournament placements) — a
+// new required field an old save's career lacks, so it's discarded.
+// v10: `PlayerAttributes.talent` (a single hidden 0..1 roll) became
+// `potential: Record<Sport, number>` (a per-sport hidden ceiling), and
+// `PlayerCondition.form` (a single -10..10 scalar) became `formBySport:
+// Record<Sport, number>` (visible 0..20 per-sport training readiness) — both
+// shape changes touch every player, human and NPC alike, so old saves are
+// discarded to character creation rather than left with missing fields.
+// v11: `InboxRankingRow` (a frozen row inside an already-persisted monthly
+// ranking digest message) gained `playerId`, so the UI can open a profile
+// straight from an old digest — a save from before this had no such field.
+export const SAVE_VERSION = 11;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
@@ -20,13 +43,32 @@ export interface TournamentEntry {
   tournamentId: string;
 }
 
+/**
+ * One FIR ranking-points result earned by the human, appended when a
+ * tournament concludes. The rolling FIR World Ranking is computed from these
+ * via `firPointsTotal` (systems/ranking-points.ts), which applies the FIR
+ * best-N counting rules over a 24-month window. `tier` is retained so those
+ * per-category caps (max 1 WC, 3 SWT; best 2 CHA/SAT) can be applied.
+ */
+export interface FirResult {
+  weekIndex: number;
+  tournamentId: string;
+  tier: string;
+  points: number;
+}
+
 /** One frozen row in a monthly ranking digest — the standings as they were
- * when the mail was sent, so old digests keep reading correctly. */
+ * when the mail was sent, so old digests keep reading correctly. Real FIR
+ * ranking points (systems/ranking-points.ts), not the Glicko rating shown
+ * elsewhere to describe a player's relative strength — official FIR
+ * standings and category placement are always points-based. */
 export interface InboxRankingRow {
   rank: number;
+  /** lets the UI open this player's profile from the digest */
+  playerId: string;
   name: string;
   nationality: string;
-  rating: number;
+  points: number;
   isYou: boolean;
 }
 
@@ -40,17 +82,24 @@ export interface InboxMessage {
   id: string;
   /** week the message arrived */
   week: number;
-  category: "welcome" | "invitation" | "ranking";
+  category: "welcome" | "invitation" | "ranking" | "result" | "coach";
   from: string;
   subject: string;
   body: string;
   read: boolean;
   /** invitation only: the tournament's own week, for a Register/View action */
   tournamentWeek?: number;
-  /** ranking digest only: the frozen monthly standings, top N */
-  ranking?: InboxRankingRow[];
-  /** ranking digest only: the human's own position that month */
-  yourRank?: number;
+  /** ranking digest only: the frozen monthly standings, top N — FIR keeps
+   * separate men's and women's rankings, never a mixed list */
+  rankingMen?: InboxRankingRow[];
+  rankingWomen?: InboxRankingRow[];
+  /** ranking digest only: the human's own position that month, set on
+   * whichever of `rankingMen`/`rankingWomen` matches their gender — the
+   * other always stays undefined */
+  yourRankMen?: number;
+  yourRankWomen?: number;
+  /** result only: true iff the human won the whole tournament (finishingPosition 1) */
+  resultWon?: boolean;
 }
 
 /** Career-only state for the human player (AI players carry none of this). */
@@ -64,6 +113,9 @@ export interface Career {
   /** tournaments registered for but not yet played — consumed (removed) once
    * that week's tournament actually starts */
   tournamentEntries: TournamentEntry[];
+  /** FIR ranking-points earned from tournament placements, newest appended
+   * last — the human's real world-ranking accumulator (see FirResult) */
+  firResults: FirResult[];
   /** diegetic message feed, newest appended last — see InboxSystem */
   inbox: InboxMessage[];
 }

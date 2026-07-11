@@ -1,4 +1,5 @@
 import type { ActivityDef, ActivityType } from "./model/activity.js";
+import type { Sport } from "./model/sport.js";
 import type { TournamentDef } from "./tournament/engine.js";
 
 /**
@@ -44,6 +45,50 @@ export interface TraitDef {
   excludes?: string[];
 }
 
+/** One real player's mapped rating for a sport, from the FIR world bundle.
+ * `skill` is on the internal 0–1000 scale; `rdSkill` is the rating deviation
+ * in that same scale, driving how much world creation scatters this player. */
+export interface RealPlayerRating {
+  skill: number;
+  rdSkill: number;
+}
+
+/**
+ * A real racketlon player imported from scraped FIR ratings (the
+ * `world-bundle.json` roster). The build-time import maps Glicko → skill; the
+ * per-world sampling of exact skill/attributes/birth date happens at world
+ * creation in `world/factory.ts`. See packages/content/src/import/README.md.
+ */
+export interface RealPlayerDef {
+  playerId: string;
+  firstName: string;
+  lastName: string;
+  /** ISO 3166-1 alpha-2 */
+  nationality: string;
+  gender: "m" | "f";
+  /** real FIR birth year when known, else null (world creation synthesizes it) */
+  birthYear: number | null;
+  ratings: Record<Sport, RealPlayerRating>;
+  /** real FIR ranking points as of the import snapshot — used only to place
+   * this player into a tournament division (see systems/division.ts). This
+   * is NOT docs/07's in-game Layer 3 accumulator (points earned from the
+   * human's own placements, still unbuilt) — a static, real-world number,
+   * never updated by gameplay. Null if this player has no FIR-counted
+   * result yet, which defaults them to the lowest division of every tier. */
+  firPoints: number | null;
+}
+
+/**
+ * FIR Ranking Points Matrix (Open events) — the placement-points table from
+ * the FIR Ranking Regulations, Annex A. Keyed by the content `tier` string →
+ * class band (A..E) → points indexed by (finishingPosition − 1). A finishing
+ * position beyond the array clamps to its last entry (the published "49+"
+ * row). Only the Open-events table is modelled today; Seniors/Juniors/Doubles
+ * are future categories. See systems/ranking-points.ts and
+ * packages/content/data/ranking-matrix.json.
+ */
+export type RankingMatrix = Record<string, Record<string, number[]>>;
+
 export interface ContentBundle {
   version: string;
   activities: Record<ActivityType, ActivityDef>;
@@ -57,4 +102,9 @@ export interface ContentBundle {
   tournaments: Record<string, TournamentDef>;
   /** personality trait pool keyed by id — see {@link TraitDef} */
   traits: Record<string, TraitDef>;
+  /** FIR placement-points table (Ranking Regs Annex A) — see {@link RankingMatrix} */
+  rankingMatrix: RankingMatrix;
+  /** real-player roster from the FIR world bundle — the pool world creation
+   * seeds tier-1 NPCs from (replaces the old random generation) */
+  players: RealPlayerDef[];
 }

@@ -70,7 +70,7 @@ export function simulateWeek(
     skills: { ...human.attributes.skills },
     fatigue: human.condition.fatigue,
     money: state.career.money,
-    form: human.condition.form,
+    formBySport: { ...human.condition.formBySport },
   };
   const plans = new Map<string, ActivityCounts>();
   const outputs: WeekOutputs = {};
@@ -86,6 +86,28 @@ export function simulateWeek(
       rng: new Rng(childSeed(state.seed, week, system.id)),
       log: new WeekLog(log, week),
     });
+  }
+
+  // No-show: a tournament registered for this week that was never entered
+  // (`enterTournament` consumes/removes its `tournamentEntries` row on entry)
+  // still owes the entry fee — FIR Tournament Regs 3.14.1 / Players & Draws
+  // 3.13. This only fires for a genuinely untouched registration: entering
+  // (win, lose, or draw the whole bracket out) always removes the row before
+  // `submitWeek` is ever called for this week.
+  const noShowIdx = state.career.tournamentEntries.findIndex((e) => e.weekIndex === week);
+  if (noShowIdx !== -1) {
+    const entry = state.career.tournamentEntries[noShowIdx]!;
+    const def = content.tournaments[entry.tournamentId];
+    state.career.tournamentEntries.splice(noShowIdx, 1);
+    if (def) {
+      state.career.money -= def.entryFee;
+      log.push({
+        week,
+        type: "tournament.noShowFee",
+        subject: state.career.playerId,
+        data: { name: def.name, fee: def.entryFee },
+      });
+    }
   }
 
   state.calendar = advanceWeek(state.calendar);

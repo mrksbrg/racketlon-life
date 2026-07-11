@@ -17,7 +17,7 @@ must stay separate on screen:
 
 | Layer | What it is | Shown to player? | Source |
 |---|---|---|---|
-| **1. True skills & hidden attributes** | Per-sport skill (0–1000) + AI-facing hidden attributes (talent, professionalism). The **hidden latent variables** the match engine actually uses. | **No** — never as raw numbers | `player.attributes` |
+| **1. True skills & hidden attributes** | Per-sport skill (0–1000) + AI-facing hidden attributes (potential, professionalism). The **hidden latent variables** the match engine actually uses — potential is itself per-sport now (a hidden ceiling, not just a learning-rate scalar), with vague inbox "clues" as skill nears it, but the number is never shown. | **No** — never as raw numbers | `player.attributes` |
 | **2. Glicko-2 ratings** | Per-sport statistical **estimate** of strength, inferred from match results. An **add-on**, with its own uncertainty (RD). | Yes — as an analytical view | `player.ratings` |
 | **3. FIR ranking** | **Points earned from tournament placements.** The official competitive standing. **Independent of Glicko.** | Yes — the headline number | ranking points (M1 state) |
 
@@ -46,6 +46,35 @@ Key relationships:
   (common/uncommon/rare), with an `excludes` list preventing contradictory
   pairs (e.g. Night Owl + Morning Person). Only the human player rolls traits
   today — NPCs don't yet.
+- **`Player.firPoints` is a different thing from Layer 3, on purpose.**
+  Real NPCs carry a static, real-world FIR ranking-points snapshot imported
+  once at build time (`packages/content/src/import/`, bridged via
+  `ranking_players.csv`'s guid) — used **only** to sort players into
+  tournament divisions (below), never shown to the player, never updated by
+  gameplay. Layer 3 above is the *unbuilt* in-game accumulator (points the
+  human earns from their own placements) — the two will need reconciling
+  once Layer 3 lands (open decision #2), but until then don't confuse them:
+  `firPoints` answers "how good are they, per the real world," Layer 3 will
+  answer "how many points has this career earned."
+
+### Tournament divisions (A/B/C/D)
+
+Each real-world tournament event now runs several simultaneous skill
+divisions, mirroring how FIR actually runs events (confirmed in the
+scraper's raw match data — "Men A - Elite" / "B - Advanced" / "C - Amateur"
+/ "D - Beginner" all appear at real events). SAT/CHA get A/B, IWT gets
+A/B/C, SWT/World Championships/World Tour Finals get A/B/C/D. A player's
+division is **automatic** — percentile rank on `firPoints` among same-gender
+players, nulls (no FIR-counted result) always landing in the tier's lowest
+division — no player choice (`systems/division.ts`, `BALANCE.division.byTier`).
+
+The human has no real `firPoints` (no Layer 3 yet — see above), so they
+always land in the lowest division of every tier. This is a deliberate,
+temporary simplification, not an oversight: revisit once Layer 3 exists.
+Content-wise, one `TournamentDef` per division (sharing an `eventId`,
+`packages/content/data/tournaments.json`); the facade always resolves down
+to the human's own single division (`humanDivisionDef`), so the rest of the
+UI never needs to know multiple brackets exist for one event.
 
 ### What you may show, per player
 
@@ -156,12 +185,15 @@ sponsor offers, results recaps, coach SMS…).
 Source: `career.inbox` via `Game.inbox` (`InboxSystem`).
 
 ### Me — your player
-Your character hub: the four sport **levels 1–20** with progress bars, condition
-(fatigue / form / confidence), age, club, nationality, and career stats (titles,
-prize money, W/L). Your Glicko + FIR shown here too as the external mirror of the
-internal levels. Sponsors, equipment, coach relationships, finances, and
-achievements start as **sections here** and graduate to their own screens later.
-Source: `you`; extended as career state grows.
+Your character hub: the four sport **levels 1–20** with progress bars, each
+paired with its own **per-sport form** (0–20, "tournament readiness" — rises
+when a sport is trained that week, decays when it's neglected, and scales how
+much of true skill shows up in a match; see `BALANCE.form`), plus whole-body
+condition (fatigue / confidence), age, club, nationality, and career stats
+(titles, prize money, W/L). Your Glicko + FIR shown here too as the external
+mirror of the internal levels. Sponsors, equipment, coach relationships,
+finances, and achievements start as **sections here** and graduate to their
+own screens later. Source: `you`; extended as career state grows.
 
 ---
 

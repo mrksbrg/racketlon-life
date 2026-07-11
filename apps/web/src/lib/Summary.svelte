@@ -1,7 +1,18 @@
 <script lang="ts">
   import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
+  import AnimatedNumber from "./AnimatedNumber.svelte";
   import { store } from "./store.svelte";
-  import { SPORT_COLORS, SPORT_SHORT, formatSignedMoney } from "./ui";
+  import { SPORT_COLORS, SPORT_SHORT, formColor, formatSignedMoney } from "./ui";
+
+  // bars render at their "before" width on first paint, then flip to
+  // "after" a tick later — the CSS transition on .fill is what actually
+  // animates the growth (or shrinkage) into view, rather than snapping
+  // straight to the end-of-week state.
+  let settled = $state(false);
+  $effect(() => {
+    const t = setTimeout(() => (settled = true), 60);
+    return () => clearTimeout(t);
+  });
 </script>
 
 {#if store.summary && store.you}
@@ -11,23 +22,46 @@
     <p class="sub">Week complete</p>
 
     <section class="card">
-      <h3>Skills</h3>
+      <h3>Skills &amp; form</h3>
       {#each SPORTS as sport (sport)}
         {@const row = s.sports[sport]}
-        <div class="sport-row" class:leveled={row.leveledUp}>
-          <span class="tag" style:background={SPORT_COLORS[sport]}>{SPORT_SHORT[sport]}</span>
-          <span class="sport-name">{SPORT_LABELS[sport]}</span>
-          <span class="level">Lv {row.level}</span>
-          <div class="bar">
-            <div
-              class="fill"
-              style:width="{store.you.sports[sport].progress * 100}%"
-              style:background={SPORT_COLORS[sport]}
-            ></div>
+        <div class="sport-block">
+          <div class="sport-row" class:leveled={row.leveledUp}>
+            <span class="tag" style:background={SPORT_COLORS[sport]}>{SPORT_SHORT[sport]}</span>
+            <span class="sport-name">{SPORT_LABELS[sport]}</span>
+            <span class="level">Lv {row.level}</span>
+            <div class="bar">
+              <div
+                class="fill"
+                style:width="{(settled ? row.progress : row.beforeProgress) * 100}%"
+                style:background={SPORT_COLORS[sport]}
+              ></div>
+            </div>
+            <span class="delta" class:up={row.skillDelta > 0}>
+              {#if row.leveledUp}
+                LEVEL UP!
+              {:else if row.skillDelta > 0}
+                +<AnimatedNumber value={row.skillDelta} decimals={1} />
+              {/if}
+            </span>
           </div>
-          <span class="delta" class:up={row.skillDelta > 0}>
-            {row.leveledUp ? "LEVEL UP!" : row.skillDelta > 0 ? "▲" : ""}
-          </span>
+          <div class="form-row" class:rise={row.formDelta > 0} class:drop={row.formDelta < 0}>
+            <span class="form-label">Form</span>
+            <div class="bar form-bar">
+              <div
+                class="fill"
+                style:width="{(settled ? row.form : row.beforeForm) / 20 * 100}%"
+                style:background={formColor(row.form)}
+              ></div>
+            </div>
+            <span class="form-delta" class:up={row.formDelta > 0} class:down={row.formDelta < 0}>
+              {#if row.formDelta !== 0}
+                <AnimatedNumber value={row.formDelta} signed />
+              {:else}
+                ·
+              {/if}
+            </span>
+          </div>
         </div>
       {/each}
     </section>
@@ -99,12 +133,19 @@
     margin-bottom: 10px;
   }
 
+  .sport-block {
+    padding: 6px 0;
+  }
+
+  .sport-block + .sport-block {
+    border-top: 1px solid var(--border);
+  }
+
   .sport-row {
     display: grid;
     grid-template-columns: 30px 1fr 44px 70px 76px;
     align-items: center;
     gap: 8px;
-    padding: 7px 0;
     font-size: 14px;
   }
 
@@ -113,6 +154,17 @@
     border-radius: 8px;
     padding-inline: 6px;
     margin-inline: -6px;
+    animation: levelPulse 1.2s ease-in-out 2;
+  }
+
+  @keyframes levelPulse {
+    0%,
+    100% {
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+    }
+    50% {
+      background: color-mix(in srgb, var(--accent) 34%, transparent);
+    }
   }
 
   .tag {
@@ -139,6 +191,7 @@
 
   .fill {
     height: 100%;
+    transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .delta {
@@ -150,6 +203,63 @@
 
   .delta.up {
     color: var(--ok);
+  }
+
+  .form-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 4px;
+    padding-left: 38px;
+  }
+
+  .form-row.drop {
+    animation: formDrop 0.5s ease-in-out;
+  }
+
+  @keyframes formDrop {
+    0%,
+    100% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-3px);
+    }
+    75% {
+      transform: translateX(3px);
+    }
+  }
+
+  .form-label {
+    width: 32px;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .form-bar {
+    flex: 1;
+    height: 3px;
+  }
+
+  .form-delta {
+    width: 40px;
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-align: right;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .form-delta.up {
+    color: var(--ok);
+  }
+
+  .form-delta.down {
+    color: var(--danger);
   }
 
   .stat-row {

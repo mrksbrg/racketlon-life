@@ -1,13 +1,25 @@
 <script lang="ts">
+  import type { DivisionCode, TourEntry } from "@racketlon/engine";
   import StatusBar from "./StatusBar.svelte";
   import TabBar from "./TabBar.svelte";
   import { store } from "./store.svelte";
   import { flagEmoji, formatMoney } from "./ui";
 
   let expanded = $state<number | null>(null);
+  // per-week class pick, defaulting to whatever entry.tournament.division
+  // already is (the human's own class, or the actually-registered one)
+  let chosenDivision = $state<Record<number, DivisionCode>>({});
 
   function toggle(weekIndex: number) {
     expanded = expanded === weekIndex ? null : weekIndex;
+  }
+
+  function divisionFor(entry: TourEntry): DivisionCode {
+    return chosenDivision[entry.weekIndex] ?? entry.tournament.division;
+  }
+
+  function choiceFor(entry: TourEntry) {
+    return entry.eligibleDivisions.find((c) => c.def.division === divisionFor(entry)) ?? entry.eligibleDivisions[0]!;
   }
 
   const STATUS_LABEL = { open: "Open", registered: "Registered", closed: "Entry closed" };
@@ -23,6 +35,8 @@
     {#each store.tourEntries as entry (entry.weekIndex)}
       {@const t = entry.tournament}
       {@const canPlayNow = entry.isThisWeek && store.registeredTournamentThisWeek}
+      {@const choice = choiceFor(entry)}
+      {@const canPick = entry.status !== "closed"}
       <div class="card" class:this-week={entry.isThisWeek} class:registered={entry.status === "registered"}>
         <button class="row" onclick={() => toggle(entry.weekIndex)}>
           <div class="info">
@@ -40,17 +54,32 @@
 
         {#if expanded === entry.weekIndex}
           <div class="detail">
+            {#if entry.eligibleDivisions.length > 1}
+              <div class="classes">
+                {#each entry.eligibleDivisions as c (c.def.division)}
+                  <button
+                    class="class-opt"
+                    class:selected={choice.def.division === c.def.division}
+                    disabled={!canPick}
+                    onclick={() => (chosenDivision = { ...chosenDivision, [entry.weekIndex]: c.def.division })}
+                  >
+                    <span class="class-div">Class {c.def.division}</span>
+                    <span class="class-hint">{c.def.division === entry.eligibleDivisions[0]!.def.division ? "your level" : "play up"}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
             <div class="detail-row">
               <span>Entry fee</span>
-              <span>{formatMoney(t.entryFee)}</span>
+              <span>{formatMoney(choice.def.entryFee)}</span>
             </div>
             <div class="detail-row">
               <span>Field size</span>
-              <span>{t.fieldSize} players</span>
+              <span>{choice.def.fieldSize} players</span>
             </div>
             <div class="detail-row">
               <span>Prize money</span>
-              <span>{formatMoney(t.prizeByRoundsWon[t.prizeByRoundsWon.length - 1] ?? 0)} to win it</span>
+              <span>{formatMoney(choice.def.prizeByRoundsWon[choice.def.prizeByRoundsWon.length - 1] ?? 0)} to win it</span>
             </div>
             {#if entry.travelCost.total > 0}
               <div class="detail-row">
@@ -63,7 +92,7 @@
               </div>
               <div class="detail-row total">
                 <span>Total to play</span>
-                <span>{formatMoney(t.entryFee + entry.travelCost.total)}</span>
+                <span>{formatMoney(choice.def.entryFee + entry.travelCost.total)}</span>
               </div>
             {:else}
               <div class="detail-row">
@@ -72,13 +101,17 @@
               </div>
             {/if}
             <div class="field">
-              <div class="field-label">Field ({entry.entrants.length + 1} entered)</div>
+              <div class="field-label">Field ({choice.entrants.length + 1} entered)</div>
               <div class="field-you">You</div>
-              {#each entry.entrants as opp (opp.id)}
-                <div class="field-row">
+              {#each choice.entrants as opp (opp.id)}
+                <button class="field-row" onclick={() => store.viewOpponent(opp.id)}>
                   <span>{opp.name}</span>
                   <span class="field-rating">{opp.rating}</span>
-                </div>
+                </button>
+              {:else}
+                {#if choice.def.division !== entry.eligibleDivisions[0]!.def.division}
+                  <p class="field-empty">No confirmed entrants for this class yet.</p>
+                {/if}
               {/each}
             </div>
           </div>
@@ -87,10 +120,12 @@
         {#if entry.status !== "closed"}
           <div class="actions">
             {#if entry.status === "open"}
-              <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex)}>Register ▸</button>
+              <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Register ▸</button>
             {:else}
               <button class="skip" onclick={() => void store.withdrawRegistration(entry.weekIndex)}>Withdraw</button>
-              {#if canPlayNow}
+              {#if divisionFor(entry) !== t.division}
+                <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Switch class ▸</button>
+              {:else if canPlayNow}
                 <button class="enter" onclick={() => store.enterTournament()}>Play now ▸</button>
               {/if}
             {/if}
@@ -259,6 +294,56 @@
     font-weight: 600;
   }
 
+  .classes {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .class-opt {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 6px;
+  }
+
+  .class-opt.selected {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 16%, var(--card-2));
+  }
+
+  .class-opt:disabled {
+    opacity: 0.5;
+  }
+
+  .class-div {
+    font-weight: 700;
+    font-size: 13px;
+  }
+
+  .class-hint {
+    font-size: 10.5px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .class-opt.selected .class-hint {
+    color: var(--accent);
+  }
+
+  .field-empty {
+    color: var(--muted);
+    font-size: 12.5px;
+    font-style: italic;
+    padding: 4px 0;
+  }
+
   .field {
     margin-top: 8px;
     padding-top: 10px;
@@ -280,6 +365,11 @@
     justify-content: space-between;
     font-size: 13px;
     padding: 3px 0;
+  }
+
+  .field-row {
+    width: 100%;
+    text-align: left;
   }
 
   .field-you {

@@ -3,7 +3,7 @@ import { humanPlayer } from "../core/state.js";
 import { round1 } from "../core/util.js";
 import type { SportSummary } from "../model/summary.js";
 import type { Sport } from "../model/sport.js";
-import { SPORTS, SPORT_LABELS, levelForSkill } from "../model/sport.js";
+import { SPORTS, SPORT_LABELS, levelForSkill, levelProgress } from "../model/sport.js";
 import type { GameSystem } from "./types.js";
 
 /**
@@ -20,10 +20,17 @@ export const SummarySystem: GameSystem = {
     for (const sport of SPORTS) {
       const before = snap.skills[sport];
       const after = human.attributes.skills[sport];
+      const beforeForm = snap.formBySport[sport];
+      const afterForm = human.condition.formBySport[sport];
       sports[sport] = {
         level: levelForSkill(after),
         skillDelta: round1(after - before),
         leveledUp: levelForSkill(after) > levelForSkill(before),
+        beforeProgress: levelProgress(before),
+        progress: levelProgress(after),
+        beforeForm,
+        form: afterForm,
+        formDelta: afterForm - beforeForm,
       };
     }
 
@@ -53,11 +60,11 @@ export const SummarySystem: GameSystem = {
       } else if (event.type === "tournament.eliminated") {
         const d = event.data as {
           name: string;
-          roundsWon: number;
-          totalRounds: number;
           prizeMoney: number;
+          finishingPosition: number;
+          tiedCount: number;
         };
-        const place = eliminationLabel(d.roundsWon, d.totalRounds);
+        const place = eliminationLabel(d.finishingPosition, d.tiedCount);
         const prize = d.prizeMoney > 0 ? ` — ${eur(d.prizeMoney)}` : "";
         notes.push(`${place} at the ${d.name}${prize}.`);
       } else if (event.type === "injury.occurred") {
@@ -70,6 +77,12 @@ export const SummarySystem: GameSystem = {
       } else if (event.type === "injury.blocked") {
         const d = event.data as { sport: Sport };
         notes.push(`The ${SPORT_LABELS[d.sport]} injury kept you off the court — that training didn't count.`);
+      } else if (event.type === "form.rusty") {
+        const d = event.data as { sport: Sport };
+        notes.push(`Your ${SPORT_LABELS[d.sport]} is getting rusty — it's been neglected.`);
+      } else if (event.type === "form.sharp") {
+        const d = event.data as { sport: Sport };
+        notes.push(`Your ${SPORT_LABELS[d.sport]} is razor sharp — full tournament readiness.`);
       } else if (event.type === "ranking.moved") {
         const d = event.data as { sport: Sport; before: number; after: number };
         const delta = d.after - d.before;
@@ -98,7 +111,6 @@ export const SummarySystem: GameSystem = {
         value: ctx.state.career.money,
         delta: ctx.state.career.money - snap.money,
       },
-      form: human.condition.form,
       notes,
     };
   },
@@ -108,13 +120,39 @@ function eur(amount: number): string {
   return `€${Math.round(amount).toLocaleString("en-US")}`;
 }
 
-function eliminationLabel(roundsWon: number, totalRounds: number): string {
-  const roundsFromEnd = totalRounds - roundsWon;
-  if (roundsFromEnd === 1) return "Runner-up";
-  if (roundsFromEnd === 2) return "Lost in the semi-final";
-  if (roundsFromEnd === 3) return "Lost in the quarter-final";
-  if (roundsWon === 0) return "Lost in the first round";
-  return `Lost after ${roundsWon} round${roundsWon === 1 ? "" : "s"}`;
+/**
+ * A finishing-position label, not a rounds-won one: under the monrad
+ * placement bracket (tournament/engine.ts), everyone plays real matches up
+ * to the 3-game plate cap regardless of how many of them they win, so
+ * "lost in the Nth round" no longer reliably describes how far someone got
+ * — two players can both be "eliminated after 0 wins" while one played a
+ * single match and the other played three. `finishingPosition` (the tied
+ * band's best place) and `tiedCount` (>1 for a shared plate band) are what
+ * the FIR ranking points themselves are keyed on, so they're what the
+ * summary should read from too.
+ */
+export function eliminationLabel(finishingPosition: number, tiedCount: number): string {
+  if (finishingPosition === 2) return "Runner-up";
+  const last = finishingPosition + tiedCount - 1;
+  return tiedCount > 1
+    ? `Tied for ${ordinal(finishingPosition)}–${ordinal(last)}`
+    : `Finished ${ordinal(finishingPosition)}`;
+}
+
+/** "1st", "2nd", "3rd", "4th"… — shared with systems/inbox.ts's results email. */
+export function ordinal(n: number): string {
+  const mod100 = n % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
 }
 
 function injuryLabel(type: string): string {

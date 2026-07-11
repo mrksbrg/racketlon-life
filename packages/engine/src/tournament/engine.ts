@@ -1,11 +1,12 @@
 import { BALANCE } from "../balance.js";
-import type { ContentBundle } from "../content.js";
+import type { ContentBundle, RankingMatrix } from "../content.js";
 import { ageOn, weekIndexForDate } from "../core/date.js";
 import type { EventLog } from "../core/events.js";
 import { Rng, childSeed } from "../core/rng.js";
 import type { GameState } from "../core/state.js";
 import { getPlayer } from "../core/state.js";
 import type { Player, Ratings } from "../model/player.js";
+import { fullName } from "../model/player.js";
 import type { MatchState } from "../match/engine.js";
 import {
   aiChooseTactic,
@@ -15,29 +16,64 @@ import {
   resumeMatch,
   setTactic,
 } from "../match/engine.js";
+import { divisionAssignments, divisionOf } from "../systems/division.js";
+import { staminaRecoveryMult } from "../systems/effects.js";
+import { rankingPointsFor } from "../systems/ranking-points.js";
 import type { RatingResultsBook } from "../systems/ranking.js";
 import { applyTournamentRatings, cloneRatings, combinedRating, recordMatchResults } from "../systems/ranking.js";
 import { travelCost } from "../systems/travel.js";
 
 /**
- * Single-elimination tournament: entry, seeding, and round-by-round
- * progression. AI-vs-AI matches auto-resolve instantly; the human's own
- * matches are handed back to the UI to play interactively (reusing the
- * regular Match screen), one round at a time, with energy carrying over
- * between rounds — a tournament day is a stamina arc, not isolated matches.
+ * Monrad-style placement bracket: a real main draw plus real plate
+ * (consolation) matches for anyone eliminated from it, capped so nobody in a
+ * losing bracket plays more than 3 games total.
+ *
+ * The single lineage that has never lost — the "main draw" — always plays on
+ * to a genuine final: 1st and 2nd are always decided by an actual match,
+ * however many rounds that takes (`log2(fieldSize)`). The moment a player
+ * loses for the first time, they drop into a plate lineage and keep getting
+ * real matches against fellow losers until they've played 3 games total (or
+ * the plate lineage itself shrinks to a single player, whichever comes
+ * first). If there's still room for one more real match when it's a plate
+ * group's turn, it's played — a genuine decisive result, exactly like a
+ * bronze-medal match. Only when the *next* match would be a 4th game does
+ * that group stop instead, sharing a tied position band (best position used
+ * for ranking points — see `rankingPointsFor`). For an 8-player draw this
+ * never actually bites (3 rounds total == the cap), so every entrant still
+ * gets a fully distinct place 1..8; bigger draws progressively band deeper
+ * losers together the further they are from the final. See `buildNextGroups`
+ * for the mechanics and `advanceTournament` for how a player's own result is
+ * known the moment their lineage is decided, independent of the rest of the
+ * field.
+ *
+ * AI-vs-AI matches auto-resolve instantly; the human's own match each round
+ * is handed back to the UI to play interactively (reusing the regular Match
+ * screen), with energy carrying over between rounds — a tournament day is a
+ * stamina arc, not isolated matches. Once the human's own lineage is decided,
+ * any other still-live groups are silently fast-forwarded (no further UI
+ * interaction) purely so NPC ratings stay realistic across the whole field.
  *
  * A `TournamentSession` is deliberately NOT part of GameState — it's
  * ephemeral, held by the `Game` facade for the duration of the event.
- * Only its permanent effects (entry fee, prize money, fatigue, EventLog
- * entries) are written into GameState. Reloading mid-tournament simply
- * restarts that week fresh, since nothing autosaves until the week
- * concludes — a deliberate M1 simplification.
+ * Only its permanent effects (entry fee, prize money, fatigue, ranking
+ * points, EventLog entries) are written into GameState. Reloading
+ * mid-tournament simply restarts that week fresh, since nothing autosaves
+ * until the week concludes — a deliberate M1 simplification.
  */
 
 export type FieldSize = 8 | 16 | 32 | 64;
 
+export type DivisionCode = "A" | "B" | "C" | "D";
+
 export interface TournamentDef {
+  /** per-division-unique, e.g. "hamburg-open-2026-a" */
   id: string;
+  /** shared across every division of the same physical event, e.g.
+   * "hamburg-open-2026" — see `tournamentCalendar`, `humanDivisionDef` */
+  eventId: string;
+  /** skill-tier bracket within the event — how many divisions a tier gets
+   * is BALANCE.division.byTier */
+  division: DivisionCode;
   name: string;
   /** host city, for display and TravelSystem distance */
   city: string;
@@ -77,6 +113,51 @@ function standardSeedOrder(size: FieldSize): number[] {
   return order;
 }
 
+/** One pairing within a round's group. `winner` is null only for the human's
+ * own pair, until their match concludes (see `advanceTournament`) — every
+ * other pair auto-resolves immediately in `resolveRound`. */
+interface RoundPair {
+  a: string;
+  b: string;
+  winner: string | null;
+}
+
+/**
+ * A group of entrants still contesting a shared position-range — a
+ * contiguous slice of bracket positions. `undefeated` marks the single
+ * lineage that has never lost (always allowed to keep splitting, uncapped,
+ * down to a real final); every other group is a plate lineage, capped at 3
+ * total games (`gamesPlayed`) per the module doc comment. `frozen` means
+ * this group will play no further matches — its members share a tied
+ * position band once the tournament concludes (or, if `participants.length
+ * === 1`, it already holds one fully-resolved position).
+ */
+interface Group {
+  participants: string[];
+  undefeated: boolean;
+  /** games every member of this group has already played, entering it */
+  gamesPlayed: number;
+  frozen: boolean;
+}
+
+function isDecided(g: Group): boolean {
+  return g.frozen || g.participants.length === 1;
+}
+
+/**
+ * One played round, kept for the lifetime of the session so a draw/bracket
+ * view can be rendered — see `drawRounds` in facade.ts. `groups` is the
+ * groups *entering* this round (before it played); `pairs` mirrors it
+ * one-for-one and is the same array `resolveRound` populated, so the
+ * human's own pairing here updates in place (winner goes from `null` to a
+ * real id) the moment their match concludes — no need to re-snapshot.
+ */
+interface RoundRecord {
+  round: number;
+  groups: Group[];
+  pairs: (RoundPair[] | null)[];
+}
+
 export interface TournamentSession {
   def: TournamentDef;
   weekIndex: number;
@@ -85,14 +166,25 @@ export interface TournamentSession {
   /** entrant ids in fixed bracket-position order, seeded once at entry */
   bracketBySeed: string[];
   currentRound: number; // 0-indexed
-  /** winners advancing out of each round, in bracket order; human's own
-   * slot is filled in once their match concludes */
-  roundWinners: string[][];
+  /**
+   * This round's groups, in bracket-position order — see {@link Group} and
+   * the module doc comment for how they split and freeze round to round.
+   */
+  groups: Group[];
+  /** this round's pairings, one entry per group in `groups` — null for a
+   * group that didn't play this round (already decided); populated by
+   * `resolveRound`; null (the whole array) before the session's first round
+   * has been resolved */
+  roundPairs: (RoundPair[] | null)[] | null;
   pendingMatch: MatchState | null;
-  pendingPairIndex: number | null;
+  pendingGroupIndex: number | null;
+  pendingPairIndexInGroup: number | null;
   /** energy the human carries into their next match (recovers a little between rounds) */
   humanEnergyCarry: number;
   cumulativeEnergySpent: number;
+  /** total matches won this tournament — indexes `prizeByRoundsWon`;
+   * distinct from `finishingPosition`, since two different placement paths
+   * can share the same win count (see `concludeTournament`'s doc comment) */
   roundsWon: number;
   totalRounds: number;
   /** entrants' ratings as of tournament entry — the Glicko-2 rating period's
@@ -102,33 +194,115 @@ export interface TournamentSession {
   /** every decisive set result recorded so far this tournament, applied to
    * ratings once the event concludes */
   resultsBook: RatingResultsBook;
+  /** the FIR placement-points table, snapshotted at entry so scoring doesn't
+   * need a `content` parameter threaded through every advance call */
+  rankingMatrix: RankingMatrix;
+  /** every round the human actually experienced, oldest first — see
+   * {@link RoundRecord}. Only `resolveRound` appends (the human-facing path);
+   * `finishAllRemainingGroups`' silent mop-up after the human's own result is
+   * known deliberately isn't recorded, so this stops exactly where their
+   * tournament did. */
+  history: RoundRecord[];
 }
 
 export type TournamentAdvanceResult =
   | { status: "nextRound"; match: MatchState; round: number; totalRounds: number }
-  | { status: "eliminated"; roundsWon: number; totalRounds: number; prizeMoney: number }
-  | { status: "won"; totalRounds: number; prizeMoney: number };
+  | {
+      status: "eliminated";
+      roundsWon: number;
+      totalRounds: number;
+      prizeMoney: number;
+      finishingPosition: number;
+      rankingPoints: number;
+      /** how many entrants share this exact position — 1 means a clean,
+       * untied placement; >1 means a plate band tied on the cap */
+      tiedCount: number;
+    }
+  | {
+      status: "won";
+      totalRounds: number;
+      prizeMoney: number;
+      finishingPosition: number;
+      rankingPoints: number;
+      tiedCount: number;
+    };
 
 /**
  * Every content tournament placed on the game's week grid, keyed by the
  * `weekIndex` its real-world `date` falls into. Real events don't recur —
- * each `TournamentDef` occupies exactly one week — so this is a direct
- * lookup rather than an arithmetic recurrence rule.
+ * each event occupies exactly one week — so this is a direct lookup rather
+ * than an arithmetic recurrence rule. A week's value is *every division's*
+ * `TournamentDef` for that event (they share a date); see `humanDivisionDef`
+ * for resolving which one specific division matters to the human.
  */
-export function tournamentCalendar(content: ContentBundle): Map<number, TournamentDef> {
-  const map = new Map<number, TournamentDef>();
+export function tournamentCalendar(content: ContentBundle): Map<number, TournamentDef[]> {
+  const map = new Map<number, TournamentDef[]>();
   for (const def of Object.values(content.tournaments)) {
-    map.set(weekIndexForDate(def.date), def);
+    const week = weekIndexForDate(def.date);
+    const defs = map.get(week);
+    if (defs) defs.push(def);
+    else map.set(week, [def]);
   }
   return map;
 }
 
-export function tournamentForWeek(content: ContentBundle, weekIndex: number): TournamentDef | null {
+export function tournamentForWeek(content: ContentBundle, weekIndex: number): TournamentDef[] | null {
   return tournamentCalendar(content).get(weekIndex) ?? null;
 }
 
 export function isTournamentWeek(content: ContentBundle, weekIndex: number): boolean {
   return tournamentCalendar(content).has(weekIndex);
+}
+
+/**
+ * Every division of an event the human may enter this week: their own
+ * FIR-points-percentile band first (see `systems/division.ts`), then every
+ * *tougher* band above it, best (elite "A") last — "playing up" a class,
+ * same as FIR's real Tournament Regs 3.3 allows. Playing down is never
+ * offered — a player above a class's cut-off plays their real class, same
+ * as the FIR rule this mirrors.
+ *
+ * The human's own `firPoints` stays their static (always-null) snapshot here
+ * — the same field NPCs carry — rather than their growing in-career total
+ * (`firPointsTotal`, systems/ranking-points.ts). Feeding the growing total in
+ * here would let the human become the *only* ranked entrant against an
+ * otherwise-null NPC pool for a division, which `divisionAssignments` would
+ * then place in the tier's top band — a band `projectedField` can't fill
+ * with tier-1 NPCs, since none of them are ever assigned to it. Division
+ * climbing for the human is a natural follow-up once NPC divisions are
+ * themselves populated from a realistic (non-null-heavy) points spread.
+ */
+export function humanEligibleDivisions(state: GameState, defs: TournamentDef[]): TournamentDef[] {
+  const human = getPlayer(state, state.career.playerId);
+  const tier = defs[0]!.tier;
+  const tierDivisions = BALANCE.division.byTier[tier];
+  if (!tierDivisions) throw new Error(`No BALANCE.division.byTier entry for tier "${tier}"`);
+
+  const samePool = state.players
+    .filter((p) => p.identity.gender === human.identity.gender)
+    .map((p) => ({ id: p.identity.id, firPoints: p.firPoints }));
+  const assignments = divisionAssignments(samePool, tierDivisions);
+  const ownDivision = divisionOf(assignments, human.identity.id);
+  const ownIndex = tierDivisions.indexOf(ownDivision);
+
+  // tierDivisions is ordered toughest (index 0, "A") to easiest (last) — the
+  // human's own band and everything tougher, own division first
+  const playableDivisions = tierDivisions.slice(0, ownIndex + 1).reverse();
+  return playableDivisions.map((division) => {
+    const def = defs.find((d) => d.division === division);
+    if (!def) throw new Error(`No "${division}" division found for event ${defs[0]!.eventId} (content-authoring gap)`);
+    return def;
+  });
+}
+
+/**
+ * The single `TournamentDef` for the human's own division — every
+ * facade-facing function that doesn't offer a class choice funnels through
+ * here so it keeps returning one def, exactly like before divisions (and
+ * playing up) existed. See `humanEligibleDivisions` for the full choice set.
+ */
+export function humanDivisionDef(state: GameState, defs: TournamentDef[]): TournamentDef {
+  return humanEligibleDivisions(state, defs)[0]!;
 }
 
 /** Resolves one match fully via AI tactics on both sides — for AI-vs-AI pairs. */
@@ -152,19 +326,31 @@ export function simulateMatchAuto(m: MatchState): void {
  * happening, and is what `pickEntrants` uses once the human does enter, so
  * the preview and the real bracket are guaranteed to agree.
  *
- * Draws are gender-separated — never mixed — so the pool is filtered to the
- * human's own gender before sampling. Men's and women's fields are always
- * the same size (`def.fieldSize`); only the human's own draw is ever
- * generated, since nothing in the game currently depends on the other one.
+ * Draws are gender- *and* division-separated — never mixed — so the pool is
+ * filtered to the human's own gender and `def.division` before sampling.
+ * Division bands are computed over the *whole* same-gender population
+ * (human included), matching `humanDivisionDef`'s population scope exactly
+ * — using a narrower population here would risk disagreeing with
+ * `humanDivisionDef` on a borderline player's band. Men's and women's fields
+ * are always the same size (`def.fieldSize`); only the human's own draw is
+ * ever generated, since nothing in the game currently depends on the other one.
  */
 export function projectedField(state: GameState, def: TournamentDef, weekIndex: number): Player[] {
   const rng = new Rng(childSeed(state.seed, "tournament", weekIndex, def.id));
   const human = getPlayer(state, state.career.playerId);
-  const pool = state.players.filter((p) => p.simTier === 1 && p.identity.gender === human.identity.gender);
+  const tierDivisions = BALANCE.division.byTier[def.tier];
+  if (!tierDivisions) throw new Error(`No BALANCE.division.byTier entry for tier "${def.tier}"`);
+  const sameGender = state.players.filter((p) => p.identity.gender === human.identity.gender);
+  const assignments = divisionAssignments(
+    sameGender.map((p) => ({ id: p.identity.id, firPoints: p.firPoints })),
+    tierDivisions,
+  );
+  const pool = sameGender.filter((p) => p.simTier === 1 && divisionOf(assignments, p.identity.id) === def.division);
   const needed = def.fieldSize - 1;
   if (pool.length < needed) {
     throw new Error(
-      `Not enough tier-1 ${human.identity.gender} players (${pool.length}) for a ${def.fieldSize}-player draw`,
+      `Not enough tier-1 ${human.identity.gender} players in division ${def.division} ` +
+        `(${pool.length}) for a ${def.fieldSize}-player draw`,
     );
   }
   const shuffled = [...pool];
@@ -198,37 +384,150 @@ function roundPairs(participants: string[]): Array<[string, string]> {
   return pairs;
 }
 
-/** Resolves every pair in the current round except the human's, which
- * becomes the session's pendingMatch for the UI to play interactively. */
+/**
+ * Resolves every pair of the current round across every still-active group
+ * (skipping any already-decided group — see {@link isDecided}), except the
+ * human's own pair, which becomes the session's `pendingMatch` for the UI to
+ * play interactively. Pair seeding uses a single round-global counter (not
+ * per-group) so results stay identical to the pre-monrad pairing order for
+ * round 0, and remain fully deterministic for a given seed thereafter.
+ *
+ * Only ever called when the human's own group is NOT already decided (the
+ * caller — `startTournament` at round 0, or `advanceTournament` after a
+ * split — guarantees this), so a `pendingMatch` is always produced.
+ */
 function resolveRound(state: GameState, session: TournamentSession): void {
   const round = session.currentRound;
-  const participants = round === 0 ? session.bracketBySeed : session.roundWinners[round - 1]!;
-  const pairs = roundPairs(participants);
-  const winners: (string | null)[] = new Array(pairs.length).fill(null);
   const ref = (player: Player) =>
     matchRefFromPlayer(player, ageOn(state.calendar.mondayISO, player.identity.birthDate));
 
-  pairs.forEach(([a, b], i) => {
-    if (a === session.humanId || b === session.humanId) {
-      const human = getPlayer(state, session.humanId);
-      const opponent = getPlayer(state, a === session.humanId ? b : a);
-      const seed = childSeed(session.seed, "round", round, i);
-      const m = createMatch(ref(human), ref(opponent), seed);
-      m.energy.a = session.humanEnergyCarry;
-      session.pendingMatch = m;
-      session.pendingPairIndex = i;
-    } else {
+  session.pendingMatch = null;
+  session.pendingGroupIndex = null;
+  session.pendingPairIndexInGroup = null;
+  let globalIndex = 0;
+
+  session.roundPairs = session.groups.map((group, groupIndex) => {
+    if (isDecided(group)) return null;
+    const pairs = roundPairs(group.participants);
+    return pairs.map(([a, b], pairIndexInGroup): RoundPair => {
+      const seed = childSeed(session.seed, "round", round, globalIndex++);
+      if (a === session.humanId || b === session.humanId) {
+        const human = getPlayer(state, session.humanId);
+        const opponent = getPlayer(state, a === session.humanId ? b : a);
+        const m = createMatch(ref(human), ref(opponent), seed);
+        m.energy.a = session.humanEnergyCarry;
+        session.pendingMatch = m;
+        session.pendingGroupIndex = groupIndex;
+        session.pendingPairIndexInGroup = pairIndexInGroup;
+        return { a, b, winner: null };
+      }
       const pa = getPlayer(state, a);
       const pb = getPlayer(state, b);
-      const seed = childSeed(session.seed, "round", round, i);
       const m = createMatch(ref(pa), ref(pb), seed);
       simulateMatchAuto(m);
       recordMatchResults(session.resultsBook, m);
-      winners[i] = m.winner === "a" ? a : b;
-    }
+      return { a, b, winner: m.winner === "a" ? a : b };
+    });
   });
 
-  session.roundWinners[round] = winners as string[];
+  session.history.push({ round, groups: session.groups, pairs: session.roundPairs });
+}
+
+/**
+ * Auto-resolves one round for every still-active group, with AI tactics on
+ * both sides for every match (used only by `finishAllRemainingGroups`, once
+ * the human's own result is already known and nothing here needs to reach
+ * the UI). Mirrors `resolveRound`'s pairing/seeding exactly, minus the
+ * human's interactive branch.
+ */
+function resolveRoundAuto(state: GameState, session: TournamentSession, round: number): (RoundPair[] | null)[] {
+  const ref = (player: Player) =>
+    matchRefFromPlayer(player, ageOn(state.calendar.mondayISO, player.identity.birthDate));
+  let globalIndex = 0;
+
+  return session.groups.map((group) => {
+    if (isDecided(group)) return null;
+    const pairs = roundPairs(group.participants);
+    return pairs.map(([a, b]): RoundPair => {
+      const seed = childSeed(session.seed, "round", round, globalIndex++);
+      const pa = getPlayer(state, a);
+      const pb = getPlayer(state, b);
+      const m = createMatch(ref(pa), ref(pb), seed);
+      simulateMatchAuto(m);
+      recordMatchResults(session.resultsBook, m);
+      return { a, b, winner: m.winner === "a" ? a : b };
+    });
+  });
+}
+
+/**
+ * Splits every group that played this round into a winners' sub-group (the
+ * better half of its position range) and a losers' sub-group (the worse
+ * half); a group that didn't play (already decided) carries forward
+ * unchanged. `undefeated` propagates only to a winners' sub-group of an
+ * already-undefeated group — the moment anyone loses, they (and, from then
+ * on, their whole lineage) are capped at 3 total games. See the module doc
+ * comment for why this produces a real final for 1st/2nd but ties deeper
+ * losers together once continuing would need a 4th game.
+ */
+function buildNextGroups(groups: Group[], roundPairsByGroup: (RoundPair[] | null)[]): Group[] {
+  return groups.flatMap((group, i): Group[] => {
+    const pairs = roundPairsByGroup[i];
+    if (!pairs) return [group];
+    const gamesPlayed = group.gamesPlayed + 1;
+    // The winners' subgroup only stays undefeated if its parent was — losing
+    // even once ends that forever. Each subgroup's own `frozen` must use ITS
+    // OWN `undefeated`, not the parent's: a winners' subgroup of an
+    // undefeated group is never capped, but that SAME round's losers'
+    // subgroup (freshly eliminated) always is, even though they share a
+    // parent — computing `frozen` once from the parent's status and reusing
+    // it for both children would wrongly let freshly-eliminated losers of an
+    // undefeated group keep playing uncapped.
+    const winners: Group = {
+      participants: pairs.map((p) => p.winner!),
+      undefeated: group.undefeated,
+      gamesPlayed,
+      frozen: !group.undefeated && gamesPlayed >= 3,
+    };
+    const losers: Group = {
+      participants: pairs.map((p) => (p.winner === p.a ? p.b : p.a)),
+      undefeated: false,
+      gamesPlayed,
+      frozen: gamesPlayed >= 3,
+    };
+    return [winners, losers];
+  });
+}
+
+/** Index into `session.groups` of whichever group currently holds the human. */
+function humanGroupIndex(session: TournamentSession): number {
+  const idx = session.groups.findIndex((g) => g.participants.includes(session.humanId));
+  if (idx === -1) throw new Error("Human not found in any tournament group");
+  return idx;
+}
+
+/** The 1-indexed bracket position of the first (best) slot in the group at `index`. */
+function groupStartPosition(groups: Group[], index: number): number {
+  let offset = 0;
+  for (let i = 0; i < index; i++) offset += groups[i]!.participants.length;
+  return offset + 1;
+}
+
+/**
+ * Silently plays out every group still active once the human's own result is
+ * already decided — purely so the rest of the field's ratings stay realistic
+ * (see the module doc comment). No UI interaction: every match, including
+ * what would otherwise be the human's own, is impossible here by
+ * construction (their group is already decided, so it's excluded from
+ * `roundPairsByGroup`).
+ */
+function finishAllRemainingGroups(state: GameState, session: TournamentSession): void {
+  let guard = 0;
+  while (session.groups.some((g) => !isDecided(g)) && ++guard <= session.totalRounds + 1) {
+    const roundPairsByGroup = resolveRoundAuto(state, session, session.currentRound);
+    session.groups = buildNextGroups(session.groups, roundPairsByGroup);
+    session.currentRound += 1;
+  }
 }
 
 /**
@@ -273,26 +572,42 @@ export function startTournament(
     humanId: state.career.playerId,
     bracketBySeed,
     currentRound: 0,
-    roundWinners: [],
+    groups: [{ participants: bracketBySeed, undefeated: true, gamesPlayed: 0, frozen: false }],
+    roundPairs: null,
     pendingMatch: null,
-    pendingPairIndex: null,
+    pendingGroupIndex: null,
+    pendingPairIndexInGroup: null,
     humanEnergyCarry: 100,
     cumulativeEnergySpent: 0,
     roundsWon: 0,
     totalRounds,
     ratingsSnapshot: new Map(entrants.map((p) => [p.identity.id, cloneRatings(p.ratings)])),
     resultsBook: new Map(),
+    rankingMatrix: content.rankingMatrix,
+    history: [],
   };
 
   resolveRound(state, session);
   return session;
 }
 
+/**
+ * Concludes the tournament once the human's own group is decided. `prize`
+ * still indexes off `roundsWon` (total matches won, not exact position) — a
+ * deliberate simplification: two different placement paths can share a win
+ * count (e.g. one tied band's winners and another band entirely can both
+ * have 2 wins), and both draw the same `prizeByRoundsWon[2]`. Ranking points,
+ * by contrast, use `finishingPosition` exactly (the tied band's *best*
+ * position, per FIR convention), since that's what the Points Matrix is
+ * keyed on.
+ */
 function concludeTournament(
   state: GameState,
   session: TournamentSession,
   log: EventLog,
   roundsWon: number,
+  finishingPosition: number,
+  tiedCount: number,
 ): TournamentAdvanceResult {
   const prize = session.def.prizeByRoundsWon[roundsWon] ?? 0;
   state.career.money += prize;
@@ -300,12 +615,35 @@ function concludeTournament(
   const fatigueGain = session.cumulativeEnergySpent * BALANCE.tournament.fatigueConversionFactor;
   human.condition.fatigue = Math.min(100, human.condition.fatigue + fatigueGain);
 
-  const won = roundsWon === session.totalRounds;
+  const rankingPoints = rankingPointsFor(
+    session.def.tier,
+    session.def.division,
+    finishingPosition,
+    session.def.fieldSize,
+    session.rankingMatrix,
+  );
+  state.career.firResults.push({
+    weekIndex: session.weekIndex,
+    tournamentId: session.def.id,
+    tier: session.def.tier,
+    points: rankingPoints,
+  });
+
+  const won = finishingPosition === 1;
   log.push({
     week: session.weekIndex,
     type: won ? "tournament.won" : "tournament.eliminated",
     subject: session.humanId,
-    data: { name: session.def.name, roundsWon, totalRounds: session.totalRounds, prizeMoney: prize },
+    data: {
+      name: session.def.name,
+      tournamentId: session.def.id,
+      roundsWon,
+      totalRounds: session.totalRounds,
+      prizeMoney: prize,
+      finishingPosition,
+      rankingPoints,
+      tiedCount,
+    },
   });
 
   applyTournamentRatings(
@@ -318,8 +656,16 @@ function concludeTournament(
   );
 
   return won
-    ? { status: "won", totalRounds: session.totalRounds, prizeMoney: prize }
-    : { status: "eliminated", roundsWon, totalRounds: session.totalRounds, prizeMoney: prize };
+    ? { status: "won", totalRounds: session.totalRounds, prizeMoney: prize, finishingPosition, rankingPoints, tiedCount }
+    : {
+        status: "eliminated",
+        roundsWon,
+        totalRounds: session.totalRounds,
+        prizeMoney: prize,
+        finishingPosition,
+        rankingPoints,
+        tiedCount,
+      };
 }
 
 /**
@@ -327,6 +673,14 @@ function concludeTournament(
  * the finished MatchState directly (rather than trusting the session's own
  * stored reference) so it works regardless of how the UI's reactive layer
  * wraps that object.
+ *
+ * A loss doesn't necessarily end the tournament: the human drops into that
+ * round's losers' sub-group and keeps playing real matches as long as their
+ * lineage isn't capped yet (see the module doc comment). The moment their
+ * own group is decided — win the whole thing, lose a real placement match
+ * with nobody left to play, or get frozen into a tied band by the 3-game cap
+ * — their result is final, independent of how much longer the rest of the
+ * field takes to resolve (which is fast-forwarded silently afterward).
  */
 export function advanceTournament(
   state: GameState,
@@ -341,27 +695,32 @@ export function advanceTournament(
   const spent = session.humanEnergyCarry - finishedMatch.energy.a;
   session.cumulativeEnergySpent += Math.max(0, spent);
   recordMatchResults(session.resultsBook, finishedMatch);
-  session.roundWinners[session.currentRound]![session.pendingPairIndex!] = humanWon
-    ? session.humanId
-    : finishedMatch.players.b.id;
+
+  const pair = session.roundPairs![session.pendingGroupIndex!]![session.pendingPairIndexInGroup!]!;
+  pair.winner = humanWon ? session.humanId : finishedMatch.players.b.id;
   session.pendingMatch = null;
-  session.pendingPairIndex = null;
+  session.pendingGroupIndex = null;
+  session.pendingPairIndexInGroup = null;
 
-  if (!humanWon) {
-    return concludeTournament(state, session, log, session.roundsWon);
-  }
+  if (humanWon) session.roundsWon += 1;
+  const human = getPlayer(state, session.humanId);
+  const recovery =
+    BALANCE.tournament.energyRecoveryBetweenRounds * staminaRecoveryMult(human.attributes.stamina);
+  session.humanEnergyCarry = Math.min(100, finishedMatch.energy.a + recovery);
 
-  session.roundsWon += 1;
-  session.humanEnergyCarry = Math.min(
-    100,
-    finishedMatch.energy.a + BALANCE.tournament.energyRecoveryBetweenRounds,
-  );
-
-  if (session.roundsWon === session.totalRounds) {
-    return concludeTournament(state, session, log, session.roundsWon);
-  }
-
+  session.groups = buildNextGroups(session.groups, session.roundPairs!);
   session.currentRound += 1;
+
+  const hgi = humanGroupIndex(session);
+  const humanGroup = session.groups[hgi]!;
+
+  if (isDecided(humanGroup)) {
+    const finishingPosition = groupStartPosition(session.groups, hgi);
+    const tiedCount = humanGroup.participants.length;
+    finishAllRemainingGroups(state, session);
+    return concludeTournament(state, session, log, session.roundsWon, finishingPosition, tiedCount);
+  }
+
   resolveRound(state, session);
   return {
     status: "nextRound",
@@ -369,4 +728,96 @@ export function advanceTournament(
     round: session.currentRound,
     totalRounds: session.totalRounds,
   };
+}
+
+export interface DrawPlayerView {
+  id: string;
+  name: string;
+  nationality: string;
+}
+
+/** One pairing in a draw round. `winnerId` is null only for the human's own
+ * not-yet-played match this round. */
+export interface DrawMatchup {
+  a: DrawPlayerView;
+  b: DrawPlayerView;
+  winnerId: string | null;
+  isYouA: boolean;
+  isYouB: boolean;
+}
+
+/**
+ * One group's pairings within a round — a "section" since a single round can
+ * hold several simultaneous groups once the field has split into main draw
+ * + one or more plate lineages (see the module doc comment). `isMainDraw`
+ * marks the single still-undefeated lineage; every other section is a plate
+ * match, a materially different stake from a main-draw one at the same
+ * position range.
+ */
+export interface DrawSection {
+  isMainDraw: boolean;
+  /** e.g. "Final", "Semifinal", "Quarterfinal", "Round of 16" for the main
+   * draw; the same names prefixed "Plate " otherwise */
+  roundName: string;
+  /** 1-indexed bracket position range this section is contesting */
+  positionFrom: number;
+  positionTo: number;
+  matchups: DrawMatchup[];
+}
+
+export interface DrawRound {
+  round: number; // 0-indexed
+  sections: DrawSection[];
+}
+
+function drawRoundName(groupSizeEnteringRound: number, isMainDraw: boolean): string {
+  const base =
+    groupSizeEnteringRound === 2
+      ? "Final"
+      : groupSizeEnteringRound === 4
+        ? "Semifinal"
+        : groupSizeEnteringRound === 8
+          ? "Quarterfinal"
+          : `Round of ${groupSizeEnteringRound}`;
+  return isMainDraw ? base : `Plate ${base}`;
+}
+
+function drawPlayerView(state: GameState, playerId: string): DrawPlayerView {
+  const p = getPlayer(state, playerId);
+  return { id: playerId, name: fullName(p), nationality: p.identity.nationality };
+}
+
+/**
+ * The bracket/draw the human has played through so far this tournament,
+ * oldest round first — reconstructed from `TournamentSession.history`. This
+ * is what lets the UI show an actual draw tree (which round, main draw or
+ * plate, which position range) rather than just "your next match".
+ */
+export function drawRounds(state: GameState, session: TournamentSession): DrawRound[] {
+  return session.history.map(({ round, groups, pairs }) => {
+    const sections: DrawSection[] = [];
+    let offset = 0;
+    groups.forEach((group, groupIndex) => {
+      const groupSize = group.participants.length;
+      const positionFrom = offset + 1;
+      const positionTo = offset + groupSize;
+      offset += groupSize;
+      const groupPairs = pairs[groupIndex];
+      if (!groupPairs) return; // already decided before this round — nothing played
+      sections.push({
+        isMainDraw: group.undefeated,
+        roundName: drawRoundName(groupSize, group.undefeated),
+        positionFrom,
+        positionTo,
+        matchups: groupPairs.map((p) => ({
+          a: drawPlayerView(state, p.a),
+          b: drawPlayerView(state, p.b),
+          winnerId: p.winner,
+          isYouA: p.a === session.humanId,
+          isYouB: p.b === session.humanId,
+        })),
+      });
+    });
+    return { round, sections };
+  });
 }

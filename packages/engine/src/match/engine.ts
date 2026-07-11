@@ -4,6 +4,7 @@ import type { Player, Skills } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import { SPORTS } from "../model/sport.js";
 import { matchAgeModifier } from "../systems/age.js";
+import { staminaEnergyMult } from "../systems/effects.js";
 
 /**
  * Point-by-point racketlon match simulation.
@@ -44,8 +45,12 @@ export interface MatchPlayerRef {
   id: string;
   name: string;
   skills: Skills;
-  form: number; // −10..10
+  /** 0..20 per sport — see BALANCE.form and `formFactor` below */
+  formBySport: Record<Sport, number>;
   fatigue: number; // 0..100, entering the match
+  /** 0..1 — slows in-match energy burn; see `staminaEnergyMult` and, for
+   * tournament play, `staminaRecoveryMult` (systems/effects.ts) */
+  stamina: number;
   /** whole years — the match engine stays calendar-agnostic, so callers
    * compute this from birthDate via core/date.ts's ageOn() */
   age: number;
@@ -99,8 +104,9 @@ export function matchRefFromPlayer(player: Player, age: number): MatchPlayerRef 
     id: player.identity.id,
     name: `${player.identity.firstName} ${player.identity.lastName}`,
     skills: { ...player.attributes.skills },
-    form: player.condition.form,
+    formBySport: { ...player.condition.formBySport },
     fatigue: player.condition.fatigue,
+    stamina: player.attributes.stamina,
     age,
   };
 }
@@ -170,6 +176,55 @@ function matchDecided(m: MatchState, setJustEnded: boolean): boolean {
   return Math.abs(ta - tb) > maxRemainingFor(m, trailer, setJustEnded);
 }
 
+/**
+ * The racketlon "magic number": which side currently leads on total points,
+ * and how many more points they'd need to win them consecutively from here to
+ * make the match mathematically decided (an uncatchable lead, exactly as
+ * `matchDecided` judges it). This is the "5 points needed" cue shown before
+ * the tennis set. Returns null when the totals are level (no leader yet — the
+ * last set, or a gummiarm, will decide it) or the match is already finished.
+ *
+ * Pure: it simulates the leader winning out on a throwaway copy of the set
+ * scores, never touching the live match.
+ */
+export function pointsToWin(m: MatchState): { side: Side; points: number } | null {
+  if (m.phase === "finished") return null;
+  const ta = totalPoints(m, "a");
+  const tb = totalPoints(m, "b");
+  if (ta === tb) return null;
+  const leader: Side = ta > tb ? "a" : "b";
+  const trailer: Side = leader === "a" ? "b" : "a";
+
+  const sets = m.sets.map((s) => ({ a: s.a, b: s.b }));
+  let setIndex = m.setIndex;
+  const total = (side: Side): number => sets.reduce((sum, s) => sum + s[side], 0);
+  const maxRemaining = (setJustEnded: boolean): number => {
+    const fullSetsLeft = 3 - setIndex;
+    if (setJustEnded) return 21 * fullSetsLeft;
+    const set = sets[setIndex]!;
+    const target = Math.max(21, set[leader] + 2);
+    return target - set[trailer] + 21 * fullSetsLeft;
+  };
+
+  let points = 0;
+  for (let guard = 0; guard < 500; guard++) {
+    const set = sets[setIndex]!;
+    set[leader]++;
+    points++;
+    const setDone = (set.a >= 21 || set.b >= 21) && Math.abs(set.a - set.b) >= 2;
+    if (total(leader) - total(trailer) > maxRemaining(setDone)) break;
+    if (setDone && setIndex < 3) setIndex++;
+  }
+  return { side: leader, points };
+}
+
+/** Fraction of true skill that shows up on court at this form level — see
+ * BALANCE.form.matchFloor/matchSpan. 1.0 at full form, never below the floor. */
+function formFactor(form: number): number {
+  const f = BALANCE.form;
+  return f.matchFloor + f.matchSpan * (form / f.max);
+}
+
 function effectiveStrength(
   ref: MatchPlayerRef,
   sport: Sport,
@@ -180,8 +235,7 @@ function effectiveStrength(
   const b = BALANCE.match;
   const t = b.tactics[tactic];
   let eff =
-    ref.skills[sport] +
-    ref.form * b.formWeight -
+    ref.skills[sport] * formFactor(ref.formBySport[sport]) -
     ref.fatigue * b.fatigueWeight -
     (100 - energy) * b.energyWeight +
     t.eff +
@@ -222,7 +276,8 @@ export function playPoint(m: MatchState): PointOutcome | null {
   for (const side of ["a", "b"] as const) {
     const cost =
       BALANCE.match.energyCostPerPoint[sport] *
-      BALANCE.match.tacticEnergyMult[sport][m.tactics[side]];
+      BALANCE.match.tacticEnergyMult[sport][m.tactics[side]] *
+      staminaEnergyMult(m.players[side].stamina);
     m.energy[side] = Math.max(0, m.energy[side] - cost);
   }
 

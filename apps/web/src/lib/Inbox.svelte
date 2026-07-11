@@ -11,7 +11,16 @@
     welcome: "👋",
     invitation: "🎟️",
     ranking: "📊",
+    result: "🏆",
+    coach: "🧑‍🏫",
   };
+
+  /** Trophy for a title, a plainer note otherwise — a "result" message's icon
+   * depends on the outcome, not just its category. */
+  function icon(msg: InboxView): string {
+    if (msg.category === "result" && !msg.resultWon) return "📋";
+    return CATEGORY_ICON[msg.category];
+  }
 
   function open(msg: InboxView) {
     expanded = expanded === msg.id ? null : msg.id;
@@ -24,6 +33,7 @@
     if (week === undefined) return null;
     return store.tourEntries.find((e) => e.weekIndex === week) ?? null;
   }
+
 </script>
 
 <StatusBar />
@@ -41,7 +51,7 @@
       {@const isOpen = expanded === msg.id}
       <div class="msg" class:unread={!msg.read} class:open={isOpen}>
         <button class="msg-row" onclick={() => open(msg)}>
-          <span class="icon">{CATEGORY_ICON[msg.category]}</span>
+          <span class="icon">{icon(msg)}</span>
           <div class="msg-main">
             <div class="subject-line">
               {#if !msg.read}<span class="dot" aria-label="Unread"></span>{/if}
@@ -56,23 +66,31 @@
           <div class="detail">
             <p class="body">{msg.body}</p>
 
-            {#if msg.category === "ranking" && msg.ranking}
-              <div class="ranking">
-                {#each msg.ranking as row (row.rank)}
-                  <div class="rank-row" class:you={row.isYou}>
-                    <span class="rank">{row.rank}</span>
-                    <span class="rank-name">{flagEmoji(row.nationality)} {row.name}</span>
-                    <span class="rank-rating">{row.rating}</span>
-                  </div>
-                {/each}
-                {#if msg.yourRank && msg.yourRank > msg.ranking.length}
-                  <div class="rank-row you outside">
-                    <span class="rank">{msg.yourRank}</span>
-                    <span class="rank-name">You</span>
-                    <span class="rank-rating"></span>
+            {#if msg.category === "ranking"}
+              {#each [
+                { label: "Men", rows: msg.rankingMen, yourRank: msg.yourRankMen },
+                { label: "Women", rows: msg.rankingWomen, yourRank: msg.yourRankWomen },
+              ] as section (section.label)}
+                {#if section.rows && section.rows.length > 0}
+                  <div class="ranking-label">{section.label}</div>
+                  <div class="ranking">
+                    {#each section.rows as row (row.rank)}
+                      <button class="rank-row" class:you={row.isYou} onclick={() => store.viewOpponent(row.playerId)}>
+                        <span class="rank">{row.rank}</span>
+                        <span class="rank-name">{flagEmoji(row.nationality)} {row.name}</span>
+                        <span class="rank-rating">{row.points}</span>
+                      </button>
+                    {/each}
+                    {#if section.yourRank && section.yourRank > section.rows.length}
+                      <div class="rank-row you outside">
+                        <span class="rank">{section.yourRank}</span>
+                        <span class="rank-name">You</span>
+                        <span class="rank-rating"></span>
+                      </div>
+                    {/if}
                   </div>
                 {/if}
-              </div>
+              {/each}
             {/if}
 
             {#if msg.category === "invitation" && msg.tournamentWeek !== undefined}
@@ -216,8 +234,17 @@
     color: var(--text);
   }
 
-  .ranking {
+  .ranking-label {
     margin-top: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+
+  .ranking {
+    margin-top: 4px;
     border-top: 1px solid var(--border);
     padding-top: 8px;
   }
@@ -228,6 +255,8 @@
     gap: 10px;
     padding: 5px 0;
     font-size: 13.5px;
+    width: 100%;
+    text-align: left;
   }
 
   .rank-row + .rank-row {

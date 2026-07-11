@@ -17,8 +17,12 @@ export interface PlayerIdentity {
 /** Slow-changing, mostly hidden attributes. */
 export interface PlayerAttributes {
   skills: Skills;
-  /** 0..1 — scales learning rate (hidden "potential", not point-bought) */
-  talent: number;
+  /** 0..1 per sport — hidden ceiling roll, not point-bought. Scales training
+   * speed and sets a soft per-sport skill cap (see BALANCE.training) — some
+   * sports a player is simply built for, others where they plateau earlier.
+   * Never shown as a number; systems/inbox.ts sends vague "clue" messages as
+   * a sport's skill nears its ceiling. */
+  potential: Record<Sport, number>;
   /** 0..1 — injury resistance + recovery speed ("Läkekött"), used from M1 */
   durability: number;
   /** 0..1 — drives AI planning quality and consistency */
@@ -47,7 +51,11 @@ export interface Injury {
 /** Fast-changing, visible condition. */
 export interface PlayerCondition {
   fatigue: number; // 0..100
-  form: number; // -10..10
+  /** 0..20 per sport — "tournament readiness," driven by training neglect:
+   * rises when a sport is trained this week, decays when it isn't (see
+   * systems/training.ts). Visible to the player; scales usable skill in
+   * matches (see BALANCE.form, match/engine.ts's effectiveStrength). */
+  formBySport: Record<Sport, number>;
   confidence: number; // -10..10
   injury: Injury | null;
 }
@@ -74,6 +82,13 @@ export interface Player {
   attributes: PlayerAttributes;
   condition: PlayerCondition;
   ratings: Ratings;
+  /** Real FIR ranking points as of the import snapshot — an observable
+   * "official standing" like `ratings`, not a hidden attribute. Used only to
+   * place this player into a tournament division (see systems/division.ts).
+   * NOT docs/07's in-game Layer 3 accumulator (points earned from the
+   * human's own placements, still unbuilt) — this never changes during a
+   * career. Always null for the human (no points-earning system yet). */
+  firPoints: number | null;
   simTier: SimTier;
 }
 

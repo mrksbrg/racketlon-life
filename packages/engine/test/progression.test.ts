@@ -23,7 +23,7 @@ function makeContext(state: GameState, log: EventLog): SystemContext {
       skills: { ...human.attributes.skills },
       fatigue: human.condition.fatigue,
       money: state.career.money,
-      form: human.condition.form,
+      formBySport: { ...human.condition.formBySport },
     },
     outputs: {},
   };
