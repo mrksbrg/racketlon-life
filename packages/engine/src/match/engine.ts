@@ -90,6 +90,13 @@ export interface MatchState {
    * not feed back into point probability. See `luckTell`.
    */
   momentum: number;
+  /**
+   * The "N points needed" magic-number cue, frozen the moment the tennis set
+   * begins. Computed once from `pointsToWin` at that instant and never
+   * recomputed, so it stays fixed for the whole set even as the live score
+   * (and thus what `pointsToWin` would return if called again) changes.
+   */
+  tennisTarget: { side: Side; points: number } | null;
 }
 
 export interface PointOutcome {
@@ -127,6 +134,7 @@ export function createMatch(a: MatchPlayerRef, b: MatchPlayerRef, seed: string):
     gummiarm: false,
     decidedEarly: false,
     momentum: 0,
+    tennisTarget: null,
   };
 }
 
@@ -313,6 +321,7 @@ export function playPoint(m: MatchState): PointOutcome | null {
       m.sideChangeDone = false;
       m.phase = "break";
       m.breakReason = "setEnd";
+      if (m.setIndex === 3) m.tennisTarget = pointsToWin(m);
     }
     return outcome;
   }

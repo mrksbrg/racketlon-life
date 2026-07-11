@@ -7,7 +7,6 @@
     fatigueTell,
     luckTell,
     playPoint,
-    pointsToWin,
     tacticsForSport,
     totalPoints,
   } from "@racketlon/engine";
@@ -155,7 +154,7 @@
     </div>
 
     {#if m.setIndex === 3 && !m.gummiarm && m.phase !== "finished"}
-      {@const ptw = pointsToWin(m)}
+      {@const ptw = m.tennisTarget}
       <p class="to-win">
         {#if ptw}
           <strong>{ptw.side === "a" ? "You need" : `${m.players.b.name} needs`} {ptw.points} point{ptw.points === 1 ? "" : "s"}</strong>
