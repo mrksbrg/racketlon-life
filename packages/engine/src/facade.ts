@@ -36,11 +36,15 @@ import type {
   TournamentSession,
 } from "./tournament/engine.js";
 import {
+  advanceSiblingSession,
   advanceTournament,
   drawRounds,
+  finishSiblingSession,
   humanDivisionDef,
   humanEligibleDivisions,
+  isSiblingConcluded,
   projectedField,
+  startSiblingSession,
   startTournament,
   tournamentCalendar,
   tournamentForWeek,
@@ -230,6 +234,18 @@ export interface DivisionChoice {
   entrants: OpponentView[];
 }
 
+/** One other division of the current week's event, fully AI-simulated
+ * alongside the human's own — see `Game.otherDivisionDraws`. */
+export interface OtherDivisionDraw {
+  division: DivisionCode;
+  tournament: TournamentDef;
+  /** oldest round first, same shape as `Game.tournamentDraw` — no `isYouA`/
+   * `isYouB` matchup will ever be true here, since the human isn't in it */
+  rounds: DrawRound[];
+  /** true once this division has a champion — no more rounds coming */
+  concluded: boolean;
+}
+
 export interface OpponentView {
   id: string;
   name: string;
@@ -290,6 +306,10 @@ export interface NewGameOptions {
 export class Game {
   /** ephemeral session/orchestration state — never part of GameState or SaveGame */
   private tournamentSession: TournamentSession | null = null;
+  /** every other division of this week's event, fully AI-simulated in
+   * lockstep with `tournamentSession` — see `otherDivisionDraws`. Empty
+   * whenever no tournament is active. */
+  private siblingSessions: Map<DivisionCode, TournamentSession> = new Map();
   private weekSnapshot: HumanSnapshot | null = null;
 
   private constructor(
@@ -695,6 +715,15 @@ export class Game {
     this.tournamentSession = startTournament(this.state, def, this.content, this.log);
     const match = this.tournamentSession.pendingMatch;
     if (!match) throw new Error("Tournament started with no pending match");
+
+    const weekIndex = this.state.calendar.weekIndex;
+    const siblingDefs = (tournamentForWeek(this.content, weekIndex) ?? []).filter(
+      (d) => d.eventId === def.eventId && d.division !== def.division,
+    );
+    this.siblingSessions = new Map(
+      siblingDefs.map((d) => [d.division, startSiblingSession(this.state, d, weekIndex, this.content)]),
+    );
+
     return match;
   }
 
@@ -730,13 +759,37 @@ export class Game {
    * Advances the bracket once the human's match has finished: records the
    * result, carries energy into the next round, or — on elimination or the
    * final win — awards prize money and converts the day's exertion into
-   * fatigue, closing out the session.
+   * fatigue, closing out the session. Every other division's sibling
+   * session (see `otherDivisionDraws`) advances one round in lockstep; once
+   * the human's own tournament concludes, any siblings still going are
+   * fast-forwarded straight to their own final result rather than left
+   * mid-bracket.
    */
   resolveTournamentMatch(finishedMatch: MatchState): TournamentAdvanceResult {
     if (!this.tournamentSession) throw new Error("No active tournament to advance");
     const result = advanceTournament(this.state, this.tournamentSession, finishedMatch, this.log);
-    if (result.status !== "nextRound") this.tournamentSession = null;
+    for (const sibling of this.siblingSessions.values()) advanceSiblingSession(this.state, sibling);
+    if (result.status !== "nextRound") {
+      for (const sibling of this.siblingSessions.values()) finishSiblingSession(this.state, sibling);
+      this.tournamentSession = null;
+    }
     return result;
+  }
+
+  /**
+   * Every other division of this week's event besides the human's own —
+   * each fully AI-simulated (see `startSiblingSession`), advancing one
+   * round every time `resolveTournamentMatch` does, so the human can follow
+   * another class's bracket alongside their own (e.g. checking on class A
+   * while playing class B). Empty whenever no tournament is active.
+   */
+  otherDivisionDraws(): OtherDivisionDraw[] {
+    return [...this.siblingSessions.entries()].map(([division, session]) => ({
+      division,
+      tournament: session.def,
+      rounds: drawRounds(this.state, session),
+      concluded: isSiblingConcluded(session),
+    }));
   }
 
   private ensureWeekSnapshot(): HumanSnapshot {

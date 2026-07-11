@@ -401,6 +401,25 @@ export function projectedField(
   return sampleDivisionField(state, def, weekIndex, content, def.fieldSize - 1);
 }
 
+/**
+ * Same eligible-pool and weighted draw as `projectedField`, but for a
+ * division the human isn't in at all — used to build a fully-AI sibling
+ * bracket for "watch division A's draw while you play B" (see
+ * `startSiblingSession`). Draws the *entire* `def.fieldSize`, not
+ * `fieldSize - 1`, since there's no human slot to leave open. Reuses the
+ * exact same seed and pool ordering as `projectedField`, so this is always
+ * a strict superset of what `projectedField`/`eligibleDivisions` already
+ * previewed for the same def and week — just one name longer.
+ */
+export function fullDivisionField(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+): Player[] {
+  return sampleDivisionField(state, def, weekIndex, content, def.fieldSize);
+}
+
 function sampleDivisionField(
   state: GameState,
   def: TournamentDef,
@@ -661,6 +680,96 @@ export function startTournament(
 
   resolveRound(state, session);
   return session;
+}
+
+/** Sentinel `humanId` for a sibling (fully-AI) session — see
+ * `startSiblingSession`. Never matches a real entrant id, so `resolveRound`'s
+ * human branch never fires and every pair auto-resolves immediately, exactly
+ * like any other AI-vs-AI pair in the human's own session. */
+const NO_HUMAN_ID = "__no_human__";
+
+/**
+ * A fully-AI `TournamentSession` for a division the human isn't playing —
+ * lets the Tour screen show another division's bracket advancing in
+ * lockstep with the human's own tournament (see `advanceSiblingSession`).
+ * Draws the entire `def.fieldSize` from `fullDivisionField` (no human slot
+ * to leave open), then resolves round 0 immediately, same shape as
+ * `startTournament` but with no economic or GameState side effects — this
+ * is a pure spectator view, recomputed fresh each time and never persisted
+ * in `GameState` (see the module doc comment's note on `TournamentSession`
+ * being ephemeral for the same reason).
+ */
+export function startSiblingSession(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+): TournamentSession {
+  const entrants = fullDivisionField(state, def, weekIndex, content);
+  const bracketBySeed = seedBracket(entrants, def.fieldSize);
+  const totalRounds = Math.log2(def.fieldSize);
+  const rngSeed = childSeed(state.seed, "tournament", weekIndex, def.id);
+
+  const session: TournamentSession = {
+    def,
+    weekIndex,
+    seed: rngSeed,
+    humanId: NO_HUMAN_ID,
+    bracketBySeed,
+    currentRound: 0,
+    groups: [{ participants: bracketBySeed, undefeated: true, gamesPlayed: 0, frozen: false }],
+    roundPairs: null,
+    pendingMatch: null,
+    pendingGroupIndex: null,
+    pendingPairIndexInGroup: null,
+    humanEnergyCarry: 0,
+    cumulativeEnergySpent: 0,
+    roundsWon: 0,
+    totalRounds,
+    ratingsSnapshot: new Map(entrants.map((p) => [p.identity.id, cloneRatings(p.ratings)])),
+    resultsBook: new Map(),
+    rankingMatrix: content.rankingMatrix,
+    history: [],
+  };
+
+  resolveRound(state, session);
+  return session;
+}
+
+/** True once every group in a sibling session has a fully decided position
+ * — the tournament is over, nothing left to advance. */
+export function isSiblingConcluded(session: TournamentSession): boolean {
+  return session.groups.every(isDecided);
+}
+
+/**
+ * Advances a sibling session by exactly one round, paced to match the human's
+ * own tournament advancing one round at a time (see facade.ts's
+ * `resolveTournamentMatch`): the round already resolved (by
+ * `startSiblingSession` or the previous call) is finalized via
+ * `buildNextGroups`, then the next round (if the sibling isn't concluded
+ * yet) resolves immediately with the same all-AI mechanics as round 0. A
+ * no-op once `isSiblingConcluded`.
+ */
+export function advanceSiblingSession(state: GameState, session: TournamentSession): void {
+  if (isSiblingConcluded(session)) return;
+  session.groups = buildNextGroups(session.groups, session.roundPairs!);
+  session.currentRound += 1;
+  if (isSiblingConcluded(session)) return;
+  resolveRound(state, session);
+}
+
+/**
+ * Fast-forwards a sibling session straight to conclusion — used once the
+ * human's own tournament ends, so a sibling division that had more rounds
+ * left (a bigger draw, or one simply behind on pacing) still reaches a real
+ * final result instead of freezing mid-bracket.
+ */
+export function finishSiblingSession(state: GameState, session: TournamentSession): void {
+  let guard = 0;
+  while (!isSiblingConcluded(session) && ++guard <= session.totalRounds + 1) {
+    advanceSiblingSession(state, session);
+  }
 }
 
 /**

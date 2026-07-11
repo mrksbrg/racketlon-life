@@ -10,6 +10,7 @@ import type {
   InboxView,
   MatchState,
   OpponentProfileView,
+  OtherDivisionDraw,
   SaveGame,
   Sport,
   SportView,
@@ -467,6 +468,13 @@ class GameStore {
    * empty when there's no active tournament. */
   get drawRounds(): DrawRound[] {
     return this.game?.tournamentDraw() ?? [];
+  }
+
+  /** Every other division of this week's event, fully AI-simulated
+   * alongside the human's own draw — lets the Draw screen offer "watch
+   * class A too" while the human plays their own class. */
+  get otherDivisionDraws(): OtherDivisionDraw[] {
+    return this.game?.otherDivisionDraws() ?? [];
   }
 
   /** Opens the full draw/bracket view over the current match. */

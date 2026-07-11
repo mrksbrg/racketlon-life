@@ -12,13 +12,17 @@ import type {
 import {
   BALANCE,
   Game,
+  advanceSiblingSession,
   advanceTournament,
   combinedRating,
   drawRounds,
+  finishSiblingSession,
+  isSiblingConcluded,
   isTournamentWeek,
   projectedField,
   seedBracket,
   simulateMatchAuto,
+  startSiblingSession,
   startTournament,
   tournamentCalendar,
   travelCost,
@@ -888,5 +892,113 @@ describe("projectedField geographic entry bias", () => {
       far += pool.filter((p) => p.identity.nationality === "FAR").length;
     }
     expect(far).toBeGreaterThan(0);
+  });
+});
+
+describe("sibling division sessions", () => {
+  const defA = testContent.tournaments["monthly-open-1-a"]!;
+
+  it("resolves round 0 immediately and advances one round at a time", () => {
+    const game = Game.newGame({ content: testContent, seed: "sib-1" });
+    const state = game.serialize().state;
+    const session = startSiblingSession(state, defA, 3, testContent);
+
+    expect(session.totalRounds).toBe(3); // log2(8)
+    expect(drawRounds(state, session)).toHaveLength(1); // round 0 already resolved
+    expect(isSiblingConcluded(session)).toBe(false);
+
+    advanceSiblingSession(state, session);
+    expect(drawRounds(state, session)).toHaveLength(2);
+    expect(isSiblingConcluded(session)).toBe(false);
+
+    advanceSiblingSession(state, session);
+    expect(drawRounds(state, session)).toHaveLength(3);
+    // an 8-draw's 3-game cap exactly matches its 3 rounds (see the module
+    // doc comment) — round 2 is recorded, but every group is still size 2
+    // until the *next* build, so the session isn't concluded quite yet
+    expect(isSiblingConcluded(session)).toBe(false);
+
+    advanceSiblingSession(state, session);
+    // that build resolves every group down to size 1 — concluded, and no
+    // 4th round is ever recorded (nothing left needing a resolveRound call)
+    expect(isSiblingConcluded(session)).toBe(true);
+    expect(drawRounds(state, session)).toHaveLength(3);
+
+    // no-op once concluded — doesn't throw or add a phantom round
+    advanceSiblingSession(state, session);
+    expect(drawRounds(state, session)).toHaveLength(3);
+  });
+
+  it("reaches a real final with a decisive winner, never a human matchup flag", () => {
+    const game = Game.newGame({ content: testContent, seed: "sib-2" });
+    const state = game.serialize().state;
+    const session = startSiblingSession(state, defA, 3, testContent);
+    finishSiblingSession(state, session);
+
+    expect(isSiblingConcluded(session)).toBe(true);
+    const rounds = drawRounds(state, session);
+    const last = rounds[rounds.length - 1]!;
+    const final = last.sections.find((s) => s.isMainDraw)!;
+    expect(final.roundName).toBe("Final");
+    expect(final.matchups).toHaveLength(1);
+    expect(final.matchups[0]!.winnerId).not.toBeNull();
+    for (const round of rounds) {
+      for (const section of round.sections) {
+        for (const m of section.matchups) {
+          expect(m.isYouA).toBe(false);
+          expect(m.isYouB).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("finishSiblingSession is idempotent from any starting point", () => {
+    const game = Game.newGame({ content: testContent, seed: "sib-3" });
+    const state = game.serialize().state;
+    const session = startSiblingSession(state, defA, 3, testContent);
+    advanceSiblingSession(state, session); // partway through
+    finishSiblingSession(state, session);
+    expect(isSiblingConcluded(session)).toBe(true);
+    const roundsAfterFirstFinish = drawRounds(state, session);
+    finishSiblingSession(state, session); // already concluded — must not change anything
+    expect(drawRounds(state, session)).toEqual(roundsAfterFirstFinish);
+  });
+});
+
+describe("Game.otherDivisionDraws", () => {
+  it("exposes every other division of the event once the human enters, with round 0 already resolved", () => {
+    const game = Game.newGame({ content: testContent, seed: "sib-facade-1" });
+    registerAndAdvanceTo(game, 3);
+    game.enterTournament();
+
+    const others = game.otherDivisionDraws();
+    expect(others.map((o) => o.division)).toEqual(["A"]); // testContent's SAT event is A/B only, human's own is B
+    expect(others[0]!.concluded).toBe(false);
+    expect(others[0]!.rounds).toHaveLength(1);
+  });
+
+  it("advances sibling divisions one round per resolveTournamentMatch call, and fast-forwards them once the human's own tournament ends", () => {
+    const game = Game.newGame({ content: testContent, seed: "sib-facade-2" });
+    registerAndAdvanceTo(game, 3);
+    let match = game.enterTournament();
+
+    expect(game.otherDivisionDraws()[0]!.rounds).toHaveLength(1);
+
+    simulateMatchAuto(match);
+    let result = game.resolveTournamentMatch(match);
+    expect(game.otherDivisionDraws()[0]!.rounds.length).toBeGreaterThanOrEqual(2);
+
+    // play the human's own tournament out to conclusion
+    while (result.status === "nextRound") {
+      match = result.match;
+      simulateMatchAuto(match);
+      result = game.resolveTournamentMatch(match);
+    }
+
+    const finalOther = game.otherDivisionDraws()[0]!;
+    expect(finalOther.concluded).toBe(true);
+    const lastRound = finalOther.rounds[finalOther.rounds.length - 1]!;
+    const final = lastRound.sections.find((s) => s.isMainDraw)!;
+    expect(final.matchups[0]!.winnerId).not.toBeNull();
   });
 });

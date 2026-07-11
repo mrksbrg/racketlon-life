@@ -1,17 +1,38 @@
 <script lang="ts">
+  import type { DivisionCode } from "@racketlon/engine";
   import { store } from "./store.svelte";
   import { flagEmoji } from "./ui";
+
+  let viewing = $state<DivisionCode | null>(null);
+
+  const otherTournament = $derived(
+    viewing ? store.otherDivisionDraws.find((d) => d.division === viewing) : null,
+  );
+  const rounds = $derived(otherTournament ? otherTournament.rounds : store.drawRounds);
 </script>
 
 <div class="draw">
   <div class="top">
     <button class="close" onclick={() => store.closeDraw()}>‹ Back</button>
-    <span class="title">{store.tournamentContext?.name ?? "Draw"}</span>
+    <span class="title">{otherTournament ? otherTournament.tournament.name : (store.tournamentContext?.name ?? "Draw")}</span>
     <span class="spacer"></span>
   </div>
 
+  {#if store.otherDivisionDraws.length > 0}
+    <div class="tabs">
+      <button class="tab" class:active={viewing === null} onclick={() => (viewing = null)}>
+        Your draw
+      </button>
+      {#each store.otherDivisionDraws as other (other.division)}
+        <button class="tab" class:active={viewing === other.division} onclick={() => (viewing = other.division)}>
+          Class {other.division}{other.concluded ? " ✓" : ""}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
   <div class="rounds">
-    {#each store.drawRounds as round (round.round)}
+    {#each rounds as round (round.round)}
       <div class="round">
         <div class="round-label">Round {round.round + 1}</div>
         <div class="sections">
@@ -83,6 +104,30 @@
 
   .spacer {
     width: 44px;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    padding: 10px 16px 0;
+    overflow-x: auto;
+  }
+
+  .tab {
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .tab.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, var(--card));
   }
 
   .rounds {
