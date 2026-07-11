@@ -82,12 +82,21 @@ const FORM_RUSTY_THRESHOLD = 6;
 
 /** Applies this week's per-sport form change and emits a note when a sport
  * crosses into "rusty" or reaches full readiness — mirrors the level-up
- * event's crossing pattern (fires once, on the week it happens). */
+ * event's crossing pattern (fires once, on the week it happens). Also
+ * advances `condition.neglectWeeks`, the consecutive-weeks-untrained streak
+ * the staged decay curve is keyed on (see `formDecayRate`). */
 function updateForm(ctx: SystemContext, player: Player, sessionsBySport: Record<Sport, number>): void {
   const f = BALANCE.form;
   for (const sport of SPORTS) {
+    const trained = sessionsBySport[sport] > 0;
+    player.condition.neglectWeeks[sport] = trained ? 0 : player.condition.neglectWeeks[sport] + 1;
+
     const before = player.condition.formBySport[sport];
-    const after = clamp(before + formDelta(sessionsBySport[sport]), 0, f.max);
+    const after = clamp(
+      before + formDelta(sessionsBySport[sport], player.condition.neglectWeeks[sport]),
+      0,
+      f.max,
+    );
     player.condition.formBySport[sport] = after;
     if (after < FORM_RUSTY_THRESHOLD && before >= FORM_RUSTY_THRESHOLD) {
       ctx.log.emit("form.rusty", player.identity.id, { sport });

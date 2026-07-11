@@ -62,11 +62,27 @@ export function staminaRecoveryMult(stamina: number): number {
   return b.staminaRecoveryFloor + stamina * b.staminaRecoverySpan;
 }
 
+/** Weekly decay rate for a sport that's been neglected for `neglectWeeks`
+ * consecutive weeks (including this one) — see `BALANCE.form.decayStages`.
+ * Picks the last stage whose `afterWeeks` threshold `neglectWeeks` clears
+ * (stages are sorted ascending), 0 if none apply yet. */
+export function formDecayRate(neglectWeeks: number): number {
+  let rate = 0;
+  for (const stage of BALANCE.form.decayStages) {
+    if (neglectWeeks >= stage.afterWeeks) rate = stage.ratePerWeek;
+  }
+  return rate;
+}
+
 /** This week's form change for one sport, from how many sessions (if any)
- * it actually got trained — see `BALANCE.form` and systems/training.ts. */
-export function formDelta(sessionsThisSport: number): number {
+ * it actually got trained — see `BALANCE.form` and systems/training.ts.
+ * `neglectWeeks` is this sport's consecutive-weeks-untrained streak
+ * *after* this week (0 whenever it was trained). */
+export function formDelta(sessionsThisSport: number, neglectWeeks: number): number {
   const f = BALANCE.form;
-  return sessionsThisSport > 0 ? Math.min(sessionsThisSport, f.sessionsCap) * f.gainPerSession : -f.decayPerWeek;
+  return sessionsThisSport > 0
+    ? Math.min(sessionsThisSport, f.sessionsCap) * f.gainPerSession
+    : -formDecayRate(neglectWeeks);
 }
 
 /** Net fatigue change from the week's activities (rest/social are negative). */

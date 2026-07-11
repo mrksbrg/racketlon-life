@@ -7,6 +7,7 @@ import type { GameState } from "./core/state.js";
 import { humanPlayer } from "./core/state.js";
 import type { ActivityCounts, PlayerPlan } from "./model/plan.js";
 import type { WeekSummary } from "./model/summary.js";
+import { AgingSystem } from "./systems/aging.js";
 import { EconomySystem } from "./systems/economy.js";
 import { FatigueSystem } from "./systems/fatigue.js";
 import { InboxSystem } from "./systems/inbox.js";
@@ -39,8 +40,9 @@ const SYSTEMS: readonly GameSystem[] = [
   FatigueSystem,
   RecoverySystem,
   InjurySystem,
+  AgingSystem,
   ProgressionSystem,
-  // AgingSystem, NewPlayerSystem, RetirementSystem (M4)
+  // NewPlayerSystem, RetirementSystem (M4)
   InboxSystem,
   // AchievementSystem (M3)
   SummarySystem,

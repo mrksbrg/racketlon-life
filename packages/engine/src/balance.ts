@@ -52,8 +52,25 @@ export const BALANCE = {
     /** +this per session trained this week, in that sport, up to `sessionsCap` */
     gainPerSession: 2,
     sessionsCap: 3,
-    /** a sport with zero sessions this week loses this much */
-    decayPerWeek: 2,
+    /**
+     * Staged weekly decay rate for a neglected sport, looked up by how many
+     * *consecutive* weeks (including this one) it's gone untrained — see
+     * `formDecayRate` in systems/effects.ts and `PlayerCondition.neglectWeeks`.
+     * Modeled on how rust actually feels: a short grace period (missing one
+     * week barely registers), a real drop once it's been the better part of
+     * a month, then a long plateau — you don't keep sliding forever, lost
+     * form stays "reasonable" through the middle of a year — before decay
+     * resumes for a sport that's been abandoned the better part of a year.
+     * Each entry applies once `neglectWeeks >= afterWeeks`; must stay sorted
+     * ascending by `afterWeeks`. First-pass tuning, easy to retune.
+     */
+    decayStages: [
+      { afterWeeks: 1, ratePerWeek: 0.3 }, // week 1: barely noticeable
+      { afterWeeks: 2, ratePerWeek: 1.0 }, // week 2: losing some edge
+      { afterWeeks: 3, ratePerWeek: 2.5 }, // weeks 3-4 ("after a month"): the real drop
+      { afterWeeks: 5, ratePerWeek: 0.15 }, // weeks 5-26 (~1-6 months): plateau
+      { afterWeeks: 27, ratePerWeek: 0.6 }, // 6+ months: gets worse again
+    ] as readonly { afterWeeks: number; ratePerWeek: number }[],
     /** extra decay across every sport when fatigue crosses this (same
      * threshold the old global form-decay code used) */
     highFatigueThreshold: 80,
@@ -122,6 +139,39 @@ export const BALANCE = {
     injuryRiskFromAge: 30,
     injuryRiskPerYear: 0.02,
     injuryRiskCap: 0.6,
+  },
+  /**
+   * Permanent (not just match-day) skill erosion with age — see
+   * systems/aging.ts. Two layered effects, both starting at
+   * `declineFromAge` (shared with BALANCE.age's own decline turning point):
+   * a small continuous weekly erosion (the steady "linear" decline felt
+   * between the two cliffs below), plus two one-time "cliff" step-downs
+   * confined to five-year windows around 40-45 and 60-65 — real athletic
+   * decline isn't perfectly smooth, it also comes in noticeable jumps
+   * around these ages. Each window rolls a small weekly chance to fire, so
+   * different players hit their wall at a different, unpredictable point —
+   * the chance escalates in the window's final year so it's virtually
+   * guaranteed to have fired by the time the player ages out of it, without
+   * ever being a hard-coded certainty. First-pass tuning, easy to retune.
+   */
+  aging: {
+    declineFromAge: 32,
+    /** fraction of current skill lost per week, compounding, from
+     * declineFromAge onward — deliberately gentle; the step-downs below
+     * carry most of the felt decline */
+    weeklyDeclineRate: 0.00015,
+    step1FromAge: 40,
+    step1ToAge: 45,
+    step1WeeklyChance: 0.03,
+    /** escalation multiplier applied to the weekly chance during the
+     * window's final year, so it's very likely to fire before ageing out */
+    finalYearChanceMult: 5,
+    /** one-time fraction of current skill lost when this step fires */
+    step1DropPct: 0.05,
+    step2FromAge: 60,
+    step2ToAge: 65,
+    step2WeeklyChance: 0.03,
+    step2DropPct: 0.06,
   },
   /** Glicko-2 rating updates, batched once per tournament (one rating period). */
   ranking: {

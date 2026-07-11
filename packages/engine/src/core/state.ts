@@ -35,7 +35,13 @@ import type { Calendar } from "./date.js";
 // v11: `InboxRankingRow` (a frozen row inside an already-persisted monthly
 // ranking digest message) gained `playerId`, so the UI can open a profile
 // straight from an old digest — a save from before this had no such field.
-export const SAVE_VERSION = 11;
+// v12: `PlayerCondition` gained `neglectWeeks` (per-sport consecutive-weeks-
+// untrained streak, driving the new staged form-decay curve — see
+// systems/effects.ts's `formDecayRate`) and `agingSteps` (which of the two
+// permanent age-decline "cliff" step-downs have already fired — see
+// systems/aging.ts) — both new required fields an old save's players don't
+// have, so it's discarded rather than left with missing condition state.
+export const SAVE_VERSION = 12;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {

@@ -96,6 +96,8 @@ export const SummarySystem: GameSystem = {
       } else if (event.type === "progression.personalBest") {
         const d = event.data as { value: number };
         notes.push(`New career-high rating: ${d.value}!`);
+      } else if (event.type === "aging.stepDown") {
+        notes.push("You can feel your body isn't quite what it used to be — a real step down this week.");
       }
     }
 

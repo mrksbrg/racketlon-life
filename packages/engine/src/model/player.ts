@@ -56,8 +56,17 @@ export interface PlayerCondition {
    * systems/training.ts). Visible to the player; scales usable skill in
    * matches (see BALANCE.form, match/engine.ts's effectiveStrength). */
   formBySport: Record<Sport, number>;
+  /** consecutive weeks (including any just passed) each sport has gone
+   * without a training session — resets to 0 the week it's trained again.
+   * Drives the staged form-decay curve (BALANCE.form.decayStages,
+   * systems/effects.ts's `formDecayRate`) so a short gap barely registers
+   * but a season-long lapse really costs you. */
+  neglectWeeks: Record<Sport, number>;
   confidence: number; // -10..10
   injury: Injury | null;
+  /** which age-decline "cliff" step-downs (systems/aging.ts) have already
+   * fired for this player — each fires at most once, ever. */
+  agingSteps: { step1: boolean; step2: boolean };
 }
 
 /** Glicko-2 per sport — the *observed* rating layer, updated after results. */

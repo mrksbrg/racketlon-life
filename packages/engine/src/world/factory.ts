@@ -136,8 +136,10 @@ function makePlayer(spec: PlayerSpec): Player {
     condition: {
       fatigue: 20,
       formBySport: allSports(BALANCE.form.initial),
+      neglectWeeks: allSports(0),
       confidence: 0,
       injury: null,
+      agingSteps: { step1: false, step2: false },
     },
     ratings: ratingsFromSkills(spec.skills),
     firPoints: spec.firPoints,
