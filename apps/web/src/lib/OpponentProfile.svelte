@@ -20,7 +20,7 @@
 <div class="opponent">
   <div class="top">
     <button class="close" onclick={() => store.closeOpponent()}>‹ Back</button>
-    <span class="title">Player profile</span>
+    <span class="title">{p?.isYou ? "You" : "Player profile"}</span>
     <span class="spacer"></span>
   </div>
 
@@ -65,15 +65,19 @@
             <div class="sport-main">
               <div class="sport-line">
                 <span class="sport-name">{SPORT_LABELS[sport]}</span>
-                <span class="sport-level">Lv {s.levelMin}–{s.levelMax}</span>
+                <span class="sport-level">{p.isYou ? `Lv ${s.level}` : `Lv ${s.levelMin}–${s.levelMax}`}</span>
               </div>
               <div class="bar">
-                <div
-                  class="band"
-                  style:left="{((s.levelMin - 1) / 20) * 100}%"
-                  style:width="{((s.levelMax - s.levelMin + 1) / 20) * 100}%"
-                  style:background={SPORT_COLORS[sport]}
-                ></div>
+                {#if p.isYou}
+                  <div class="fill" style:width="{(s.progress ?? 0) * 100}%" style:background={SPORT_COLORS[sport]}></div>
+                {:else}
+                  <div
+                    class="band"
+                    style:left="{((s.levelMin - 1) / 20) * 100}%"
+                    style:width="{((s.levelMax - s.levelMin + 1) / 20) * 100}%"
+                    style:background={SPORT_COLORS[sport]}
+                  ></div>
+                {/if}
               </div>
             </div>
             <div class="sport-rating">
@@ -336,6 +340,13 @@
     height: 100%;
     border-radius: 2px;
     opacity: 0.85;
+  }
+
+  /* your own profile knows the exact value, so it's a normal from-the-left
+     fill instead of `.band`'s floating range segment */
+  .fill {
+    height: 100%;
+    border-radius: 2px;
   }
 
   .sport-rating {

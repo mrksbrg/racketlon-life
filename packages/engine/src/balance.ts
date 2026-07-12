@@ -80,6 +80,13 @@ export const BALANCE = {
      * neglected sport is a real handicap without ever feeling like a wipeout */
     matchFloor: 0.7,
     matchSpan: 0.3,
+    /** +this per real match played in a tournament, in every sport —
+     * every match is a set of all four sports (see match/engine.ts), and
+     * competitive match play is the single best way to get tournament-sharp,
+     * better than a single training session (`gainPerSession`). Applied once
+     * per human match at `concludeTournament`, on top of that week's normal
+     * `TrainingSystem` pass. */
+    matchPlayGainPerRound: 3,
   },
   economy: {
     /** rent, food, phone… charged every week. Whole economy rescaled ~10x
@@ -201,6 +208,17 @@ export const BALANCE = {
     staminaCostFloor: 0.8,
     staminaCostSpan: 0.4,
     /**
+     * Flat energy recovered at a changeover break, on top of whatever's left
+     * — real rest, distinct from the tournament's between-ROUND recovery
+     * (BALANCE.tournament.energyRecoveryBetweenRounds, a much longer break).
+     * A side change (11-point mark within a set) is a brief pause; a set
+     * change (moving on to a whole different sport) is longer, so it
+     * recovers more. Flat, not stamina-scaled, unlike the tournament's
+     * between-round recovery — first-pass values, easy to retune.
+     */
+    sideChangeEnergyRecovery: 5,
+    setChangeEnergyRecovery: 12,
+    /**
      * A single 5-step dial chosen at match start, the 11-point side change,
      * and between sets — ordered by energy cost, low to high:
      *
@@ -242,11 +260,21 @@ export const BALANCE = {
     },
     /**
      * EMA decay for the in-match "momentum" read: how much weight recent
-     * points keep vs how fast a lucky/unlucky run fades. Presentation-only
-     * for now — it explains what the player is seeing, it does not feed
-     * back into point probability.
+     * points keep vs how fast a lucky/unlucky run fades. Feeds back into
+     * point probability — see `momentumWeight`.
      */
     momentumDecay: 0.85,
+    /**
+     * Eff-point swing at full momentum (±1) — same order of magnitude as
+     * switching tactics (±14 eff, see `tactics` above), added directly into
+     * the eff gap before `pointWinProbability`'s sigmoid. Self-limiting by
+     * construction: momentum shifting win probability makes continuing to
+     * win *less* surprising (see `playPoint`'s surprise calc), which caps
+     * momentum well short of its ±1 bound on its own — it doesn't need an
+     * explicit ceiling. First-pass value; confirm against simulated match
+     * margins before trusting it further.
+     */
+    momentumWeight: 15,
   },
   /**
    * Mechanism constants for TournamentSystem. The tournament's world-facing

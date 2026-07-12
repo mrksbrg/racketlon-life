@@ -11,7 +11,16 @@
     totalPoints,
   } from "@racketlon/engine";
   import { store, type MatchSpeed } from "./store.svelte";
-  import { FATIGUE_READ, LUCK_READ, SPORT_COLORS, SPORT_SHORT, TACTIC_READ } from "./ui";
+  import {
+    energyColor,
+    FATIGUE_LABEL,
+    FATIGUE_READ,
+    LUCK_READ,
+    momentumBarPosition,
+    SPORT_COLORS,
+    SPORT_SHORT,
+    TACTIC_READ,
+  } from "./ui";
 
   const DELAYS: Record<MatchSpeed, number> = { 1: 320, 2: 130, 3: 35 };
 
@@ -98,6 +107,7 @@
   {@const totalB = totalPoints(m, "b")}
   {@const oppFatigue = fatigueTell(m.energy.b)}
   {@const oppLuck = luckTell(m, "b")}
+  {@const momentumPos = momentumBarPosition(m.momentum)}
   <div class="match">
     <div class="top">
       <span class="label">
@@ -132,10 +142,37 @@
       <button class="pname" onclick={() => store.viewOpponent(m.players.b.id)}>{m.players.b.name}</button>
     </div>
 
+    <div class="momentum-bar">
+      <div
+        class="fill"
+        class:you-side={momentumPos >= 50}
+        style:left="{momentumPos >= 50 ? 50 - (momentumPos - 50) : 50}%"
+        style:width="{Math.abs(momentumPos - 50)}%"
+      ></div>
+      <div class="momentum-center"></div>
+    </div>
+
     <p class="opp-read">
       <button class="opp-name" onclick={() => store.viewOpponent(m.players.b.id)}>{m.players.b.name}</button>
       is {FATIGUE_READ[oppFatigue]}, {TACTIC_READ[m.tactics.b]}{#if LUCK_READ[oppLuck]}, {LUCK_READ[oppLuck]}{/if}
     </p>
+
+    <div class="energy-group">
+      <div class="energy-row">
+        <span class="energy-label">You</span>
+        <div class="bar energy-bar">
+          <div class="fill" style:width="{m.energy.a}%" style:background={energyColor(m.energy.a)}></div>
+        </div>
+        <span class="energy-val">{Math.round(m.energy.a)}%</span>
+      </div>
+      <div class="energy-row">
+        <span class="energy-label">{m.players.b.name}</span>
+        <div class="bar energy-bar">
+          <div class="fill" style:width="{m.energy.b}%" style:background={energyColor(m.energy.b)}></div>
+        </div>
+        <span class="energy-val opp">{FATIGUE_LABEL[oppFatigue]}</span>
+      </div>
+    </div>
 
     <div class="sets">
       {#each SPORTS as s, i (s)}
@@ -184,7 +221,6 @@
     {:else if m.phase === "break"}
       <div class="panel">
         <h3>{breakTitle(m.breakReason ?? "", SPORT_LABELS[sport])}</h3>
-        <p class="energy">Energy: {Math.round(m.energy.a)}%</p>
         <div class="tactics">
           {#each tacticsForSport(sport) as tactic (tactic)}
             <button
@@ -325,6 +361,41 @@
     color: var(--danger, #d66);
   }
 
+  /* shared "who's got the flow" bar — a tug-of-war from a fixed center
+     tick, not a per-side stat, so it isn't grouped with the energy rows */
+  .momentum-bar {
+    position: relative;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--card-2);
+    overflow: hidden;
+    margin: -6px 0 0;
+  }
+
+  .momentum-bar .fill {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: var(--warn);
+    transition:
+      left 0.2s ease,
+      width 0.2s ease;
+  }
+
+  .momentum-bar .fill.you-side {
+    background: var(--accent);
+  }
+
+  .momentum-center {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: var(--border);
+    transform: translateX(-1px);
+  }
+
   .to-win {
     margin: -4px 0 0;
     text-align: center;
@@ -356,6 +427,60 @@
     text-decoration: underline;
     text-decoration-color: var(--muted);
     text-underline-offset: 2px;
+  }
+
+  .energy-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin: -6px 0 0;
+  }
+
+  .energy-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .energy-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+    width: 84px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .bar {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--card-2);
+    overflow: hidden;
+  }
+
+  .fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.2s ease;
+  }
+
+  .energy-val {
+    font-size: 12px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    min-width: 52px;
+    text-align: right;
+  }
+
+  .energy-val.opp {
+    color: var(--muted);
+    font-style: italic;
   }
 
   .sets {
@@ -446,12 +571,6 @@
   .speed.selected {
     color: var(--text);
     border-color: var(--accent);
-  }
-
-  .energy {
-    color: var(--muted);
-    font-size: 13px;
-    margin: 0;
   }
 
   .tactics {

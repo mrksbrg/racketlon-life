@@ -4,7 +4,7 @@ import { ageOn, dateForWeek, weekLabel, weekLabelAt, yearOfWeek } from "./core/d
 import type { EventLog, GameEvent } from "./core/events.js";
 import { eventsForWeek } from "./core/events.js";
 import type { GameState, InboxMessage } from "./core/state.js";
-import { SAVE_VERSION, humanPlayer } from "./core/state.js";
+import { SAVE_VERSION, getPlayer, humanPlayer } from "./core/state.js";
 import type { ActivityCounts, PlayerPlan } from "./model/plan.js";
 import { countsFromSlots } from "./model/plan.js";
 import type { Player } from "./model/player.js";
@@ -23,7 +23,7 @@ import {
   moneyDeltaFromCounts,
 } from "./systems/effects.js";
 import { combinedRating } from "./systems/ranking.js";
-import { firWorldRanking } from "./systems/ranking-points.js";
+import { firRacePointsTotal, firWorldRanking } from "./systems/ranking-points.js";
 import type { HumanSnapshot } from "./systems/types.js";
 import type { TravelCost } from "./systems/travel.js";
 import { travelCost } from "./systems/travel.js";
@@ -226,6 +226,36 @@ export interface CareerStatsView {
   results: TournamentResultView[];
 }
 
+/** One set's score within a {@link RecentMatchView} — `sport` names which of
+ * the 4 sports it was (fixed order tt/bd/sq/tn, same as `SPORTS`). */
+export interface RecentMatchSetView {
+  sport: Sport;
+  a: number;
+  b: number;
+}
+
+/** One individual match the human has played, newest first — finer-grained
+ * than {@link TournamentResultView} (a whole tournament's placement): this
+ * is per-opponent, per-round, with the full per-sport set score. Mined from
+ * the event log's `match.played` entries (tournament/engine.ts's
+ * `advanceTournament`), a human-only, display-only view — not persisted
+ * separately, so no save format change. See `Game.recentMatches`. */
+export interface RecentMatchView {
+  week: number;
+  weekLabel: string;
+  tournamentName: string;
+  round: number;
+  totalRounds: number;
+  opponentId: string;
+  opponentName: string;
+  won: boolean;
+  /** total points across all 4 sports — racketlon's real match winner
+   * (aggregate points, not sets won); see match/engine.ts's module doc. */
+  totalA: number;
+  totalB: number;
+  sets: RecentMatchSetView[];
+}
+
 /** A real date span for the human's current injury — see
  * `Game.currentInjurySpan`. */
 export interface InjurySpanView {
@@ -306,10 +336,16 @@ export interface OpponentView {
 /** An opponent's level, fuzzed to a range rather than the exact value — see
  * `levelRangeForSkill`. Deliberately not `SportView`: that type's `level` +
  * `progress` are precise enough to back out the true skill, which is fine
- * for the human's own view but not for anyone else's. */
+ * for the human's own view but not for anyone else's. `level`/`progress` are
+ * only populated when this profile is the human's own (see
+ * `OpponentProfileView.isYou`) — `levelMin`/`levelMax` still collapse to that
+ * same exact level in that case, so callers that ignore `isYou` still render
+ * something sane. */
 export interface OpponentSportView {
   levelMin: number;
   levelMax: number;
+  level?: number;
+  progress?: number;
 }
 
 /**
@@ -347,11 +383,45 @@ export interface OpponentProfileView {
   firStanding: FirStandingView | null;
   /** newest first — see {@link OpponentResultView} */
   recentResults: OpponentResultView[];
+  /** true iff this is the human's own profile — reached mid-match or
+   * mid-draw by tapping your own name (see store.svelte.ts's `viewOpponent`
+   * doc comment). It's the same person as the Me tab, not actually an
+   * opponent, so nothing here should be fuzzed — the UI uses this to render
+   * `sports[sport].level`/`progress` exactly instead of the min/max band. */
+  isYou: boolean;
 }
 
 /** An inbox message with its arrival week resolved to a dated label. */
 export interface InboxView extends InboxMessage {
   weekLabel: string;
+}
+
+/**
+ * One row of the Rankings screen (docs/07): the same gender-separated ladder
+ * as `firWorldRanking` (rank + points, the "official" ordering), with two
+ * companion columns alongside — never merged into one number, per the
+ * three-information-layers rule. `racePoints` is the current calendar
+ * year's FIR points only (an Order-of-Merit view, from each player's own
+ * `firResults` ledger — see `Player.firResults`) — genuinely 0 for everyone
+ * at the start of a career (or of any new year) and climbs only as counted
+ * results are actually earned that season, for NPCs and the human alike
+ * (every entrant of a simulated tournament earns points, not just the
+ * human — see tournament/engine.ts's `recordEntrantResults`). Points earned
+ * outside any tournament the human's own session actually simulates (their
+ * own division, or a sibling division running alongside it) still don't
+ * exist — there's no full-world background simulation yet, so an NPC's Race
+ * points stay 0 until they've actually shared a session with the human.
+ * `rating` is the combined Glicko-2 estimate, explicitly a companion stat,
+ * never the ranking itself.
+ */
+export interface RankingRowView {
+  rank: number;
+  playerId: string;
+  name: string;
+  nationality: string;
+  points: number;
+  racePoints: number;
+  rating: number;
 }
 
 export interface SaveGame {
@@ -525,6 +595,41 @@ export class Game {
   }
 
   /**
+   * The human's individual match history, newest first, capped at `limit` —
+   * one row per match played (not per tournament placement), mined from the
+   * event log's `match.played` entries (tournament/engine.ts's
+   * `advanceTournament`). See `RecentMatchView`.
+   */
+  recentMatches(limit = 15): RecentMatchView[] {
+    const humanId = this.state.career.playerId;
+    const matches: RecentMatchView[] = [];
+    for (const e of this.log) {
+      if (e.subject !== humanId || e.type !== "match.played") continue;
+      const d = e.data ?? {};
+      const sets = (d.sets as { a: number; b: number }[] | undefined ?? []).map((s, i) => ({
+        sport: SPORTS[i]!,
+        a: s.a,
+        b: s.b,
+      }));
+      matches.push({
+        week: e.week,
+        weekLabel: weekLabelAt(this.state.calendar, e.week),
+        tournamentName: String(d.tournamentName ?? "Tournament"),
+        round: Number(d.round ?? 0),
+        totalRounds: Number(d.totalRounds ?? 0),
+        opponentId: String(d.opponentId ?? ""),
+        opponentName: String(d.opponentName ?? ""),
+        won: Boolean(d.won),
+        totalA: sets.reduce((sum, s) => sum + s.a, 0),
+        totalB: sets.reduce((sum, s) => sum + s.b, 0),
+        sets,
+      });
+    }
+    matches.reverse(); // log is chronological; show most recent first
+    return matches.slice(0, limit);
+  }
+
+  /**
    * Every podium finish (top 3) of the human's career, newest first — the
    * "Me" screen's trophy cabinet. Reuses `careerStats().results` rather than
    * re-scanning the log, since a medal is just a top-3 filter over the same
@@ -585,12 +690,18 @@ export class Game {
   opponentProfile(id: string): OpponentProfileView | null {
     const p = this.state.players.find((pl) => pl.identity.id === id);
     if (!p) return null;
+    const isYou = p.identity.id === this.state.career.playerId;
     const sports = {} as Record<Sport, OpponentSportView>;
     const ratings = {} as Record<Sport, RatingView>;
     for (const sport of SPORTS) {
       const skill = p.attributes.skills[sport];
-      const range = levelRangeForSkill(skill, BALANCE.opponentInfo.levelRangeWidth);
-      sports[sport] = { levelMin: range.min, levelMax: range.max };
+      if (isYou) {
+        const level = levelForSkill(skill);
+        sports[sport] = { levelMin: level, levelMax: level, level, progress: levelProgress(skill) };
+      } else {
+        const range = levelRangeForSkill(skill, BALANCE.opponentInfo.levelRangeWidth);
+        sports[sport] = { levelMin: range.min, levelMax: range.max };
+      }
       const g = p.ratings[sport];
       ratings[sport] = { rating: Math.round(g.rating), rd: Math.round(g.rd) };
     }
@@ -612,7 +723,26 @@ export class Game {
         tiedCount: r.tiedCount,
         matchesPlayed: r.matchesPlayed,
       })),
+      isYou,
     };
+  }
+
+  /**
+   * The Rankings screen (docs/07): the gender-separated FIR World Ranking
+   * ladder — same rows and order as `firWorldRanking` — enriched with the
+   * Tour Race (season-to-date points, from every player's own `firResults`
+   * ledger — see `Player.firResults`) and combined Glicko-2 rating as
+   * companion columns.
+   */
+  rankings(gender: "m" | "f"): RankingRowView[] {
+    return firWorldRanking(this.state, gender).map((row) => {
+      const player = getPlayer(this.state, row.playerId);
+      return {
+        ...row,
+        racePoints: firRacePointsTotal(player.firResults, this.state.calendar),
+        rating: Math.round(combinedRating(player)),
+      };
+    });
   }
 
   /** The diegetic message feed, newest first, with dated labels. */

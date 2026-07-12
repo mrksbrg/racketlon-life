@@ -86,8 +86,10 @@ export interface MatchState {
   /**
    * EMA of (actual outcome − modeled win probability) for side "a", positive
    * meaning a has been winning points beyond what the model expected lately
-   * (the run of the ball is with them). Presentation-only "luck" read — does
-   * not feed back into point probability. See `luckTell`.
+   * (the run of the ball is with them). Feeds back into point probability
+   * (see `pointWinProbability`'s `momentumBonus`) and the bucketed "luck"
+   * read (`luckTell`). Reset to 0 at every side-change and set-end break —
+   * a changeover clears the slate, the flow doesn't carry through a pause.
    */
   momentum: number;
   /**
@@ -252,12 +254,22 @@ function effectiveStrength(
   return eff;
 }
 
-/** P(side a wins the next point). */
+/** P(side a wins the next point). Folds in `m.momentum` (positive favors a)
+ * scaled by `BALANCE.match.momentumWeight` — see that constant's doc
+ * comment for why this doesn't need an explicit cap. */
 export function pointWinProbability(m: MatchState, rng: Rng): number {
   const sport = currentSport(m);
   const effA = effectiveStrength(m.players.a, sport, m.energy.a, m.tactics.a, rng);
   const effB = effectiveStrength(m.players.b, sport, m.energy.b, m.tactics.b, rng);
-  return 1 / (1 + Math.exp(-(effA - effB) / BALANCE.match.scales[sport]));
+  const momentumBonus = m.momentum * BALANCE.match.momentumWeight;
+  return 1 / (1 + Math.exp(-(effA - effB + momentumBonus) / BALANCE.match.scales[sport]));
+}
+
+/** Flat energy recovery for both sides at a changeover break, capped at 100 — see
+ * BALANCE.match.sideChangeEnergyRecovery/setChangeEnergyRecovery. */
+function recoverEnergyAtBreak(m: MatchState, amount: number): void {
+  m.energy.a = Math.min(100, m.energy.a + amount);
+  m.energy.b = Math.min(100, m.energy.b + amount);
 }
 
 /**
@@ -321,6 +333,8 @@ export function playPoint(m: MatchState): PointOutcome | null {
       m.sideChangeDone = false;
       m.phase = "break";
       m.breakReason = "setEnd";
+      m.momentum = 0;
+      recoverEnergyAtBreak(m, BALANCE.match.setChangeEnergyRecovery);
       if (m.setIndex === 3) m.tennisTarget = pointsToWin(m);
     }
     return outcome;
@@ -330,6 +344,8 @@ export function playPoint(m: MatchState): PointOutcome | null {
     m.sideChangeDone = true;
     m.phase = "break";
     m.breakReason = "sideChange";
+    m.momentum = 0;
+    recoverEnergyAtBreak(m, BALANCE.match.sideChangeEnergyRecovery);
   }
 
   return outcome;

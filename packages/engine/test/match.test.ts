@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { MatchPlayerRef, MatchState, Tactic } from "../src/index.js";
 import {
   BALANCE,
+  Rng,
   SPORTS,
   aiChooseTactic,
   createMatch,
@@ -9,6 +10,7 @@ import {
   luckTell,
   maxRemainingFor,
   playPoint,
+  pointWinProbability,
   pointsToWin,
   resumeMatch,
   setTactic,
@@ -85,6 +87,52 @@ describe("match engine", () => {
     expect(m.breakReason).toBe("sideChange");
     const set = m.sets[0]!;
     expect(Math.max(set.a, set.b)).toBe(11);
+  });
+
+  it("resets momentum and gives both sides a small energy top-up at the side-change break", () => {
+    const m = createMatch(ref("a", 500, { stamina: 0.5 }), ref("b", 480, { stamina: 0.5 }), "sidechange-reset");
+    resumeMatch(m);
+    while (m.phase === "playing" && m.breakReason !== "sideChange") {
+      m.momentum = 0.25; // force a nonzero value so the reset is actually observable
+      m.energy.a = 70;
+      m.energy.b = 65;
+      playPoint(m);
+    }
+    expect(m.breakReason).toBe("sideChange");
+    expect(m.momentum).toBe(0);
+    // this point's own energy cost (table tennis, stamina 0.5 → 1x
+    // multiplier) is deducted before the changeover recovery is added
+    const cost = BALANCE.match.energyCostPerPoint.tt;
+    expect(m.energy.a).toBeCloseTo(70 - cost + BALANCE.match.sideChangeEnergyRecovery, 5);
+    expect(m.energy.b).toBeCloseTo(65 - cost + BALANCE.match.sideChangeEnergyRecovery, 5);
+  });
+
+  it("resets momentum and gives both sides a bigger energy top-up moving on to a new sport", () => {
+    // one point from ending set 1 (table tennis) — 20-18, "a" a heavy
+    // favorite so the very next point reliably closes it out at 21-18
+    const m = createMatch(ref("a", 900, { stamina: 0.5 }), ref("b", 100, { stamina: 0.5 }), "setend-reset");
+    m.sets = [
+      { a: 20, b: 18, done: false },
+      { a: 0, b: 0, done: false },
+      { a: 0, b: 0, done: false },
+      { a: 0, b: 0, done: false },
+    ];
+    m.sideChangeDone = true;
+    m.momentum = -0.3;
+    m.energy = { a: 70, b: 65 };
+    m.phase = "playing";
+    playPoint(m);
+    expect(m.sets[0]!.done).toBe(true);
+    expect(m.setIndex).toBe(1);
+    expect(m.breakReason).toBe("setEnd");
+    expect(m.momentum).toBe(0);
+    const cost = BALANCE.match.energyCostPerPoint.tt;
+    expect(m.energy.a).toBeCloseTo(70 - cost + BALANCE.match.setChangeEnergyRecovery, 5);
+    expect(m.energy.b).toBeCloseTo(65 - cost + BALANCE.match.setChangeEnergyRecovery, 5);
+    // set-change recovery is bigger than a side-change's — same net effect
+    // (starting energy minus this point's cost), but this top-up clears
+    // more ground
+    expect(m.energy.a - (70 - cost)).toBeGreaterThan(BALANCE.match.sideChangeEnergyRecovery);
   });
 
   it("lets the clearly stronger player win most matches", () => {
@@ -237,6 +285,46 @@ describe("match engine", () => {
     expect(m!.momentum).toBeLessThan(-(1 - decay) * 0.9);
     expect(luckTell(m!, "b")).toBe("lucky");
     expect(luckTell(m!, "a")).toBe("unlucky");
+  });
+
+  it("feeds momentum back into point probability, favoring whichever side is hot", () => {
+    const m = createMatch(ref("a", 500), ref("b", 500), "momentum-feedback");
+    resumeMatch(m);
+    const rng = () => new Rng("momentum-feedback-probe");
+
+    m.momentum = 0;
+    const neutral = pointWinProbability(m, rng());
+
+    m.momentum = 0.3;
+    const favoringA = pointWinProbability(m, rng());
+    expect(favoringA).toBeGreaterThan(neutral);
+
+    m.momentum = -0.3;
+    const favoringB = pointWinProbability(m, rng());
+    expect(favoringB).toBeLessThan(neutral);
+
+    // symmetric around the neutral 0.5 baseline for two equal-skill players
+    expect(favoringA - neutral).toBeCloseTo(neutral - favoringB, 10);
+  });
+
+  it("keeps momentum well short of its own ±1 bound over a full match, even for a lopsided skill gap", () => {
+    // momentum feeding back into probability makes continuing a hot streak
+    // less "surprising", which is what should cap it short of ±1 on its own
+    // — see BALANCE.match.momentumWeight's doc comment.
+    let maxAbsMomentum = 0;
+    const m = createMatch(ref("a", 600), ref("b", 400), "momentum-cap");
+    let guard = 0;
+    while (m.phase !== "finished" && ++guard < 2000) {
+      if (m.phase === "break") {
+        setTactic(m, "a", aiChooseTactic(m, "a"));
+        setTactic(m, "b", aiChooseTactic(m, "b"));
+        resumeMatch(m);
+        continue;
+      }
+      playPoint(m);
+      maxAbsMomentum = Math.max(maxAbsMomentum, Math.abs(m.momentum));
+    }
+    expect(maxAbsMomentum).toBeLessThan(0.8);
   });
 
   it("safe grinds rallies (costs more energy) and aggressive ends them fast (saves energy), squash most of all", () => {

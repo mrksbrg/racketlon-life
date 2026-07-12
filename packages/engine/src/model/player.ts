@@ -109,6 +109,23 @@ export interface PlayerTournamentResult {
   matchesPlayed: number;
 }
 
+/** One FIR ranking-points result earned by this player, appended whenever a
+ * tournament they entered concludes (see tournament/engine.ts's
+ * `recordEntrantResults`). This is docs/07's in-game Layer 3 accumulator —
+ * distinct from `Player.firPoints`, the frozen real-world import snapshot.
+ * Populated going forward only, from tournaments actually simulated within
+ * this career; there's no backfill from a player's real-world FIR history.
+ * `firPointsTotal`/`firRacePointsTotal` (systems/ranking-points.ts) roll a
+ * ledger of these up into the rolling World Ranking total and the
+ * calendar-year Tour Race total, respectively — for any player, not just
+ * the human. */
+export interface FirResult {
+  weekIndex: number;
+  tournamentId: string;
+  tier: string;
+  points: number;
+}
+
 export interface Player {
   identity: PlayerIdentity;
   attributes: PlayerAttributes;
@@ -117,10 +134,13 @@ export interface Player {
   /** Real FIR ranking points as of the import snapshot — an observable
    * "official standing" like `ratings`, not a hidden attribute. Used only to
    * place this player into a tournament division (see systems/division.ts).
-   * NOT docs/07's in-game Layer 3 accumulator (points earned from the
-   * human's own placements, still unbuilt) — this never changes during a
-   * career. Always null for the human (no points-earning system yet). */
+   * NOT the in-game Layer 3 accumulator (see `firResults`) — this never
+   * changes during a career. Always null for the human (no real-world
+   * snapshot exists for a created character). */
   firPoints: number | null;
+  /** newest last — this player's own in-game FIR ranking-points ledger, for
+   * every player, not just the human. See {@link FirResult}. */
+  firResults: FirResult[];
   simTier: SimTier;
   /** newest last, capped — see {@link PlayerTournamentResult} */
   recentResults: PlayerTournamentResult[];

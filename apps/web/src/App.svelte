@@ -7,6 +7,7 @@
   import Me from "./lib/Me.svelte";
   import OpponentProfile from "./lib/OpponentProfile.svelte";
   import Planner from "./lib/Planner.svelte";
+  import Rankings from "./lib/Rankings.svelte";
   import Summary from "./lib/Summary.svelte";
   import Tour from "./lib/Tour.svelte";
   import TournamentDay from "./lib/TournamentDay.svelte";
@@ -29,6 +30,8 @@
   {/if}
 {:else if store.screen === "tour"}
   <Tour />
+{:else if store.screen === "rankings"}
+  <Rankings />
 {:else if store.screen === "inbox"}
   <Inbox />
 {:else if store.screen === "me"}

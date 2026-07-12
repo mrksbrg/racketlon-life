@@ -47,12 +47,48 @@ export const FATIGUE_READ: Record<FatigueTell, string> = {
   gassed: "gassed",
 };
 
+/** Same bucket boundaries as `fatigueTell`, so a bar colored by this always
+ * agrees with the bucketed prose read ("looking fresh" etc). Used for both
+ * sides' energy bars — the opponent's fill width also tracks their real
+ * energy 1:1 (not just the bucket), since a bar that only moved in four big
+ * jumps between bucket midpoints read as jarringly "swingy" rather than the
+ * gradual drain match play actually is. Only the *label* stays wordy
+ * (`FATIGUE_LABEL`) rather than a raw number — enough restraint to keep it
+ * a read, not a readout, without sacrificing smooth, legible motion. */
+export function energyColor(energy: number): string {
+  if (energy >= 80) return "var(--ok)";
+  if (energy >= 55) return "var(--accent)";
+  if (energy >= 30) return "var(--warn)";
+  return "var(--danger)";
+}
+
+/** Short label for the opponent energy bar's value column — a terser
+ * companion to `FATIGUE_READ`'s full-sentence clause. */
+export const FATIGUE_LABEL: Record<FatigueTell, string> = {
+  fresh: "Fresh",
+  working: "Working",
+  tiring: "Tiring",
+  gassed: "Gassed",
+};
+
 /** Empty string for "neutral" — callers should omit the clause entirely. */
 export const LUCK_READ: Record<LuckTell, string> = {
   lucky: "riding some luck",
   neutral: "",
   unlucky: "getting no breaks",
 };
+
+/** Maps the match's signed momentum EMA (typically ±0.2, occasionally up to
+ * ~±0.45 during a real run — see `BALANCE.match.momentumWeight`'s doc
+ * comment) to a 0..100 bar position: 50 is neutral, 100 is entirely in
+ * side "a"'s (your) favor, 0 entirely the opponent's. Clamped at ±0.4,
+ * comfortably past the typical p90 swing, so one wild run doesn't peg the
+ * bar at an extreme it can never move past again. */
+export function momentumBarPosition(momentum: number): number {
+  const clamp = 0.4;
+  const clamped = Math.max(-clamp, Math.min(clamp, momentum));
+  return 50 + (clamped / clamp) * 50;
+}
 
 export function formatMoney(eur: number): string {
   const sign = eur < 0 ? "−" : "";

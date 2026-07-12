@@ -23,6 +23,7 @@ import {
   projectedField,
   seedBracket,
   simulateMatchAuto,
+  SPORTS,
   startSiblingSession,
   startTournament,
   tournamentCalendar,
@@ -143,6 +144,7 @@ describe("bracket seeding", () => {
       },
       ratings: { tt: glicko, bd: glicko, sq: glicko, tn: glicko },
       firPoints: null,
+      firResults: [],
       simTier: 1,
       recentResults: [],
     };
@@ -475,6 +477,33 @@ describe("tournament facade flow", () => {
     }
     expect(run("tour-det")).toBe(run("tour-det"));
   });
+
+  it("sharpens form in every sport from playing tournament matches, rather than letting the untrained week decay it", () => {
+    // registerAndAdvanceTo's lead-up weeks all use WORK_PLAN (no training),
+    // so form is already drifting down from neglect by the time the
+    // tournament's own week arrives — real match play should reverse that,
+    // not add to it.
+    const game = Game.newGame({ content: testContent, seed: "tour-form-1" });
+    registerAndAdvanceTo(game, 3);
+    const before = { ...game.you.formBySport };
+    playTournamentToWeekEnd(game, WORK_PLAN);
+    for (const sport of SPORTS) {
+      expect(game.you.formBySport[sport]).toBeGreaterThan(before[sport]);
+    }
+  });
+
+  it("carries a round-2 opponent's own real fatigue from their round-1 match, instead of resetting them to full energy", () => {
+    // Every field size is a power of two, so round 1 has no byes — the
+    // human's round-2 opponent necessarily just played (and won) a real,
+    // energy-costing round-1 match of their own elsewhere in the bracket.
+    const game = Game.newGame({ content: testContent, seed: "tour-opp-energy-1" });
+    registerAndAdvanceTo(game, 3);
+    const round1 = game.enterTournament();
+    simulateMatchAuto(round1);
+    const result = game.resolveTournamentMatch(round1);
+    if (result.status !== "nextRound") throw new Error(`expected nextRound, got ${result.status}`);
+    expect(result.match.energy.b).toBeLessThan(100);
+  });
 });
 
 describe("monrad placement bracket", () => {
@@ -667,6 +696,48 @@ describe("monrad placement bracket", () => {
     // every entrant appears in exactly one group
     const allIds = session.groups.flatMap((g) => g.participants);
     expect(new Set(allIds).size).toBe(16);
+  });
+
+  it("awards FIR ranking points to every entrant, not just the human", () => {
+    // locks in the fix for "NPCs don't earn Tour Race points" — every
+    // entrant's own firResults ledger (not just the human's) should gain an
+    // entry once the tournament concludes.
+    const game = Game.newGame({ content: testContent, seed: "monrad-fir-points" });
+    advanceUntil(game, () => game.weekIndex === 3);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["monthly-open-1"]!;
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      const result = advanceTournament(state, session, match, log);
+      if (result.status !== "nextRound") break;
+    }
+
+    const positions = new Map<string, number>();
+    let offset = 0;
+    for (const group of session.groups) {
+      for (const id of group.participants) positions.set(id, offset + 1);
+      offset += group.participants.length;
+    }
+    expect(positions.size).toBe(def.fieldSize);
+
+    for (const [id] of positions) {
+      const entry = getPlayer(state, id).firResults.find((r) => r.tournamentId === def.id);
+      expect(entry).toBeDefined();
+      expect(entry!.weekIndex).toBe(3);
+      expect(entry!.tier).toBe(def.tier);
+    }
+
+    // sanity: the matrix lookup actually varies by placement, not a flat
+    // award — the champion earns strictly more than the last-place finisher
+    const championId = [...positions.entries()].find(([, pos]) => pos === 1)![0];
+    const lastId = [...positions.entries()].find(([, pos]) => pos === def.fieldSize)![0];
+    const championPoints = getPlayer(state, championId).firResults.find((r) => r.tournamentId === def.id)!.points;
+    const lastPoints = getPlayer(state, lastId).firResults.find((r) => r.tournamentId === def.id)!.points;
+    expect(championPoints).toBeGreaterThan(lastPoints);
   });
 });
 

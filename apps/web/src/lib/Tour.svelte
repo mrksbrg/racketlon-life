@@ -33,7 +33,7 @@
 <StatusBar />
 
 <main>
-  <h2>World tour</h2>
+  <h2>Calendar</h2>
   <p class="sub">Register at least two weeks ahead — entry closes after that</p>
 
   <SeasonCalendar

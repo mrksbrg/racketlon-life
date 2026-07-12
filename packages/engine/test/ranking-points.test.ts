@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { RankingMatrix } from "../src/index.js";
-import { firPointsTotal, rankingPointsFor } from "../src/index.js";
+import { firPointsTotal, firRacePointsTotal, rankingPointsFor } from "../src/index.js";
+import { advanceWeek, startCalendar } from "../src/core/date.js";
 
 const MATRIX: RankingMatrix = {
   SAT: { A: [100, 60, 40, 20], B: [50, 30, 20, 10] },
@@ -88,5 +89,36 @@ describe("firPointsTotal", () => {
 
   it("is zero for an empty ledger", () => {
     expect(firPointsTotal([], 10)).toBe(0);
+  });
+});
+
+describe("firRacePointsTotal", () => {
+  function calAt(weekIndex: number) {
+    let cal = startCalendar();
+    for (let i = 0; i < weekIndex; i++) cal = advanceWeek(cal);
+    return cal;
+  }
+
+  it("counts only results from the current calendar year, dropping prior years even within the FIR ranking window", () => {
+    const cal = calAt(52);
+    const ledger = [
+      { weekIndex: 0, tournamentId: "lastYear", tier: "IWT", points: 500 },
+      { weekIndex: 52, tournamentId: "thisYear", tier: "IWT", points: 40 },
+    ];
+    expect(firRacePointsTotal(ledger, cal)).toBe(40);
+  });
+
+  it("applies the same best-N caps as the World Ranking total, scoped to the season", () => {
+    const cal = calAt(10);
+    const ledger = [
+      { weekIndex: 0, tournamentId: "sat1", tier: "SAT", points: 10 },
+      { weekIndex: 1, tournamentId: "sat2", tier: "SAT", points: 20 },
+      { weekIndex: 2, tournamentId: "cha1", tier: "CHA", points: 30 },
+    ];
+    expect(firRacePointsTotal(ledger, cal)).toBe(60);
+  });
+
+  it("is zero for an empty ledger", () => {
+    expect(firRacePointsTotal([], calAt(10))).toBe(0);
   });
 });

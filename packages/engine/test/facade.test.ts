@@ -139,6 +139,47 @@ describe("Game facade", () => {
     }
   });
 
+  it("recentMatches is empty until a match is played", () => {
+    const game = Game.newGame({ content: testContent, seed: "f9-matches-empty" });
+    expect(game.recentMatches()).toHaveLength(0);
+  });
+
+  it("recentMatches lists every individual match played, newest first, with opponent + set score", () => {
+    const game = Game.newGame({ content: testContent, seed: "f9-matches" });
+    playTournamentAt(game, 3);
+    const def = testContent.tournaments["monthly-open-1"]!;
+
+    // an 8-draw's 3-game cap never bites (see tournament.test.ts's monrad
+    // suite) — every entrant, including the human, plays exactly
+    // log2(8) = 3 matches on any path through the bracket
+    const matches = game.recentMatches();
+    expect(matches).toHaveLength(3);
+
+    // newest first: round numbers descend from the last match played
+    expect(matches.map((m) => m.round)).toEqual([3, 2, 1]);
+
+    for (const m of matches) {
+      expect(m.tournamentName).toBe(def.name);
+      expect(m.totalRounds).toBe(3);
+      expect(m.opponentId).not.toBe("");
+      expect(m.opponentName).not.toBe("");
+      expect(m.sets).toHaveLength(4); // tt, bd, sq, tn
+      expect(m.totalA).toBeGreaterThanOrEqual(0);
+      expect(m.totalB).toBeGreaterThanOrEqual(0);
+      // the human is always side "a" — `won` must agree with the aggregate
+      // point totals, racketlon's real match-winner rule (see match/engine.ts)
+      expect(m.won).toBe(m.totalA > m.totalB);
+    }
+  });
+
+  it("recentMatches is capped at `limit`, still newest first", () => {
+    const game = Game.newGame({ content: testContent, seed: "f9-matches-limit" });
+    playTournamentAt(game, 3);
+    const capped = game.recentMatches(2);
+    expect(capped).toHaveLength(2);
+    expect(capped.map((m) => m.round)).toEqual([3, 2]);
+  });
+
   it("firStanding is null until the human has a counted FIR result", () => {
     const game = Game.newGame({ content: testContent, seed: "f10" });
     expect(game.you.firStanding).toBeNull();

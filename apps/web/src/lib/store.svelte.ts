@@ -12,6 +12,8 @@ import type {
   MatchState,
   OpponentProfileView,
   OtherDivisionDraw,
+  RankingRowView,
+  RecentMatchView,
   SaveGame,
   Sport,
   SportView,
@@ -48,6 +50,7 @@ export type Screen =
   | "create"
   | "planner"
   | "tour"
+  | "rankings"
   | "inbox"
   | "me"
   | "simulating"
@@ -58,10 +61,10 @@ export type Screen =
 
 /** Screens reachable from the bottom tab bar (docs/07's nav model — full-screen
  * flows like match/summary/create run over the top, without it). */
-export type TabScreen = "planner" | "tour" | "inbox" | "me";
+export type TabScreen = "planner" | "tour" | "rankings" | "inbox" | "me";
 
 /** Screens that show the persistent bottom tab bar. */
-export const TAB_SCREENS: readonly Screen[] = ["planner", "tour", "inbox", "me"];
+export const TAB_SCREENS: readonly Screen[] = ["planner", "tour", "rankings", "inbox", "me"];
 
 export type MatchSpeed = 1 | 2 | 3;
 
@@ -209,6 +212,31 @@ class GameStore {
   readonly trophyCabinet: TrophyView[] = $derived.by(() => {
     this.version;
     return this.game ? this.game.trophyCabinet() : [];
+  });
+
+  /** The human's individual match history, newest first — the Me screen's
+   * "recent matches" list (finer-grained than `careerStats().results`,
+   * which is per-tournament placement, not per-opponent). */
+  readonly recentMatches: RecentMatchView[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.recentMatches() : [];
+  });
+
+  /** Which gender's ladder the Rankings screen shows — defaults to the
+   * human's own gender until explicitly switched. */
+  private rankingsGenderOverride = $state<"m" | "f" | null>(null);
+
+  readonly rankingsGender: "m" | "f" = $derived.by(() => this.rankingsGenderOverride ?? this.you?.gender ?? "m");
+
+  setRankingsGender(gender: "m" | "f"): void {
+    this.rankingsGenderOverride = gender;
+  }
+
+  /** FIR World Ranking (primary sort) + Tour Race + Glicko, for whichever
+   * gender `rankingsGender` currently points at — see `Game.rankings`. */
+  readonly rankings: RankingRowView[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.rankings(this.rankingsGender) : [];
   });
 
   /** The open opponent profile, if any — see `viewOpponent`. */

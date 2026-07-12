@@ -4,7 +4,8 @@
 
 <nav class="tabbar">
   <button class:active={store.screen === "planner"} onclick={() => store.goToTab("planner")}>Plan</button>
-  <button class:active={store.screen === "tour"} onclick={() => store.goToTab("tour")}>Tour</button>
+  <button class:active={store.screen === "tour"} onclick={() => store.goToTab("tour")}>Calendar</button>
+  <button class:active={store.screen === "rankings"} onclick={() => store.goToTab("rankings")}>Rankings</button>
   <button class="inbox-tab" class:active={store.screen === "inbox"} onclick={() => store.goToTab("inbox")}>
     <span class="envelope">
       ✉
@@ -27,11 +28,12 @@
 
   .tabbar button {
     flex: 1;
-    padding: 12px 0;
+    padding: 12px 2px;
     text-align: center;
-    font-size: 13px;
+    font-size: 11.5px;
     font-weight: 600;
     color: var(--muted);
+    white-space: nowrap;
   }
 
   .tabbar button.active {

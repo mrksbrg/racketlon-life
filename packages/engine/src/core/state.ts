@@ -54,26 +54,18 @@ import type { Calendar } from "./date.js";
 // `recordEntrantResults`) — a new required field an old save's players don't
 // have, so it's discarded rather than left with an undefined array the
 // opponent-profile screen can't render.
-export const SAVE_VERSION = 14;
+// v15: `Career.firResults` (human-only) moved to `Player.firResults` (every
+// player, human and NPC alike — see model/player.ts's `FirResult`), since
+// `recordEntrantResults` now awards FIR ranking points to every entrant of a
+// concluded tournament, not just the human (closing the "NPCs don't earn Tour
+// Race points" gap). An old save's `career.firResults` and NPCs' missing
+// `firResults` arrays both make this a discard-to-character-creation change.
+export const SAVE_VERSION = 15;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
   weekIndex: number;
   tournamentId: string;
-}
-
-/**
- * One FIR ranking-points result earned by the human, appended when a
- * tournament concludes. The rolling FIR World Ranking is computed from these
- * via `firPointsTotal` (systems/ranking-points.ts), which applies the FIR
- * best-N counting rules over a 24-month window. `tier` is retained so those
- * per-category caps (max 1 WC, 3 SWT; best 2 CHA/SAT) can be applied.
- */
-export interface FirResult {
-  weekIndex: number;
-  tournamentId: string;
-  tier: string;
-  points: number;
 }
 
 /** One frozen row in a monthly ranking digest — the standings as they were
@@ -132,9 +124,6 @@ export interface Career {
   /** tournaments registered for but not yet played — consumed (removed) once
    * that week's tournament actually starts */
   tournamentEntries: TournamentEntry[];
-  /** FIR ranking-points earned from tournament placements, newest appended
-   * last — the human's real world-ranking accumulator (see FirResult) */
-  firResults: FirResult[];
   /** diegetic message feed, newest appended last — see InboxSystem */
   inbox: InboxMessage[];
   /** which sports the human trained, per week, newest appended last —

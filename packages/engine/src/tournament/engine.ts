@@ -5,8 +5,10 @@ import type { EventLog } from "../core/events.js";
 import { Rng, childSeed } from "../core/rng.js";
 import type { GameState } from "../core/state.js";
 import { getPlayer } from "../core/state.js";
+import { clamp } from "../core/util.js";
 import type { Player, Ratings } from "../model/player.js";
 import { fullName } from "../model/player.js";
+import { SPORTS } from "../model/sport.js";
 import type { MatchState } from "../match/engine.js";
 import {
   aiChooseTactic,
@@ -186,6 +188,18 @@ export interface TournamentSession {
   pendingPairIndexInGroup: number | null;
   /** energy the human carries into their next match (recovers a little between rounds) */
   humanEnergyCarry: number;
+  /** every other still-active entrant's own between-round energy carry,
+   * mirroring `humanEnergyCarry` but for the whole field — see
+   * `carryEnergy`. Without this, every opponent the human faces would start
+   * fresh at 100 regardless of how tough that opponent's own earlier
+   * rounds were (`createMatch`'s default), which reads as an unfair
+   * asymmetry once the human is visibly carrying fatigue of their own.
+   * Initialized to 100 for every entrant at session start (`startTournament`
+   * / `startSiblingSession`); updated for both sides of every match
+   * `resolveRound`/`resolveRoundAuto` simulate, and for the human's own
+   * opponent in `advanceTournament`. Never read or written for the human
+   * themself — that's `humanEnergyCarry`. */
+  entrantEnergyCarry: Map<string, number>;
   cumulativeEnergySpent: number;
   /** total matches won this tournament — indexes `prizeByRoundsWon`;
    * distinct from `finishingPosition`, since two different placement paths
@@ -481,6 +495,18 @@ function roundPairs(participants: string[]): Array<[string, string]> {
 }
 
 /**
+ * One entrant's between-round energy carry: whatever they had left at the
+ * end of their last match, plus a flat recovery scaled by their own
+ * Stamina (`BALANCE.tournament.energyRecoveryBetweenRounds` ×
+ * `staminaRecoveryMult`), capped at 100 — a partial top-up, never a full
+ * reset. The single source of truth for both `session.humanEnergyCarry` and
+ * `session.entrantEnergyCarry`, so every entrant recovers by the same rule.
+ */
+function carryEnergy(leftover: number, stamina: number): number {
+  return Math.min(100, leftover + BALANCE.tournament.energyRecoveryBetweenRounds * staminaRecoveryMult(stamina));
+}
+
+/**
  * Resolves every pair of the current round across every still-active group
  * (skipping any already-decided group — see {@link isDecided}), except the
  * human's own pair, which becomes the session's `pendingMatch` for the UI to
@@ -512,6 +538,7 @@ function resolveRound(state: GameState, session: TournamentSession): void {
         const opponent = getPlayer(state, a === session.humanId ? b : a);
         const m = createMatch(ref(human), ref(opponent), seed);
         m.energy.a = session.humanEnergyCarry;
+        m.energy.b = session.entrantEnergyCarry.get(opponent.identity.id) ?? 100;
         session.pendingMatch = m;
         session.pendingGroupIndex = groupIndex;
         session.pendingPairIndexInGroup = pairIndexInGroup;
@@ -520,8 +547,12 @@ function resolveRound(state: GameState, session: TournamentSession): void {
       const pa = getPlayer(state, a);
       const pb = getPlayer(state, b);
       const m = createMatch(ref(pa), ref(pb), seed);
+      m.energy.a = session.entrantEnergyCarry.get(a) ?? 100;
+      m.energy.b = session.entrantEnergyCarry.get(b) ?? 100;
       simulateMatchAuto(m);
       recordMatchResults(session.resultsBook, m);
+      session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.stamina));
+      session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.stamina));
       return { a, b, winner: m.winner === "a" ? a : b };
     });
   });
@@ -549,8 +580,12 @@ function resolveRoundAuto(state: GameState, session: TournamentSession, round: n
       const pa = getPlayer(state, a);
       const pb = getPlayer(state, b);
       const m = createMatch(ref(pa), ref(pb), seed);
+      m.energy.a = session.entrantEnergyCarry.get(a) ?? 100;
+      m.energy.b = session.entrantEnergyCarry.get(b) ?? 100;
       simulateMatchAuto(m);
       recordMatchResults(session.resultsBook, m);
+      session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.stamina));
+      session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.stamina));
       return { a, b, winner: m.winner === "a" ? a : b };
     });
   });
@@ -627,15 +662,19 @@ function finishAllRemainingGroups(state: GameState, session: TournamentSession):
 }
 
 /**
- * Records this concluded tournament into every entrant's `recentResults` —
- * called exactly once, at the moment every group in `session` is decided
- * (the human's own session right after `finishAllRemainingGroups`; a sibling
- * session the instant `isSiblingConcluded` first turns true). Walks
- * `session.groups` in bracket-position order, same as `groupStartPosition`
- * uses for the human's own `finishingPosition` in `concludeTournament`, so
- * every entrant — not just the human — gets an accurate placement and a
- * `matchesPlayed` count (`Group.gamesPlayed`, final by construction once a
- * group is decided).
+ * Records this concluded tournament into every entrant's `recentResults`
+ * *and* `firResults` — called exactly once, at the moment every group in
+ * `session` is decided (the human's own session right after
+ * `finishAllRemainingGroups`; a sibling session the instant
+ * `isSiblingConcluded` first turns true). Walks `session.groups` in
+ * bracket-position order, same as `groupStartPosition` uses for the human's
+ * own `finishingPosition` in `concludeTournament`, so every entrant — not
+ * just the human — gets an accurate placement, a `matchesPlayed` count
+ * (`Group.gamesPlayed`, final by construction once a group is decided), and
+ * FIR ranking points via `rankingPointsFor` (the same Points Matrix lookup
+ * `concludeTournament` uses for the human, generalized to the whole field —
+ * NPCs previously never earned any in-game points at all, only carrying
+ * their frozen real-world `firPoints` snapshot).
  */
 function recordEntrantResults(state: GameState, session: TournamentSession): void {
   let offset = 0;
@@ -643,6 +682,13 @@ function recordEntrantResults(state: GameState, session: TournamentSession): voi
     const finishingPosition = offset + 1;
     offset += group.participants.length;
     const tiedCount = group.participants.length;
+    const rankingPoints = rankingPointsFor(
+      session.def.tier,
+      session.def.division,
+      finishingPosition,
+      session.def.fieldSize,
+      session.rankingMatrix,
+    );
     for (const id of group.participants) {
       const player = getPlayer(state, id);
       player.recentResults.push({
@@ -656,6 +702,12 @@ function recordEntrantResults(state: GameState, session: TournamentSession): voi
         matchesPlayed: group.gamesPlayed,
       });
       if (player.recentResults.length > MAX_RECENT_RESULTS) player.recentResults.shift();
+      player.firResults.push({
+        weekIndex: session.weekIndex,
+        tournamentId: session.def.id,
+        tier: session.def.tier,
+        points: rankingPoints,
+      });
     }
   }
 }
@@ -708,6 +760,7 @@ export function startTournament(
     pendingGroupIndex: null,
     pendingPairIndexInGroup: null,
     humanEnergyCarry: 100,
+    entrantEnergyCarry: new Map(bracketBySeed.map((id) => [id, 100])),
     cumulativeEnergySpent: 0,
     roundsWon: 0,
     totalRounds,
@@ -765,6 +818,7 @@ export function startSiblingSession(
     pendingGroupIndex: null,
     pendingPairIndexInGroup: null,
     humanEnergyCarry: 0,
+    entrantEnergyCarry: new Map(bracketBySeed.map((id) => [id, 100])),
     cumulativeEnergySpent: 0,
     roundsWon: 0,
     totalRounds,
@@ -825,7 +879,9 @@ export function finishSiblingSession(state: GameState, session: TournamentSessio
  * have 2 wins), and both draw the same `prizeByRoundsWon[2]`. Ranking points,
  * by contrast, use `finishingPosition` exactly (the tied band's *best*
  * position, per FIR convention), since that's what the Points Matrix is
- * keyed on.
+ * keyed on. The ledger entry itself is written by `recordEntrantResults`
+ * (called just before this, for every entrant including the human) —
+ * `rankingPoints` is only recomputed here for the return value and log event.
  */
 function concludeTournament(
   state: GameState,
@@ -841,6 +897,20 @@ function concludeTournament(
   const fatigueGain = session.cumulativeEnergySpent * BALANCE.tournament.fatigueConversionFactor;
   human.condition.fatigue = Math.min(100, human.condition.fatigue + fatigueGain);
 
+  // Real match play sharpens tournament readiness in every sport — a match
+  // is always all four sports (see match/engine.ts) — better than a single
+  // training session, since it's the real thing. `session.currentRound` has
+  // already been incremented once per human match played this session (see
+  // `advanceTournament`), so at conclusion it's exactly the match count.
+  // Also clears the neglect streak so this week's later `TrainingSystem`
+  // pass doesn't immediately start re-accruing decay on top of the boost.
+  const matchesPlayed = session.currentRound;
+  const formGain = matchesPlayed * BALANCE.form.matchPlayGainPerRound;
+  for (const sport of SPORTS) {
+    human.condition.formBySport[sport] = clamp(human.condition.formBySport[sport] + formGain, 0, BALANCE.form.max);
+    human.condition.neglectWeeks[sport] = 0;
+  }
+
   const rankingPoints = rankingPointsFor(
     session.def.tier,
     session.def.division,
@@ -848,12 +918,6 @@ function concludeTournament(
     session.def.fieldSize,
     session.rankingMatrix,
   );
-  state.career.firResults.push({
-    weekIndex: session.weekIndex,
-    tournamentId: session.def.id,
-    tier: session.def.tier,
-    points: rankingPoints,
-  });
 
   const won = finishingPosition === 1;
   log.push({
@@ -924,6 +988,26 @@ export function advanceTournament(
   session.cumulativeEnergySpent += Math.max(0, spent);
   recordMatchResults(session.resultsBook, finishedMatch);
 
+  // one entry per individual match the human plays (not just the eventual
+  // tournament placement) — the Me screen's "recent matches" list (see
+  // facade.ts's `recentMatches`) mines these out of the log rather than a
+  // persisted per-player ledger, since it's a human-only, display-only view.
+  log.push({
+    week: session.weekIndex,
+    type: "match.played",
+    subject: session.humanId,
+    data: {
+      tournamentId: session.def.id,
+      tournamentName: session.def.name,
+      round: session.currentRound + 1,
+      totalRounds: session.totalRounds,
+      opponentId: finishedMatch.players.b.id,
+      opponentName: finishedMatch.players.b.name,
+      won: humanWon,
+      sets: finishedMatch.sets.map((s) => ({ a: s.a, b: s.b })),
+    },
+  });
+
   const pair = session.roundPairs![session.pendingGroupIndex!]![session.pendingPairIndexInGroup!]!;
   pair.winner = humanWon ? session.humanId : finishedMatch.players.b.id;
   session.pendingMatch = null;
@@ -932,9 +1016,12 @@ export function advanceTournament(
 
   if (humanWon) session.roundsWon += 1;
   const human = getPlayer(state, session.humanId);
-  const recovery =
-    BALANCE.tournament.energyRecoveryBetweenRounds * staminaRecoveryMult(human.attributes.stamina);
-  session.humanEnergyCarry = Math.min(100, finishedMatch.energy.a + recovery);
+  session.humanEnergyCarry = carryEnergy(finishedMatch.energy.a, human.attributes.stamina);
+  const opponent = getPlayer(state, finishedMatch.players.b.id);
+  session.entrantEnergyCarry.set(
+    opponent.identity.id,
+    carryEnergy(finishedMatch.energy.b, opponent.attributes.stamina),
+  );
 
   session.groups = buildNextGroups(session.groups, session.roundPairs!);
   session.currentRound += 1;

@@ -1,5 +1,9 @@
 import type { RankingMatrix } from "../content.js";
-import type { FirResult, GameState } from "../core/state.js";
+import type { Calendar } from "../core/date.js";
+import { yearOfWeek } from "../core/date.js";
+import type { GameState } from "../core/state.js";
+import { getPlayer } from "../core/state.js";
+import type { FirResult } from "../model/player.js";
 import { fullName } from "../model/player.js";
 
 /**
@@ -48,27 +52,28 @@ const isSatCha = (tier: string): boolean => tier === "SAT" || tier === "CHA";
 const isWc = (tier: string): boolean => tier === "World Championships" || tier === "World Tour Finals";
 
 /**
- * The human's counted FIR World Ranking points as of `currentWeek`, applying
- * the FIR best-N counting rules (Ranking Regs 3) over the 24-month window:
- * the best 2 Challenger/Satellite results, plus the best 8 of everything else,
- * capped at 1 World Championships and 3 Super World Tour results.
+ * The FIR best-N counting rules (Ranking Regs 3) applied to an already
+ * time-windowed set of results: the best 2 Challenger/Satellite results,
+ * plus the best 8 of everything else, capped at 1 World Championships and 3
+ * Super World Tour results. Shared by the rolling-24-month World Ranking
+ * total ({@link firPointsTotal}) and the calendar-year Tour Race total
+ * ({@link firRacePointsTotal}) — only the window differs between the two.
  *
  * The "best 8" selection is greedy (highest points first, skipping a result
  * once its category cap is hit) — optimal enough for a career's handful of
  * events; a fully optimal cap solver is a deferred refinement.
  */
-export function firPointsTotal(ledger: readonly FirResult[], currentWeek: number): number {
-  const inWindow = ledger.filter((r) => currentWeek - r.weekIndex < RANKING_WINDOW_WEEKS);
+function countedTotal(results: readonly FirResult[]): number {
   const byPoints = (a: FirResult, b: FirResult) => b.points - a.points;
 
-  const bestSatCha = inWindow.filter((r) => isSatCha(r.tier)).sort(byPoints).slice(0, 2);
+  const bestSatCha = results.filter((r) => isSatCha(r.tier)).sort(byPoints).slice(0, 2);
   const counted = new Set(bestSatCha.map((r) => r.tournamentId));
   let total = bestSatCha.reduce((sum, r) => sum + r.points, 0);
 
   let picked = 0;
   let wc = 0;
   let swt = 0;
-  for (const r of inWindow.filter((x) => !counted.has(x.tournamentId)).sort(byPoints)) {
+  for (const r of results.filter((x) => !counted.has(x.tournamentId)).sort(byPoints)) {
     if (picked >= 8) break;
     if (isWc(r.tier) && wc >= 1) continue;
     if (r.tier === "SWT" && swt >= 3) continue;
@@ -78,6 +83,34 @@ export function firPointsTotal(ledger: readonly FirResult[], currentWeek: number
     total += r.points;
   }
   return total;
+}
+
+/**
+ * The human's counted FIR World Ranking points as of `currentWeek` — a
+ * rolling 24-month window (Ranking Regs 3), applying {@link countedTotal}'s
+ * best-N rules.
+ */
+export function firPointsTotal(ledger: readonly FirResult[], currentWeek: number): number {
+  const inWindow = ledger.filter((r) => currentWeek - r.weekIndex < RANKING_WINDOW_WEEKS);
+  return countedTotal(inWindow);
+}
+
+/**
+ * The human's World Tour Race points: results from the current calendar
+ * year only (an Order-of-Merit view, not the rolling World Ranking window),
+ * applying the same best-N counting rules via {@link countedTotal}. Resets
+ * to 0 every January, same as the real FIR race.
+ *
+ * Only meaningful for the human — NPCs don't carry a per-tournament result
+ * ledger (only a static real-world `firPoints` snapshot, see docs/07's
+ * Layer 3 note), so there is no way to compute a genuine season-to-date
+ * total for them; `facade.ts`'s ranking table reports 0 for every NPC's
+ * race column rather than misleadingly mirroring their lifetime `firPoints`.
+ */
+export function firRacePointsTotal(ledger: readonly FirResult[], cal: Calendar): number {
+  const currentYear = yearOfWeek(cal, cal.weekIndex);
+  const inSeason = ledger.filter((r) => yearOfWeek(cal, r.weekIndex) === currentYear);
+  return countedTotal(inSeason);
 }
 
 export interface FirRankingStanding {
@@ -100,14 +133,16 @@ export interface FirRankingStanding {
  * to rank them.
  *
  * NPCs use their static, real-world `firPoints` snapshot; the human uses
- * their own growing total (`firPointsTotal` over `career.firResults`), or is
- * omitted entirely if they haven't played a single counted tournament yet —
- * same as any other player with no result on file. Deterministic tie-break
- * on id, matching `glickoRanking`'s and `divisionAssignments`' convention.
+ * their own growing total (`firPointsTotal` over their own `firResults`
+ * ledger — see `Player.firResults`), or is omitted entirely if they haven't
+ * played a single counted tournament yet — same as any other player with no
+ * result on file. Deterministic tie-break on id, matching `glickoRanking`'s
+ * and `divisionAssignments`' convention.
  */
 export function firWorldRanking(state: GameState, gender: "m" | "f"): FirRankingStanding[] {
   const humanId = state.career.playerId;
-  const humanPoints = state.career.firResults.length === 0 ? null : firPointsTotal(state.career.firResults, state.calendar.weekIndex);
+  const humanLedger = getPlayer(state, humanId).firResults;
+  const humanPoints = humanLedger.length === 0 ? null : firPointsTotal(humanLedger, state.calendar.weekIndex);
 
   return state.players
     .filter((p) => p.identity.gender === gender)

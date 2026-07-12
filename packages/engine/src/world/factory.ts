@@ -143,6 +143,7 @@ function makePlayer(spec: PlayerSpec): Player {
     },
     ratings: ratingsFromSkills(spec.skills),
     firPoints: spec.firPoints,
+    firResults: [],
     simTier: spec.simTier,
     recentResults: [],
   };
@@ -311,7 +312,6 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
       titles: [],
       bestRating: Math.round(combinedRating(players[0]!)),
       tournamentEntries: [],
-      firResults: [],
       inbox: [
         {
           id: "welcome",

@@ -256,6 +256,31 @@
         </div>
       </section>
     {/if}
+
+    <!-- Recent matches -->
+    {#if store.recentMatches.length > 0}
+      <section class="card">
+        <h2>Recent matches</h2>
+        <div class="matches">
+          {#each store.recentMatches as m (m.week + m.opponentId + m.round)}
+            <div class="match">
+              <div class="m-main">
+                <button class="m-opponent" onclick={() => store.viewOpponent(m.opponentId)}>{m.opponentName}</button>
+                <span class="m-meta">{m.tournamentName} · Round {m.round}/{m.totalRounds} · {m.weekLabel}</span>
+              </div>
+              <div class="m-right">
+                <span class="m-result" class:win={m.won}>{m.won ? "W" : "L"} {m.totalA}–{m.totalB}</span>
+                <div class="m-sets">
+                  {#each m.sets as s (s.sport)}
+                    <span class="m-set" style="color: {SPORT_COLORS[s.sport]}">{SPORT_SHORT[s.sport]} {s.a}-{s.b}</span>
+                  {/each}
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
   </main>
 {/if}
 
@@ -839,5 +864,72 @@
     font-size: 13px;
     text-align: center;
     padding: 12px 0;
+  }
+
+  .matches {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .match {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+  }
+
+  .match + .match {
+    border-top: 1px solid var(--border);
+  }
+
+  .m-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .m-opponent {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: left;
+  }
+
+  .m-meta {
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .m-right {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .m-result {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .m-result.win {
+    color: var(--ok);
+  }
+
+  .m-sets {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+  }
+
+  .m-set {
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 </style>
