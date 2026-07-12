@@ -21,6 +21,8 @@
     const def = defaultContent.activities[type];
     const parts: string[] = [];
     if (def.trainingBase) parts.push("skill +");
+    if (type === "gym") parts.push("core +");
+    if (type === "cardio") parts.push("stamina +");
     if (def.fatigue > 0) parts.push("⚡+");
     if (def.fatigue < 0) parts.push("⚡−");
     if (def.money > 0) parts.push("€+");

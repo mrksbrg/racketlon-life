@@ -25,6 +25,20 @@ describe("training", () => {
     expect(tired).toBeLessThan(fresh);
   });
 
+
+  it("gym and cardio improve attributes without increasing sport skills", () => {
+    const game = Game.newGame({ content: testContent, seed: "pt-no-skill" });
+    const before = game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
+    const summary = game.submitWeek(planWith({ gym: 3, cardio: 3 }));
+    const after = game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
+    expect(summary.sports.tt.skillDelta).toBe(0);
+    expect(summary.sports.bd.skillDelta).toBe(0);
+    expect(summary.sports.sq.skillDelta).toBe(0);
+    expect(summary.sports.tn.skillDelta).toBe(0);
+    expect(after.coreStrength).toBeGreaterThan(before.coreStrength);
+    expect(after.stamina).toBeGreaterThan(before.stamina);
+  });
+
   it("heavy weeks add fatigue, rest weeks remove it", () => {
     const grind = Game.newGame({ content: testContent, seed: "t2" });
     const heavy = grind.submitWeek(planWith({ trainTT: 8, trainBD: 7 }));

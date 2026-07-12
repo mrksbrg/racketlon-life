@@ -107,11 +107,12 @@ export interface InjuryView {
   weeksRemaining: number;
 }
 
-/** The five character-creation attributes, banded to the same 1–20 display
+/** The character-creation attributes, banded to the same 1–20 display
  * scale as sport levels — shown on the human's own Me screen, but never on
  * an `OpponentView` (docs/07's information-layer rule stays for opponents). */
 export interface AttrsView {
   stamina: number;
+  coreStrength: number;
   intelligence: number;
   clutch: number;
   composure: number;
@@ -513,6 +514,7 @@ export class Game {
       firStanding: firStandingFor(this.state, human.identity.id, human.identity.gender),
       attrs: {
         stamina: levelFromUnit(human.attributes.stamina),
+        coreStrength: levelFromUnit(human.attributes.coreStrength),
         intelligence: levelFromUnit(human.attributes.intelligence),
         clutch: levelFromUnit(human.attributes.clutch),
         composure: levelFromUnit(human.attributes.composure),
@@ -779,8 +781,7 @@ export class Game {
     const sports = {} as Record<Sport, GainBucket>;
     for (const sport of SPORTS) {
       const potential = human.attributes.potential[sport];
-      let expected = expectedWeeklyGain(counts, sport, human.attributes.skills[sport], potential, fatigue, this.content, age);
-      expected += BALANCE.training.physicalAllSportGain * (counts.physical ?? 0);
+      const expected = expectedWeeklyGain(counts, sport, human.attributes.skills[sport], potential, fatigue, this.content, age);
       sports[sport] = gainBucket(expected);
     }
 

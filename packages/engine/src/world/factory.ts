@@ -101,6 +101,7 @@ interface PlayerSpec {
   durability: number;
   professionalism: number;
   stamina: number;
+  coreStrength: number;
   intelligence: number;
   clutch: number;
   composure: number;
@@ -128,6 +129,7 @@ function makePlayer(spec: PlayerSpec): Player {
       durability: spec.durability,
       professionalism: spec.professionalism,
       stamina: spec.stamina,
+      coreStrength: spec.coreStrength,
       intelligence: spec.intelligence,
       clutch: spec.clutch,
       composure: spec.composure,
@@ -165,6 +167,7 @@ export interface CharacterDraft {
   sports: Skills;
   /** 1–20 each */
   stamina: number;
+  coreStrength: number;
   intelligence: number;
   clutch: number;
   composure: number;
@@ -200,6 +203,7 @@ function specFromDraft(draft: CharacterDraft, rng: Rng): PlayerSpec {
     // the human plans manually, so professionalism (an AI-planning input) is neutral
     professionalism: 0.7,
     stamina: unitFromLevel(draft.stamina),
+    coreStrength: unitFromLevel(draft.coreStrength),
     intelligence: unitFromLevel(draft.intelligence),
     clutch: unitFromLevel(draft.clutch),
     composure: unitFromLevel(draft.composure),
@@ -242,6 +246,7 @@ function specFromRealPlayer(def: RealPlayerDef, worldSeed: string): PlayerSpec {
     durability: rng.range(0.3, 0.9),
     professionalism: rng.range(0.2, 0.9),
     stamina: rng.range(0.3, 0.9),
+    coreStrength: rng.range(0.3, 0.9),
     intelligence: rng.range(0.2, 0.9),
     clutch: rng.range(0.2, 0.9),
     composure: rng.range(0.2, 0.9),
@@ -279,6 +284,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
         durability: 0.6,
         professionalism: 0.7,
         stamina: 0.55,
+        coreStrength: 0.55,
         intelligence: 0.5,
         clutch: 0.5,
         composure: 0.5,
