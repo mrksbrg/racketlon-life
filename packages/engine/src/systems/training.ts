@@ -42,6 +42,13 @@ export const TrainingSystem: GameSystem = {
         }
       }
       updateForm(ctx, player, sessionsBySport);
+
+      if (player.identity.id === ctx.state.career.playerId) {
+        const trainedSports = SPORTS.filter((s) => sessionsBySport[s] > 0);
+        if (trainedSports.length > 0) {
+          ctx.state.career.trainedWeeks.push({ weekIndex: ctx.state.calendar.weekIndex, sports: trainedSports });
+        }
+      }
     }
   },
 };

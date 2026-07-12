@@ -20,6 +20,9 @@
 
   const you = $derived(store.you);
   const stats = $derived(store.careerStats);
+  const trophies = $derived(store.trophyCabinet);
+
+  const MEDAL_EMOJI: Record<1 | 2 | 3, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
   const initials = $derived(
     (you?.name ?? "")
@@ -214,6 +217,24 @@
         </div>
       {/if}
     </section>
+
+    <!-- Trophy cabinet -->
+    {#if trophies.length > 0}
+      <section class="card">
+        <h2>Trophy cabinet</h2>
+        <div class="trophies">
+          {#each trophies as t (t.week + t.name)}
+            <div class="trophy">
+              <span class="trophy-medal">{MEDAL_EMOJI[t.medal]}</span>
+              <div class="trophy-main">
+                <span class="trophy-name">{t.name}</span>
+                <span class="trophy-meta">Division {t.division} · {t.weekLabel}</span>
+              </div>
+            </div>
+          {/each}
+        </div>
+      </section>
+    {/if}
 
     <!-- Results -->
     {#if stats.results.length > 0}
@@ -714,6 +735,46 @@
   .right {
     text-align: right;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Trophy cabinet */
+  .trophies {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .trophy {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+  }
+
+  .trophy + .trophy {
+    border-top: 1px solid var(--border);
+  }
+
+  .trophy-medal {
+    font-size: 22px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .trophy-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .trophy-name {
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+
+  .trophy-meta {
+    font-size: 11.5px;
+    color: var(--muted);
   }
 
   /* Results */

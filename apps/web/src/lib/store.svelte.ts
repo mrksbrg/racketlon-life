@@ -8,6 +8,7 @@ import type {
   Forecast,
   HumanView,
   InboxView,
+  InjurySpanView,
   MatchState,
   OpponentProfileView,
   OtherDivisionDraw,
@@ -17,6 +18,8 @@ import type {
   Tactic,
   TourEntry,
   TournamentDef,
+  TrainedWeekView,
+  TrophyView,
   WeekSummary,
 } from "@racketlon/engine";
 import {
@@ -201,6 +204,13 @@ class GameStore {
     return this.game ? this.game.careerStats() : null;
   });
 
+  /** Every podium (top-3) finish of the career, newest first — the Me
+   * screen's trophy cabinet. */
+  readonly trophyCabinet: TrophyView[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.trophyCabinet() : [];
+  });
+
   /** The open opponent profile, if any — see `viewOpponent`. */
   readonly opponentProfile: OpponentProfileView | null = $derived.by(() => {
     this.version;
@@ -245,6 +255,20 @@ class GameStore {
   readonly tourEntries: TourEntry[] = $derived.by(() => {
     this.version;
     return this.game ? this.game.tournamentSchedule(SEASON_HORIZON) : [];
+  });
+
+  /** The human's current injury as a real date span, for the season
+   * calendar — null whenever uninjured. */
+  readonly injurySpan: InjurySpanView | null = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.currentInjurySpan() : null;
+  });
+
+  /** Every week (so far) the human trained, resolved to a real date — the
+   * season calendar's training history. */
+  readonly trainedWeeks: TrainedWeekView[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.trainedWeekDates() : [];
   });
 
   readonly weekLabel: string = $derived.by(() => {

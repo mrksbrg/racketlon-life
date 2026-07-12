@@ -58,6 +58,14 @@ function mondayOfWeek(cal: Calendar, weekIndex: number): Date {
   return new Date(monday.getTime() + (weekIndex - cal.weekIndex) * 7 * DAY_MS);
 }
 
+/** ISO date (YYYY-MM-DD) of the Monday a (possibly past or future, relative
+ * to `cal`) weekIndex starts on — the inverse of `weekIndexForDate`. Lets a
+ * UI place week-granular state (an injury's start, a trained week) onto a
+ * real calendar date. */
+export function dateForWeek(cal: Calendar, weekIndex: number): string {
+  return mondayOfWeek(cal, weekIndex).toISOString().slice(0, 10);
+}
+
 /** "YYYY-MM" of a (relative) week — used to detect month boundaries for the
  * monthly ranking digest. */
 export function monthKeyForWeek(cal: Calendar, weekIndex: number): string {

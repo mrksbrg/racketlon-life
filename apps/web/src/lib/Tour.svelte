@@ -1,18 +1,23 @@
 <script lang="ts">
   import type { DivisionCode, TourEntry } from "@racketlon/engine";
+  import SeasonCalendar from "./SeasonCalendar.svelte";
   import StatusBar from "./StatusBar.svelte";
   import TabBar from "./TabBar.svelte";
   import { store } from "./store.svelte";
-  import { flagEmoji, formatMoney } from "./ui";
+  import { flagEmoji, formatFieldStanding, formatMoney } from "./ui";
 
-  let expanded = $state<number | null>(null);
+  let selected = $state<number | null>(null);
   // per-week class pick, defaulting to whatever entry.tournament.division
   // already is (the human's own class, or the actually-registered one)
   let chosenDivision = $state<Record<number, DivisionCode>>({});
 
-  function toggle(weekIndex: number) {
-    expanded = expanded === weekIndex ? null : weekIndex;
+  function selectWeek(weekIndex: number) {
+    selected = selected === weekIndex ? null : weekIndex;
   }
+
+  const selectedEntry = $derived(
+    selected !== null ? (store.tourEntries.find((e) => e.weekIndex === selected) ?? null) : null,
+  );
 
   function divisionFor(entry: TourEntry): DivisionCode {
     return chosenDivision[entry.weekIndex] ?? entry.tournament.division;
@@ -31,111 +36,119 @@
   <h2>World tour</h2>
   <p class="sub">Register at least two weeks ahead — entry closes after that</p>
 
-  <div class="list">
-    {#each store.tourEntries as entry (entry.weekIndex)}
-      {@const t = entry.tournament}
-      {@const canPlayNow = entry.isThisWeek && store.registeredTournamentThisWeek}
-      {@const choice = choiceFor(entry)}
-      {@const canPick = entry.status !== "closed"}
-      <div class="card" class:this-week={entry.isThisWeek} class:registered={entry.status === "registered"}>
-        <button class="row" onclick={() => toggle(entry.weekIndex)}>
-          <div class="info">
-            <div class="name-line">
-              <span class="name">🏆 {t.name}</span>
-              <span class="tier">{t.tier}</span>
-              <span class="badge" class:open={entry.status === "open"} class:registered={entry.status === "registered"} class:closed={entry.status === "closed"}>
-                {STATUS_LABEL[entry.status]}
-              </span>
-            </div>
-            <div class="week">{flagEmoji(t.country)} {t.city} · {entry.weekLabel}</div>
-          </div>
-          <span class="chevron" class:rotated={expanded === entry.weekIndex}>›</span>
-        </button>
+  <SeasonCalendar
+    entries={store.tourEntries}
+    injurySpan={store.injurySpan}
+    trainedWeeks={store.trainedWeeks}
+    weekIndex={store.weekIndex}
+    onSelectWeek={selectWeek}
+  />
 
-        {#if expanded === entry.weekIndex}
-          <div class="detail">
-            {#if entry.eligibleDivisions.length > 1}
-              <div class="classes">
-                {#each entry.eligibleDivisions as c (c.def.division)}
-                  <button
-                    class="class-opt"
-                    class:selected={choice.def.division === c.def.division}
-                    disabled={!canPick}
-                    onclick={() => (chosenDivision = { ...chosenDivision, [entry.weekIndex]: c.def.division })}
-                  >
-                    <span class="class-div">Class {c.def.division}</span>
-                    <span class="class-hint">{c.def.division === entry.eligibleDivisions[0]!.def.division ? "your level" : "play up"}</span>
-                  </button>
-                {/each}
-              </div>
-            {/if}
-            <div class="detail-row">
-              <span>Entry fee</span>
-              <span>{formatMoney(choice.def.entryFee)}</span>
-            </div>
-            <div class="detail-row">
-              <span>Field size</span>
-              <span>{choice.def.fieldSize} players</span>
-            </div>
-            <div class="detail-row">
-              <span>Prize money</span>
-              <span>{formatMoney(choice.def.prizeByRoundsWon[choice.def.prizeByRoundsWon.length - 1] ?? 0)} to win it</span>
-            </div>
-            {#if entry.travelCost.total > 0}
-              <div class="detail-row">
-                <span>Flights</span>
-                <span>{formatMoney(entry.travelCost.flight)}</span>
-              </div>
-              <div class="detail-row">
-                <span>Hotel & food ({t.nights}n)</span>
-                <span>{formatMoney(entry.travelCost.stay)}</span>
-              </div>
-              <div class="detail-row total">
-                <span>Total to play</span>
-                <span>{formatMoney(choice.def.entryFee + entry.travelCost.total)}</span>
-              </div>
-            {:else}
-              <div class="detail-row">
-                <span>Travel</span>
-                <span class="domestic">Domestic — no travel cost</span>
-              </div>
-            {/if}
-            <div class="field">
-              <div class="field-label">Field ({choice.entrants.length + 1} entered)</div>
-              <div class="field-you">You</div>
-              {#each choice.entrants as opp (opp.id)}
-                <button class="field-row" onclick={() => store.viewOpponent(opp.id)}>
-                  <span>{opp.name}</span>
-                  <span class="field-rating">{opp.rating}</span>
-                </button>
-              {:else}
-                {#if choice.def.division !== entry.eligibleDivisions[0]!.def.division}
-                  <p class="field-empty">No confirmed entrants for this class yet.</p>
-                {/if}
-              {/each}
-            </div>
+  {#if selectedEntry}
+    {@const entry = selectedEntry}
+    {@const t = entry.tournament}
+    {@const canPlayNow = entry.isThisWeek && store.registeredTournamentThisWeek}
+    {@const choice = choiceFor(entry)}
+    {@const canPick = entry.status !== "closed"}
+    <div class="card" class:this-week={entry.isThisWeek} class:registered={entry.status === "registered"}>
+      <div class="detail-head">
+        <div class="info">
+          <div class="name-line">
+            <span class="name">🏆 {t.name}</span>
+            <span class="tier">{t.tier}</span>
+            <span
+              class="badge"
+              class:open={entry.status === "open"}
+              class:registered={entry.status === "registered"}
+              class:closed={entry.status === "closed"}
+            >
+              {STATUS_LABEL[entry.status]}
+            </span>
           </div>
-        {/if}
-
-        {#if entry.status !== "closed"}
-          <div class="actions">
-            {#if entry.status === "open"}
-              <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Register ▸</button>
-            {:else}
-              <button class="skip" onclick={() => void store.withdrawRegistration(entry.weekIndex)}>Withdraw</button>
-              {#if divisionFor(entry) !== t.division}
-                <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Switch class ▸</button>
-              {:else if canPlayNow}
-                <button class="enter" onclick={() => store.enterTournament()}>Play now ▸</button>
-              {/if}
-            {/if}
-          </div>
-        {/if}
+          <div class="week">{flagEmoji(t.country)} {t.city} · {entry.weekLabel}</div>
+        </div>
+        <button class="close" onclick={() => (selected = null)} aria-label="Close">✕</button>
       </div>
-    {:else}
-      <p class="empty">No tournaments on the calendar yet.</p>
-    {/each}
-  </div>
+
+      <div class="detail">
+        {#if entry.eligibleDivisions.length > 1}
+          <div class="classes">
+            {#each entry.eligibleDivisions as c (c.def.division)}
+              <button
+                class="class-opt"
+                class:selected={choice.def.division === c.def.division}
+                disabled={!canPick}
+                onclick={() => (chosenDivision = { ...chosenDivision, [entry.weekIndex]: c.def.division })}
+              >
+                <span class="class-div">Class {c.def.division}</span>
+                <span class="class-hint">{c.def.division === entry.eligibleDivisions[0]!.def.division ? "your level" : "play up"}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+        <div class="detail-row">
+          <span>Entry fee</span>
+          <span>{formatMoney(choice.def.entryFee)}</span>
+        </div>
+        <div class="detail-row">
+          <span>Field size</span>
+          <span>{choice.def.fieldSize} players</span>
+        </div>
+        <div class="detail-row">
+          <span>Prize money</span>
+          <span>{formatMoney(choice.def.prizeByRoundsWon[choice.def.prizeByRoundsWon.length - 1] ?? 0)} to win it</span>
+        </div>
+        {#if entry.travelCost.total > 0}
+          <div class="detail-row">
+            <span>Flights</span>
+            <span>{formatMoney(entry.travelCost.flight)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Hotel & food ({t.nights}n)</span>
+            <span>{formatMoney(entry.travelCost.stay)}</span>
+          </div>
+          <div class="detail-row total">
+            <span>Total to play</span>
+            <span>{formatMoney(choice.def.entryFee + entry.travelCost.total)}</span>
+          </div>
+        {:else}
+          <div class="detail-row">
+            <span>Travel</span>
+            <span class="domestic">Domestic — no travel cost</span>
+          </div>
+        {/if}
+        <div class="field">
+          <div class="field-label">Field ({choice.entrants.length + 1} entered)</div>
+          <div class="field-you">You</div>
+          {#each choice.entrants as opp (opp.id)}
+            <button class="field-row" onclick={() => store.viewOpponent(opp.id)}>
+              <span>{opp.name}</span>
+              <span class="field-rating">{formatFieldStanding(opp)}</span>
+            </button>
+          {:else}
+            {#if choice.def.division !== entry.eligibleDivisions[0]!.def.division}
+              <p class="field-empty">No confirmed entrants for this class yet.</p>
+            {/if}
+          {/each}
+        </div>
+      </div>
+
+      {#if entry.status !== "closed"}
+        <div class="actions">
+          {#if entry.status === "open"}
+            <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Register ▸</button>
+          {:else}
+            <button class="skip" onclick={() => void store.withdrawRegistration(entry.weekIndex)}>Withdraw</button>
+            {#if divisionFor(entry) !== t.division}
+              <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Switch class ▸</button>
+            {:else if canPlayNow}
+              <button class="enter" onclick={() => store.enterTournament()}>Play now ▸</button>
+            {/if}
+          {/if}
+        </div>
+      {/if}
+    </div>
+  {/if}
 </main>
 
 <TabBar />
@@ -145,6 +158,9 @@
     flex: 1;
     overflow-y: auto;
     padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
   }
 
   h2 {
@@ -153,14 +169,8 @@
 
   .sub {
     color: var(--muted);
-    margin: 2px 0 16px;
+    margin: 2px 0 0;
     font-size: 13px;
-  }
-
-  .list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
   }
 
   .card {
@@ -178,13 +188,12 @@
     border-color: var(--ok);
   }
 
-  .row {
-    width: 100%;
+  .detail-head {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 10px;
-    padding: 14px;
+    padding: 14px 14px 0;
   }
 
   .info {
@@ -192,6 +201,13 @@
     flex-direction: column;
     gap: 4px;
     text-align: left;
+  }
+
+  .close {
+    flex-shrink: 0;
+    color: var(--muted);
+    font-size: 16px;
+    padding: 2px 4px;
   }
 
   .name-line {
@@ -248,19 +264,8 @@
     color: var(--danger);
   }
 
-  .chevron {
-    color: var(--muted);
-    font-size: 20px;
-    transition: transform 0.15s;
-    flex-shrink: 0;
-  }
-
-  .chevron.rotated {
-    transform: rotate(90deg);
-  }
-
   .detail {
-    padding: 0 14px 12px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -404,12 +409,5 @@
     font-size: 13px;
     border-radius: 8px;
     padding: 8px 14px;
-  }
-
-  .empty {
-    color: var(--muted);
-    font-size: 13px;
-    text-align: center;
-    padding: 24px 0;
   }
 </style>

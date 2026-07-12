@@ -110,6 +110,7 @@ describe("Game facade", () => {
     // results are most-recent-first
     expect(stats.results[0]!.week).toBe(7);
     expect(stats.results[1]!.week).toBe(3);
+    expect(stats.results[1]!.division).toBe("B");
     // won + finalsReached never exceed played
     expect(stats.lifetime.tournamentsWon).toBeLessThanOrEqual(2);
     expect(stats.lifetime.finalsReached).toBeGreaterThanOrEqual(stats.lifetime.tournamentsWon);
@@ -117,6 +118,25 @@ describe("Game facade", () => {
     expect(stats.bestFinish).not.toBeNull();
     const perYearPlayed = stats.byYear.reduce((n, y) => n + y.tournamentsPlayed, 0);
     expect(perYearPlayed).toBe(2);
+  });
+
+  it("trophyCabinet is empty until a top-3 finish, then lists it with division/medal", () => {
+    const game = Game.newGame({ content: testContent, seed: "f9-trophy" });
+    expect(game.trophyCabinet()).toHaveLength(0);
+
+    playTournamentAt(game, 3);
+    const stats = game.careerStats();
+    const played = stats.results[0]!;
+
+    const trophies = game.trophyCabinet();
+    if (played.finishingPosition <= 3) {
+      expect(trophies).toHaveLength(1);
+      expect(trophies[0]!.medal).toBe(played.finishingPosition);
+      expect(trophies[0]!.division).toBe("B");
+      expect(trophies[0]!.name).toBe(played.name);
+    } else {
+      expect(trophies).toHaveLength(0);
+    }
   });
 
   it("firStanding is null until the human has a counted FIR result", () => {

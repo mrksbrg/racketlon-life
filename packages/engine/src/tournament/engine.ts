@@ -863,6 +863,8 @@ function concludeTournament(
     data: {
       name: session.def.name,
       tournamentId: session.def.id,
+      division: session.def.division,
+      tier: session.def.tier,
       roundsWon,
       totalRounds: session.totalRounds,
       prizeMoney: prize,

@@ -87,13 +87,14 @@ export interface RatingView {
 /** Layer-3 view: real FIR World Ranking standing — the official competitive
  * ladder (see systems/ranking-points.ts), shown ahead of Glicko since it's
  * what actually determines category placement and bragging rights. Null
- * until the player has a single counted result on file. `rank` is only
- * relative to this world's own roster (`content.players` — the top ~150/
- * gender pre-selected at import time, world/factory.ts), NOT the full
- * real-world FIR field of ~1000+ — so it will read much better than a
- * player's true real-life ranking. There's no "of N" shown alongside it for
- * the same reason: the roster size is a build-time implementation detail,
- * not something meaningful to surface as if it were the whole world tour. */
+ * until the player has a single counted result on file. `rank` is relative
+ * to this world's own roster (`content.players` — every mappable player
+ * from the scraper, world/factory.ts), which closely tracks the real FIR
+ * field but isn't a byte-for-byte mirror of it (a handful of players are
+ * skipped for missing country/rating data — see buildBundle.ts). There's no
+ * "of N" shown alongside it: the exact roster size is a build-time
+ * implementation detail, not something meaningful to surface as if it were
+ * an official field count. */
 export interface FirStandingView {
   points: number;
   rank: number;
@@ -165,6 +166,11 @@ export interface TournamentResultView {
   weekLabel: string;
   year: number;
   name: string;
+  /** class played, e.g. "A" — most classes carry no prize money (FIR
+   * Tournament Regs 3.2 restricts compulsory prize money to the Elite/A
+   * class of IWT and up), just medals/trophies at the podium ceremony
+   * (3.12.2) — see `Game.trophyCabinet`. */
+  division: string;
   roundsWon: number;
   totalRounds: number;
   won: boolean;
@@ -174,6 +180,23 @@ export interface TournamentResultView {
   /** how many entrants share `finishingPosition` — 1 means untied */
   tiedCount: number;
   rankingPoints: number;
+}
+
+/** One podium finish (top 3) worth a medal — a `TrophyCabinet` entry. FIR
+ * requires a medal/trophy ceremony for the top 3 in every class, regardless
+ * of whether that class carries prize money (Tournament Regs 3.12.2), so
+ * this exists alongside `TournamentResultView`/`prizeMoney` rather than
+ * instead of it: a career can rack up medals in classes that never paid a
+ * cent. Derived from the same event log as `careerStats`, filtered to
+ * `finishingPosition <= 3`. */
+export interface TrophyView {
+  week: number;
+  weekLabel: string;
+  name: string;
+  division: string;
+  /** 1 = gold, 2 = silver, 3 = bronze */
+  medal: 1 | 2 | 3;
+  tiedCount: number;
 }
 
 /** Aggregated tournament tallies — used for both lifetime and per-year rows. */
@@ -275,7 +298,7 @@ export interface OpponentView {
    * sort by this first. */
   firStanding: FirStandingView | null;
   /** combined Glicko-2 rating, rounded — shown alongside `firStanding` as a
-   * secondary read, since roughly half the roster has no FIR result yet
+   * secondary read, since a large share of the roster has no FIR result yet
    * (see systems/division.ts) and would otherwise show nothing at all. */
   rating: number;
 }
@@ -456,6 +479,7 @@ export class Game {
         weekLabel: weekLabelAt(this.state.calendar, e.week),
         year: yearOfWeek(this.state.calendar, e.week),
         name: String(d.name ?? "Tournament"),
+        division: String(d.division ?? ""),
         roundsWon: Number(d.roundsWon ?? 0),
         totalRounds: Number(d.totalRounds ?? 0),
         won: e.type === "tournament.won",
@@ -498,6 +522,26 @@ export class Game {
       byYear,
       results,
     };
+  }
+
+  /**
+   * Every podium finish (top 3) of the human's career, newest first — the
+   * "Me" screen's trophy cabinet. Reuses `careerStats().results` rather than
+   * re-scanning the log, since a medal is just a top-3 filter over the same
+   * mined tournament history (see `TrophyView`'s doc comment for why this
+   * exists as a separate view from the money-focused `results` list).
+   */
+  trophyCabinet(): TrophyView[] {
+    return this.careerStats()
+      .results.filter((r) => r.finishingPosition <= 3)
+      .map((r) => ({
+        week: r.week,
+        weekLabel: r.weekLabel,
+        name: r.name,
+        division: r.division,
+        medal: r.finishingPosition as 1 | 2 | 3,
+        tiedCount: r.tiedCount,
+      }));
   }
 
   /**

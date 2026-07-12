@@ -290,11 +290,11 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
 
   // Real racketlon players imported from scraped FIR ratings (see
   // packages/content/src/import/README.md) — the world-bundle roster is
-  // pre-selected (top ~150/gender by mapped skill) and gender-balanced, so
-  // this is a direct 1:1 mapping, not a generation loop. Each player's exact
-  // per-world skill/attributes are sampled here (world-creation time), from
-  // the mapped rating (build time), so the same real player varies slightly
-  // between careers without falsifying strong data.
+  // every mappable player of both genders (no cap), so this is a direct 1:1
+  // mapping, not a generation loop. Each player's exact per-world
+  // skill/attributes are sampled here (world-creation time), from the mapped
+  // rating (build time), so the same real player varies slightly between
+  // careers without falsifying strong data.
   for (const def of content.players) {
     players.push(makePlayer(specFromRealPlayer(def, seed)));
   }

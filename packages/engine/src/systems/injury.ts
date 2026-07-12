@@ -57,7 +57,7 @@ export const InjurySystem: GameSystem = {
       const type = dominantSport(counts) ?? "overuse";
       const severity = rollSeverity(ctx.rng, load);
       const weeksRemaining = rollDuration(ctx.rng, severity);
-      player.condition.injury = { type, severity, weeksRemaining };
+      player.condition.injury = { type, severity, weeksRemaining, startWeek: ctx.state.calendar.weekIndex };
       ctx.log.emit("injury.occurred", player.identity.id, { type, severity, weeksRemaining });
     }
   },

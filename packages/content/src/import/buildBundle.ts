@@ -13,10 +13,9 @@ import { parseCsv } from "./parse.js";
  * artifact is shipped. See import/README.md.
  */
 
-/** Roster cap per gender (Open decision 1). Keeps saves lean and draws
- * competitive; the floor of 63 is what a 64-player World Championships draw
- * needs from a single gender. */
-const ROSTER_CAP_PER_GENDER = 150;
+/** Floor per gender — what a 64-player World Championships draw needs from a
+ * single gender. Below this, the build fails loud rather than shipping a
+ * roster too thin to fill real draws. */
 const MIN_PER_GENDER = 63;
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -30,23 +29,15 @@ function readCsv(name: string): Record<string, string>[] {
 }
 
 /**
- * Selects this gender's roster by systematic sampling across the *whole*
- * rated population's skill range, rather than the global top
- * `ROSTER_CAP_PER_GENDER`. Picking a pure top-N-by-skill roster (the old
- * behavior) produced a field with almost no skill spread at all: e.g. the
- * men's mapped skill only ranges ~200-735 (of 0-1000) end to end, but the
- * global top 150 all clustered in ~620-735 — division D ended up just as
- * strong as division A on average, since `divisionAssignments` had nothing
- * but elite players to split.
- *
- * Sorting the whole population strongest-first and taking every
- * `(pool.length - 1) / (cap - 1)`-th player instead spans that full range:
- * index 0 (the true strongest) is always included, so division A stays
- * genuinely elite, but the roster's weakest members are now genuinely weak
- * too, not just "the relatively weakest of the elite" — giving B/C/D real
- * variance once `divisionAssignments` bands them.
+ * Every mappable player of this gender, strongest first — no roster cap.
+ * Per-player weekly simulation is O(1) (`systems/planning.ts`'s AI plan,
+ * injury/aging/recovery checks), so a roster in the thousands costs no more
+ * per week-tick than one of 150 — there's no compute reason to sample a
+ * subset. Including everyone also gives the lower tournament divisions
+ * (`divisionAssignments`) genuinely weak opponents instead of only ever
+ * drawing from a pre-filtered elite slice.
  */
-function systematicSampleByGender(players: WorldBundlePlayer[], gender: "m" | "f"): WorldBundlePlayer[] {
+function allPlayersByGender(players: WorldBundlePlayer[], gender: "m" | "f"): WorldBundlePlayer[] {
   const pool = players
     .filter((p) => p.gender === gender)
     .sort((a, b) => averageSkill(b) - averageSkill(a) || a.playerId.localeCompare(b.playerId));
@@ -55,14 +46,7 @@ function systematicSampleByGender(players: WorldBundlePlayer[], gender: "m" | "f
       `Only ${pool.length} ${gender} players after mapping — need at least ${MIN_PER_GENDER} for a 64-draw`,
     );
   }
-  if (pool.length <= ROSTER_CAP_PER_GENDER) return pool;
-
-  const roster: WorldBundlePlayer[] = [];
-  for (let k = 0; k < ROSTER_CAP_PER_GENDER; k++) {
-    const idx = Math.round((k * (pool.length - 1)) / (ROSTER_CAP_PER_GENDER - 1));
-    roster.push(pool[idx]!);
-  }
-  return roster;
+  return pool;
 }
 
 function main(): void {
@@ -95,7 +79,7 @@ function main(): void {
   }
   if (noCountry > 0) console.log(`Skipped ${noCountry} players with no country code`);
 
-  const roster = [...systematicSampleByGender(mapped, "m"), ...systematicSampleByGender(mapped, "f")].sort((a, b) =>
+  const roster = [...allPlayersByGender(mapped, "m"), ...allPlayersByGender(mapped, "f")].sort((a, b) =>
     a.playerId.localeCompare(b.playerId),
   );
 

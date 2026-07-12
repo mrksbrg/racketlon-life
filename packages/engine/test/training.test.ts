@@ -36,3 +36,25 @@ describe("training", () => {
     expect(easy.fatigue.value).toBe(0);
   });
 });
+
+describe("trainedWeekDates (season calendar history)", () => {
+  it("records a week's trained sports, resolved to a real date", () => {
+    const game = Game.newGame({ content: testContent, seed: "tw-1" });
+    game.submitWeek(planWith({ trainTT: 5, trainBD: 2, work: 5 }));
+    const weeks = game.trainedWeekDates();
+    expect(weeks).toHaveLength(1);
+    expect(weeks[0]!.sports.sort()).toEqual(["bd", "tt"]);
+    expect(weeks[0]!.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it("skips a week with no training at all — always-recorded, not threshold-gated", () => {
+    const game = Game.newGame({ content: testContent, seed: "tw-2" });
+    game.submitWeek(planWith({ work: 5 })); // no training slots
+    expect(game.trainedWeekDates()).toHaveLength(0);
+  });
+
+  it("is empty before any week has been played", () => {
+    const game = Game.newGame({ content: testContent, seed: "tw-3" });
+    expect(game.trainedWeekDates()).toHaveLength(0);
+  });
+});

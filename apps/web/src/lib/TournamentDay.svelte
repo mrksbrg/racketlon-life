@@ -2,7 +2,7 @@
   import StatusBar from "./StatusBar.svelte";
   import TabBar from "./TabBar.svelte";
   import { store } from "./store.svelte";
-  import { flagEmoji, formatMoney } from "./ui";
+  import { flagEmoji, formatFieldStanding, formatMoney } from "./ui";
 
   /** The registered tournament's own schedule entry — carries the field
    * preview alongside the `TournamentDef` itself. */
@@ -45,7 +45,7 @@
       {#each entry.entrants as opp (opp.id)}
         <button class="field-row" onclick={() => store.viewOpponent(opp.id)}>
           <span>{opp.name}</span>
-          <span class="field-rating">{opp.rating}</span>
+          <span class="field-rating">{formatFieldStanding(opp)}</span>
         </button>
       {/each}
     </div>

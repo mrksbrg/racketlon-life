@@ -36,13 +36,14 @@ fine to open-source, but they enter this repo only as **gitignored inputs** in
 - **join.ts** — joins ratings + players on `player_id`; `te`→`tn`; drops the
   derivable `cons` column; gender from the ratings file; `firPoints` via the
   `ranking_players.csv.guid` → `players.csv.guid` → `player_id` bridge.
-- **countryMap.ts** — IOC-3 → ISO-2 (ENG/SCO/NIR → GB). An unmapped code fails
-  the build rather than shipping a bad nationality.
+- **countryMap.ts** — IOC-3 → ISO-2 (ENG/SCO/NIR/WAL → GB). An unmapped code
+  fails the build rather than shipping a bad nationality.
 - **mapRatings.ts** — affine Glicko → 0–1000 skill (anchors `MAP.R_MIN/R_MAX`,
   tuned so the world top ≈ 950); RD carried in skill-space; missing per-sport
   ratings get a low floor.
-- **buildBundle.ts** — selects the top `ROSTER_CAP_PER_GENDER` (150) per gender
-  by average skill and writes `world-bundle.json`.
+- **buildBundle.ts** — every mappable player of both genders (no roster cap —
+  per-player weekly simulation is cheap enough that a roster in the
+  thousands costs no more than one of 150) and writes `world-bundle.json`.
 
 ## What happens at world creation (per game, in the engine)
 

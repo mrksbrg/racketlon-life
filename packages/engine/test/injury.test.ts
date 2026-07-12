@@ -62,3 +62,46 @@ describe("InjurySystem", () => {
     expect(run("injury-det")).toEqual(run("injury-det"));
   });
 });
+
+describe("currentInjurySpan (season calendar)", () => {
+  it("is null while uninjured", () => {
+    const game = Game.newGame({ content: testContent, seed: "span-none" });
+    expect(game.currentInjurySpan()).toBeNull();
+  });
+
+  it("returns a real date span once injured, whose end reflects the live weeksRemaining countdown", () => {
+    const game = Game.newGame({ content: testContent, seed: "span-occurs" });
+    let guard = 0;
+    while (!humanOf(game).condition.injury && guard++ < 60) {
+      game.submitWeek(HEAVY_TT);
+    }
+    const injury = humanOf(game).condition.injury!;
+    const span = game.currentInjurySpan();
+    expect(span).not.toBeNull();
+    expect(span!.type).toBe(injury.type);
+    expect(span!.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(span!.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(new Date(span!.endDate).getTime()).toBeGreaterThan(new Date(span!.startDate).getTime());
+
+    // healing a week narrows the span's end, since it's derived from the
+    // live countdown rather than a snapshot taken when the injury began
+    const before = game.currentInjurySpan()!.endDate;
+    game.submitWeek(planWith({}));
+    if (humanOf(game).condition.injury) {
+      expect(new Date(game.currentInjurySpan()!.endDate).getTime()).toBeLessThanOrEqual(new Date(before).getTime());
+    }
+  });
+
+  it("clears back to null once the injury heals", () => {
+    const game = Game.newGame({ content: testContent, seed: "span-heals" });
+    let guard = 0;
+    while (!humanOf(game).condition.injury && guard++ < 60) {
+      game.submitWeek(HEAVY_TT);
+    }
+    guard = 0;
+    while (humanOf(game).condition.injury && guard++ < 30) {
+      game.submitWeek(REST);
+    }
+    expect(game.currentInjurySpan()).toBeNull();
+  });
+});

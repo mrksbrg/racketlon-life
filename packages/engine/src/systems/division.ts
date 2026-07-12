@@ -13,7 +13,7 @@ export interface HostWildcards {
  * Real FIR ranking points (content.ts's `RealPlayerDef.firPoints`) are the
  * primary, authoritative signal when a player has them: FIR ranking regs
  * place you by your official standing, not by anyone's private skill
- * estimate. But roughly half the real roster has never played a
+ * estimate. But a large share of the real roster has never played a
  * FIR-counted result yet (`firPoints: null`) — that's a data-completeness
  * gap, not a strength signal: the imported dataset shows unranked players
  * average the *same* skill as ranked ones. Dumping all of them into the
