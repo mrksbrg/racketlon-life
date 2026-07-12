@@ -60,7 +60,10 @@ import type { Calendar } from "./date.js";
 // concluded tournament, not just the human (closing the "NPCs don't earn Tour
 // Race points" gap). An old save's `career.firResults` and NPCs' missing
 // `firResults` arrays both make this a discard-to-character-creation change.
-export const SAVE_VERSION = 15;
+// v16: planning split `physical` into `gym`/`cardio`, removed `errands`, and
+// PlayerAttributes gained `coreStrength`; old saves/plans have obsolete
+// activity ids and missing player fields, so they are discarded.
+export const SAVE_VERSION = 16;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {

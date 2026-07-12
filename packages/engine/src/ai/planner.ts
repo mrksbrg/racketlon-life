@@ -40,7 +40,7 @@ export function countsFromCompact(plan: CompactPlan): ActivityCounts {
   const counts: ActivityCounts = {};
   if (plan.focus !== null && plan.intensity > 0) {
     counts[TRAIN_BY_SPORT[plan.focus]] = FOCUS_SESSIONS[plan.intensity];
-    counts.physical = 1;
+    counts.cardio = 1;
   }
   counts.rest = REST_SLOTS[plan.restLevel];
   return counts;

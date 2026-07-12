@@ -10,7 +10,7 @@ Player
 ├─ identity     immutable: id, name, nationality, club, birthDate, gender, isReal
 ├─ attributes   slow, mostly hidden: skills {tt,bd,sq,tn} 0–1000,
 │               potential {tt,bd,sq,tn} 0..1 (hidden per-sport ceiling),
-│               durability, professionalism
+│               durability, professionalism, stamina, coreStrength
 ├─ condition    fast, visible: fatigue 0–100, formBySport {tt,bd,sq,tn} 0..20,
 │               confidence −10..+10, injury | null
 ├─ ratings      per sport Glicko-2 {rating, rd, volatility}  ← observed layer
@@ -64,8 +64,8 @@ population-level systems (NewPlayer drip, Retirement) remain M4.
 
 ## Activities
 
-`ActivityType` enumerates what a slot can hold (train each sport, physical, rest, work,
-social, errands; travel/tournament/coach arrive with M1–M2). Each activity's base
+`ActivityType` enumerates what a slot can hold (train each sport, gym, cardio, rest, work,
+social; travel/tournament/coach arrive with M1–M2). Each activity's base
 effects per session (skill gain, fatigue, money, injury load) live in **content**
 ([activities.json](../packages/content/data/activities.json)), not code.
 

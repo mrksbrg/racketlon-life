@@ -25,11 +25,11 @@ export const activitiesSchema = z.object({
   trainBD: activitySchema,
   trainSQ: activitySchema,
   trainTN: activitySchema,
-  physical: activitySchema,
+  gym: activitySchema,
+  cardio: activitySchema,
   rest: activitySchema,
   work: activitySchema,
   social: activitySchema,
-  errands: activitySchema,
 });
 
 /** Gendered so generated NPCs get a name matching their rolled gender —

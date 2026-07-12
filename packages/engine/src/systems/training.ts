@@ -35,10 +35,18 @@ export const TrainingSystem: GameSystem = {
           }
           sessionsBySport[def.sport] += sessions;
           trainSport(ctx, player, def.sport, def.trainingBase, sessions);
-        } else if (type === "physical") {
-          for (const sport of SPORTS) {
-            applyGain(ctx, player, sport, BALANCE.training.physicalAllSportGain * sessions);
-          }
+        } else if (type === "gym") {
+          player.attributes.coreStrength = clamp(
+            player.attributes.coreStrength + BALANCE.training.gymCoreStrengthGain * sessions,
+            0,
+            1,
+          );
+        } else if (type === "cardio") {
+          player.attributes.stamina = clamp(
+            player.attributes.stamina + BALANCE.training.cardioStaminaGain * sessions,
+            0,
+            1,
+          );
         }
       }
       updateForm(ctx, player, sessionsBySport);

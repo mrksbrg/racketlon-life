@@ -25,7 +25,7 @@ function playTournamentAt(game: Game, weekIndex: number): void {
 describe("Game facade", () => {
   it("forecasts a training-heavy week as gains + high injury risk", () => {
     const game = Game.newGame({ content: testContent, seed: "f1" });
-    const forecast = game.previewPlan(planWith({ trainTT: 8, trainBD: 4, physical: 2 }));
+    const forecast = game.previewPlan(planWith({ trainTT: 8, trainBD: 4, gym: 1, cardio: 1 }));
     expect(forecast.sports.tt).toBeGreaterThanOrEqual(2);
     expect(forecast.sports.bd).toBeGreaterThanOrEqual(1);
     expect(forecast.fatigue).toBeGreaterThanOrEqual(1);
@@ -81,6 +81,8 @@ describe("Game facade", () => {
     // fully hidden per docs/07 (OpponentView carries neither field)
     expect(you.attrs.stamina).toBeGreaterThanOrEqual(1);
     expect(you.attrs.stamina).toBeLessThanOrEqual(20);
+    expect(you.attrs.coreStrength).toBeGreaterThanOrEqual(1);
+    expect(you.attrs.coreStrength).toBeLessThanOrEqual(20);
     expect(you.traits.length).toBeGreaterThanOrEqual(3);
     expect(you.traits.length).toBeLessThanOrEqual(4);
     const tones = new Set(you.traits.map((t) => t.tone));

@@ -40,11 +40,11 @@ export const testContent: ContentBundle = {
     trainBD: { id: "trainBD", label: "Badminton", short: "BD", sport: "bd", trainingBase: 6, fatigue: 7, money: -60, injuryLoad: 1.5 },
     trainSQ: { id: "trainSQ", label: "Squash", short: "SQ", sport: "sq", trainingBase: 6, fatigue: 7, money: -60, injuryLoad: 1.5 },
     trainTN: { id: "trainTN", label: "Tennis", short: "TN", sport: "tn", trainingBase: 6, fatigue: 7, money: -60, injuryLoad: 1.5 },
-    physical: { id: "physical", label: "Physical training", short: "PT", fatigue: 8, money: -30, injuryLoad: 2 },
+    gym: { id: "gym", label: "Gym", short: "Gym", fatigue: 6, money: -30, injuryLoad: 1.5 },
+    cardio: { id: "cardio", label: "Cardio", short: "Run", fatigue: 5, money: 0, injuryLoad: 1.2 },
     rest: { id: "rest", label: "Rest", short: "—", fatigue: -4, money: 0, injuryLoad: 0 },
     work: { id: "work", label: "Work", short: "Job", fatigue: 4, money: 800, injuryLoad: 0 },
     social: { id: "social", label: "Social", short: "Soc", fatigue: -3, money: -100, injuryLoad: 0 },
-    errands: { id: "errands", label: "Errands", short: "Err", fatigue: 2, money: -50, injuryLoad: 0 },
   },
   names: {
     SE: { m: ["Test"], f: ["Test"], last: ["Player"] },

@@ -30,7 +30,7 @@ Key relationships:
 - **Glicko-2 is a companion, not the ranking.** The screen lists it *beside*
   FIR points, clearly labelled as an estimate. Two players can be ranked in one
   order by FIR points and the other order by Glicko — that tension is content.
-- **The five creation attributes (Stamina/Intelligence/Clutch/Composure/
+- **The creation attributes (Stamina/Core Strength/Intelligence/Clutch/Composure/
   Resilience) and rolled personality traits are visible on your own "Me"
   screen**, banded 1–20 / shown as flavor text — they're identity, not a
   simulation-internals leak, and revealing them immediately (rather than a
@@ -81,7 +81,7 @@ UI never needs to know multiple brackets exist for one event.
 - **Your own character:** levels **1–20 per sport** (a banded, low-resolution
   view of your hidden skill — this is the Pokémon-GO progression feedback and
   the *only* place a true-skill-derived number surfaces), your Glicko-2
-  ratings and FIR points, plus your five attributes and personality traits.
+  ratings and FIR points, plus your character attributes and personality traits.
 - **Every other player:** Glicko-2 ratings + FIR points + results, plus a
   deliberately fuzzy per-sport **level range** (true level ±
   `BALANCE.opponentInfo.levelRangeWidth`, e.g. level 10 shows as "8–12") —
