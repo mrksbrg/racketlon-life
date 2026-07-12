@@ -10,10 +10,11 @@ describe("iocToIso2", () => {
     expect(iocToIso2("RSA")).toBe("ZA");
   });
 
-  it("maps all three UK constituent-nation codes to GB", () => {
+  it("maps all four UK constituent-nation codes to GB", () => {
     expect(iocToIso2("ENG")).toBe("GB");
     expect(iocToIso2("SCO")).toBe("GB");
     expect(iocToIso2("NIR")).toBe("GB");
+    expect(iocToIso2("WAL")).toBe("GB");
   });
 
   it("is case-insensitive", () => {
