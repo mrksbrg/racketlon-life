@@ -46,6 +46,10 @@ export interface Injury {
   type: string;
   severity: number; // 1..3
   weeksRemaining: number;
+  /** the weekIndex it first occurred on — lets a UI reconstruct the injury's
+   * real date span (see facade.ts's `currentInjurySpan`) rather than only
+   * knowing how much longer it lasts. */
+  startWeek: number;
 }
 
 /** Fast-changing, visible condition. */
@@ -86,6 +90,25 @@ export type Ratings = Record<Sport, Glicko>;
  */
 export type SimTier = 0 | 1 | 2;
 
+/** One tournament result recorded for this player once every entrant's
+ * placement in it is known — see tournament/engine.ts's
+ * `recordEntrantResults`. Populated going forward only, from tournaments
+ * actually simulated within this career (human's own session or a sibling
+ * division running alongside it) — there's no backfill from a player's
+ * real-world FIR history. */
+export interface PlayerTournamentResult {
+  weekIndex: number;
+  tournamentId: string;
+  name: string;
+  tier: string;
+  division: string;
+  /** best position of the tied band this result landed in (1 = champion) */
+  finishingPosition: number;
+  /** how many entrants share `finishingPosition` — 1 means untied */
+  tiedCount: number;
+  matchesPlayed: number;
+}
+
 export interface Player {
   identity: PlayerIdentity;
   attributes: PlayerAttributes;
@@ -99,6 +122,8 @@ export interface Player {
    * career. Always null for the human (no points-earning system yet). */
   firPoints: number | null;
   simTier: SimTier;
+  /** newest last, capped — see {@link PlayerTournamentResult} */
+  recentResults: PlayerTournamentResult[];
 }
 
 export function fullName(p: Player): string {

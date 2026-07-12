@@ -2,7 +2,7 @@
   import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
   import { NATIONALITIES } from "./character";
   import { store } from "./store.svelte";
-  import { SPORT_COLORS, SPORT_SHORT, flagEmoji } from "./ui";
+  import { SPORT_COLORS, SPORT_SHORT, finishLabel, flagEmoji } from "./ui";
 
   const p = $derived(store.opponentProfile);
 
@@ -43,7 +43,7 @@
           <div class="rating-cap">FIR points</div>
           <div class="rating-sub">
             {#if p.firStanding}
-              Rank #{p.firStanding.rank} of {p.firStanding.totalRanked}
+              Rank #{p.firStanding.rank}
             {:else}
               Unranked
             {/if}
@@ -82,11 +82,28 @@
             </div>
           </div>
         {/each}
-        <p class="footnote">
-          What the world can see about {p.name.split(" ")[0]}: FIR standing, Glicko estimate, and a rough level range
-          per sport — a few rallies' worth of scouting, not their real book. Everything else about them stays their
-          own business.
-        </p>
+      </section>
+
+      <section class="card">
+        <h2>Recent tournaments</h2>
+        {#if p.recentResults.length > 0}
+          <div class="results">
+            {#each p.recentResults as r (r.weekLabel + r.name)}
+              <div class="result">
+                <div class="r-main">
+                  <span class="r-name">{r.name}</span>
+                  <span class="r-week">Division {r.division} · {r.weekLabel}</span>
+                </div>
+                <div class="r-right">
+                  <span class="r-finish">{finishLabel(r.finishingPosition, r.tiedCount)}</span>
+                  <span class="r-matches">{r.matchesPlayed} match{r.matchesPlayed === 1 ? "" : "es"}</span>
+                </div>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="empty">No tournaments played yet this career.</p>
+        {/if}
       </section>
     </main>
   {:else}
@@ -339,16 +356,60 @@
     color: var(--muted);
   }
 
-  .footnote {
+  .results {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .result {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+  }
+
+  .result + .result {
+    border-top: 1px solid var(--border);
+  }
+
+  .r-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .r-name {
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+
+  .r-week {
     font-size: 11.5px;
     color: var(--muted);
-    margin: 10px 0 0;
-    line-height: 1.4;
+  }
+
+  .r-right {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .r-finish {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .r-matches {
+    font-size: 11.5px;
+    color: var(--muted);
   }
 
   .empty {
     color: var(--muted);
     text-align: center;
-    padding: 32px 0;
+    padding: 12px 0;
+    font-size: 13px;
   }
 </style>

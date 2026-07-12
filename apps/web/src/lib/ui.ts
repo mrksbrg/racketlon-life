@@ -1,4 +1,4 @@
-import type { ActivityType, FatigueTell, InjuryView, LuckTell, Sport, Tactic } from "@racketlon/engine";
+import type { ActivityType, FatigueTell, FirStandingView, InjuryView, LuckTell, Sport, Tactic } from "@racketlon/engine";
 import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
 
 /** CSS variable per activity for slot chips and the picker. */
@@ -68,6 +68,16 @@ export function formatInjury(injury: InjuryView): string {
   const isSport = (SPORTS as readonly string[]).includes(injury.type);
   const label = isSport ? SPORT_LABELS[injury.type as Sport] : "Overuse";
   return `🤕 ${label} · ${injury.weeksRemaining}w`;
+}
+
+/** "#12 · 1,879" for a field-list row — FIR rank first (the official
+ * ladder, docs/07's "three information layers"), Glicko rating after. Rank
+ * shows "Unranked" rather than a blank when there's no counted result yet
+ * (true for roughly half the roster), so the rating alone still tells you
+ * something about a player without a real ranking. */
+export function formatFieldStanding(opp: { firStanding: FirStandingView | null; rating: number }): string {
+  const rank = opp.firStanding ? `#${opp.firStanding.rank}` : "Unranked";
+  return `${rank} · ${opp.rating}`;
 }
 
 /** ISO 3166-1 alpha-2 → regional-indicator flag emoji (e.g. "SE" → 🇸🇪). */

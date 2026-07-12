@@ -131,7 +131,6 @@ describe("Game facade", () => {
     expect(standing).not.toBeNull();
     expect(standing!.points).toBeGreaterThan(0);
     expect(standing!.rank).toBeGreaterThanOrEqual(1);
-    expect(standing!.rank).toBeLessThanOrEqual(standing!.totalRanked);
   });
 
   it("opponentProfile returns null for an unknown id", () => {

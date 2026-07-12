@@ -1,4 +1,5 @@
 import type { Player } from "../model/player.js";
+import type { Sport } from "../model/sport.js";
 import type { Calendar } from "./date.js";
 
 // v5: gender-separated tournament draws need a much deeper same-gender NPC
@@ -41,7 +42,19 @@ import type { Calendar } from "./date.js";
 // permanent age-decline "cliff" step-downs have already fired — see
 // systems/aging.ts) — both new required fields an old save's players don't
 // have, so it's discarded rather than left with missing condition state.
-export const SAVE_VERSION = 12;
+// v13: `Injury` gained `startWeek` (when it began, not just how much longer
+// it lasts) and `Career` gained `trainedWeeks` (an always-recorded, per-week
+// history of which sports the human trained — the season calendar's data
+// source, since old on-crossing narrative events are too lossy to mine for
+// this) — the season calendar (Tour screen) needs both to render a real
+// injury span and past training on the month grid.
+// v14: `Player` gained `recentResults` (the newest few tournament placements
+// for every player, human and NPC alike, recorded once each concluded
+// session's entrants are all known — see tournament/engine.ts's
+// `recordEntrantResults`) — a new required field an old save's players don't
+// have, so it's discarded rather than left with an undefined array the
+// opponent-profile screen can't render.
+export const SAVE_VERSION = 14;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
@@ -124,6 +137,11 @@ export interface Career {
   firResults: FirResult[];
   /** diegetic message feed, newest appended last — see InboxSystem */
   inbox: InboxMessage[];
+  /** which sports the human trained, per week, newest appended last —
+   * always recorded (unlike the threshold-gated `training.progress`
+   * narrative event), so it's a reliable history to mine. See
+   * facade.ts's `trainedWeekDates`. */
+  trainedWeeks: { weekIndex: number; sports: Sport[] }[];
 }
 
 export interface GameState {

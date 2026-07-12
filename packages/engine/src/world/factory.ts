@@ -144,6 +144,7 @@ function makePlayer(spec: PlayerSpec): Player {
     ratings: ratingsFromSkills(spec.skills),
     firPoints: spec.firPoints,
     simTier: spec.simTier,
+    recentResults: [],
   };
 }
 
@@ -324,6 +325,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
           read: false,
         },
       ],
+      trainedWeeks: [],
     },
   };
 

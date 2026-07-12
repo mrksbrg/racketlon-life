@@ -1,6 +1,6 @@
 import { BALANCE } from "./balance.js";
 import type { ContentBundle, TraitCategory, TraitTone } from "./content.js";
-import { ageOn, weekLabel, weekLabelAt, yearOfWeek } from "./core/date.js";
+import { ageOn, dateForWeek, weekLabel, weekLabelAt, yearOfWeek } from "./core/date.js";
 import type { EventLog, GameEvent } from "./core/events.js";
 import { eventsForWeek } from "./core/events.js";
 import type { GameState, InboxMessage } from "./core/state.js";
@@ -87,12 +87,16 @@ export interface RatingView {
 /** Layer-3 view: real FIR World Ranking standing — the official competitive
  * ladder (see systems/ranking-points.ts), shown ahead of Glicko since it's
  * what actually determines category placement and bragging rights. Null
- * until the player has a single counted result on file. */
+ * until the player has a single counted result on file. `rank` is only
+ * relative to this world's own roster (`content.players` — the top ~150/
+ * gender pre-selected at import time, world/factory.ts), NOT the full
+ * real-world FIR field of ~1000+ — so it will read much better than a
+ * player's true real-life ranking. There's no "of N" shown alongside it for
+ * the same reason: the roster size is a build-time implementation detail,
+ * not something meaningful to surface as if it were the whole world tour. */
 export interface FirStandingView {
   points: number;
   rank: number;
-  /** how many players of this player's gender have any counted points */
-  totalRanked: number;
 }
 
 export interface InjuryView {
@@ -199,6 +203,21 @@ export interface CareerStatsView {
   results: TournamentResultView[];
 }
 
+/** A real date span for the human's current injury — see
+ * `Game.currentInjurySpan`. */
+export interface InjurySpanView {
+  startDate: string;
+  endDate: string;
+  type: string;
+}
+
+/** One week the human trained, resolved to a real calendar date — see
+ * `Game.trainedWeekDates`. */
+export interface TrainedWeekView {
+  date: string;
+  sports: Sport[];
+}
+
 /** "open" — can still register. "registered" — human has committed.
  * "closed" — the entryDeadlineWeeks window passed without registering. */
 export type TourEntryStatus = "open" | "registered" | "closed";
@@ -250,8 +269,14 @@ export interface OpponentView {
   id: string;
   name: string;
   nationality: string;
-  /** combined Glicko-2 rating, rounded — the layer other players are shown
-   * through (docs/07's "three information layers"), never their true skill */
+  /** real FIR world ranking — the "official" ladder (docs/07's "three
+   * information layers"), same standing shown on the human's own Me screen.
+   * Null if this player has no counted result yet (unranked). Field lists
+   * sort by this first. */
+  firStanding: FirStandingView | null;
+  /** combined Glicko-2 rating, rounded — shown alongside `firStanding` as a
+   * secondary read, since roughly half the roster has no FIR result yet
+   * (see systems/division.ts) and would otherwise show nothing at all. */
   rating: number;
 }
 
@@ -273,6 +298,20 @@ export interface OpponentSportView {
  * just with more Layer 2/3 detail than a field-list row needs). Opened by
  * tapping a player's name in a draw or tournament field.
  */
+/** One tournament this player has entered *in this career* — from
+ * `Player.recentResults`, populated going forward only as tournaments are
+ * actually simulated (see tournament/engine.ts's `recordEntrantResults`); no
+ * backfill from real-world history, so this starts empty for every player at
+ * career start and fills in over time. Newest first. */
+export interface OpponentResultView {
+  weekLabel: string;
+  name: string;
+  division: string;
+  finishingPosition: number;
+  tiedCount: number;
+  matchesPlayed: number;
+}
+
 export interface OpponentProfileView {
   id: string;
   name: string;
@@ -283,6 +322,8 @@ export interface OpponentProfileView {
   ratings: Record<Sport, RatingView>;
   combinedRating: number;
   firStanding: FirStandingView | null;
+  /** newest first — see {@link OpponentResultView} */
+  recentResults: OpponentResultView[];
 }
 
 /** An inbox message with its arrival week resolved to a dated label. */
@@ -460,6 +501,38 @@ export class Game {
   }
 
   /**
+   * The human's current injury as a real date span, for the season
+   * calendar — null whenever uninjured. `startDate` comes from the injury's
+   * own `startWeek` (set once, when it occurred); `endDate` is derived from
+   * the *current* `weeksRemaining`, so it always reflects today's live
+   * countdown rather than a stale snapshot taken when the injury began.
+   */
+  currentInjurySpan(): InjurySpanView | null {
+    const injury = humanPlayer(this.state).condition.injury;
+    if (!injury) return null;
+    const endWeek = this.state.calendar.weekIndex + injury.weeksRemaining;
+    return {
+      startDate: dateForWeek(this.state.calendar, injury.startWeek),
+      endDate: dateForWeek(this.state.calendar, endWeek),
+      type: injury.type,
+    };
+  }
+
+  /**
+   * Every week (so far) the human actually trained, as a real calendar date
+   * — the season calendar's training history. Always-recorded (unlike the
+   * threshold-gated `training.progress` narrative event), so this never
+   * silently misses a week that had real sessions but too small a gain to
+   * narrate.
+   */
+  trainedWeekDates(): TrainedWeekView[] {
+    return this.state.career.trainedWeeks.map((w) => ({
+      date: dateForWeek(this.state.calendar, w.weekIndex),
+      sports: w.sports,
+    }));
+  }
+
+  /**
    * A public profile for any other player, by id — everything fair to show
    * (identity, a fuzzy per-sport level band, Glicko, FIR standing), nothing
    * hidden and no exact level. Null if the id doesn't resolve to a player in
@@ -487,6 +560,14 @@ export class Game {
       ratings,
       combinedRating: Math.round(combinedRating(p)),
       firStanding: firStandingFor(this.state, p.identity.id, p.identity.gender),
+      recentResults: [...p.recentResults].reverse().map((r) => ({
+        weekLabel: weekLabelAt(this.state.calendar, r.weekIndex),
+        name: r.name,
+        division: r.division,
+        finishingPosition: r.finishingPosition,
+        tiedCount: r.tiedCount,
+        matchesPlayed: r.matchesPlayed,
+      })),
     };
   }
 
@@ -585,7 +666,10 @@ export class Game {
     const calendar = tournamentCalendar(this.content);
     const thisWeekIndex = this.state.calendar.weekIndex;
     const deadline = BALANCE.tournament.entryDeadlineWeeks;
-    const homeCountry = humanPlayer(this.state).identity.nationality;
+    const human = humanPlayer(this.state);
+    const homeCountry = human.identity.nationality;
+    // batched once per call (not per entrant) — see `firStandingsMap`
+    const standings = firStandingsMap(this.state, human.identity.gender);
     const upcomingWeeks = [...calendar.keys()]
       .filter((w) => w >= thisWeekIndex)
       .sort((a, b) => a - b)
@@ -606,11 +690,11 @@ export class Game {
         tournament: def,
         isThisWeek: weekIndex === thisWeekIndex,
         status,
-        entrants: projectedField(this.state, def, weekIndex, this.content).map(opponentView),
+        entrants: rankedEntrants(projectedField(this.state, def, weekIndex, this.content), standings),
         travelCost: travelCost(homeCountry, def, this.content),
         eligibleDivisions: eligible.map((eligibleDef) => ({
           def: eligibleDef,
-          entrants: safeProjectedField(this.state, eligibleDef, weekIndex, this.content).map(opponentView),
+          entrants: rankedEntrants(safeProjectedField(this.state, eligibleDef, weekIndex, this.content), standings),
         })),
       };
     });
@@ -865,22 +949,42 @@ function safeProjectedField(state: GameState, def: TournamentDef, weekIndex: num
   }
 }
 
-/** This player's real FIR World Ranking standing (points, rank, field size),
- * or null if they have no counted result yet — shared by `get you()` and
+/** This player's real FIR World Ranking standing (points, rank), or null if
+ * they have no counted result yet — shared by `get you()` and
  * `opponentProfile()` so both read the exact same ladder. */
 function firStandingFor(state: GameState, playerId: string, gender: "m" | "f"): FirStandingView | null {
   const standings = firWorldRanking(state, gender);
   const row = standings.find((s) => s.playerId === playerId);
-  return row ? { points: row.points, rank: row.rank, totalRanked: standings.length } : null;
+  return row ? { points: row.points, rank: row.rank } : null;
 }
 
-function opponentView(p: Player): OpponentView {
+/** The whole gender's FIR standings, batched into a lookup — for building a
+ * *list* of `OpponentView`s (a tournament field) without recomputing
+ * `firWorldRanking` (an O(n log n) sort over the whole roster) once per
+ * entrant. `firStandingFor` above stays the single-player version, used
+ * where only one lookup is needed. */
+function firStandingsMap(state: GameState, gender: "m" | "f"): Map<string, FirStandingView> {
+  const standings = firWorldRanking(state, gender);
+  return new Map(standings.map((s) => [s.playerId, { points: s.points, rank: s.rank }]));
+}
+
+function opponentView(p: Player, standings: Map<string, FirStandingView>): OpponentView {
   return {
     id: p.identity.id,
     name: fullName(p),
     nationality: p.identity.nationality,
+    firStanding: standings.get(p.identity.id) ?? null,
     rating: Math.round(combinedRating(p)),
   };
+}
+
+/** Entrants for display, ranked players first (best FIR rank first),
+ * unranked players after — the "official ladder" ordering the Tour
+ * screen's field list uses, matching how `firWorldRanking` itself sorts. */
+function rankedEntrants(players: Player[], standings: Map<string, FirStandingView>): OpponentView[] {
+  return players
+    .map((p) => opponentView(p, standings))
+    .sort((a, b) => (a.firStanding?.rank ?? Infinity) - (b.firStanding?.rank ?? Infinity));
 }
 
 function gainBucket(expected: number): GainBucket {

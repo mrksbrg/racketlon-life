@@ -62,7 +62,7 @@
         <div class="rating-cap">FIR points</div>
         <div class="rating-sub">
           {#if you.firStanding}
-            Rank #{you.firStanding.rank} of {you.firStanding.totalRanked}
+            Rank #{you.firStanding.rank}
           {:else}
             Unranked — play a FIR tournament
           {/if}

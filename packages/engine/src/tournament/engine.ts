@@ -61,6 +61,11 @@ import { distanceKm, travelCost } from "../systems/travel.js";
  * until the week concludes — a deliberate M1 simplification.
  */
 
+/** Cap on `Player.recentResults` — the newest few tournaments only, so save
+ * size stays bounded across a long career (every division's field, not just
+ * the human's, gains an entry each time a sibling session concludes). */
+const MAX_RECENT_RESULTS = 5;
+
 export type FieldSize = 8 | 16 | 32 | 64;
 
 export type DivisionCode = "A" | "B" | "C" | "D";
@@ -622,6 +627,40 @@ function finishAllRemainingGroups(state: GameState, session: TournamentSession):
 }
 
 /**
+ * Records this concluded tournament into every entrant's `recentResults` —
+ * called exactly once, at the moment every group in `session` is decided
+ * (the human's own session right after `finishAllRemainingGroups`; a sibling
+ * session the instant `isSiblingConcluded` first turns true). Walks
+ * `session.groups` in bracket-position order, same as `groupStartPosition`
+ * uses for the human's own `finishingPosition` in `concludeTournament`, so
+ * every entrant — not just the human — gets an accurate placement and a
+ * `matchesPlayed` count (`Group.gamesPlayed`, final by construction once a
+ * group is decided).
+ */
+function recordEntrantResults(state: GameState, session: TournamentSession): void {
+  let offset = 0;
+  for (const group of session.groups) {
+    const finishingPosition = offset + 1;
+    offset += group.participants.length;
+    const tiedCount = group.participants.length;
+    for (const id of group.participants) {
+      const player = getPlayer(state, id);
+      player.recentResults.push({
+        weekIndex: session.weekIndex,
+        tournamentId: session.def.id,
+        name: session.def.name,
+        tier: session.def.tier,
+        division: session.def.division,
+        finishingPosition,
+        tiedCount,
+        matchesPlayed: group.gamesPlayed,
+      });
+      if (player.recentResults.length > MAX_RECENT_RESULTS) player.recentResults.shift();
+    }
+  }
+}
+
+/**
  * Deducts the entry fee plus travel cost (flights + hotel/food, `systems/travel.ts`),
  * seeds the bracket, and resolves round 1 — the human's first match comes
  * back as `session.pendingMatch`. Only ever called once the facade has
@@ -694,10 +733,13 @@ const NO_HUMAN_ID = "__no_human__";
  * lockstep with the human's own tournament (see `advanceSiblingSession`).
  * Draws the entire `def.fieldSize` from `fullDivisionField` (no human slot
  * to leave open), then resolves round 0 immediately, same shape as
- * `startTournament` but with no economic or GameState side effects — this
- * is a pure spectator view, recomputed fresh each time and never persisted
- * in `GameState` (see the module doc comment's note on `TournamentSession`
- * being ephemeral for the same reason).
+ * `startTournament` but with no economic side effects (no entry fee, no
+ * prize money, no fatigue) — the session itself is a pure spectator view,
+ * recomputed fresh each time and never persisted in `GameState` (see the
+ * module doc comment's note on `TournamentSession` being ephemeral for the
+ * same reason). It does still write one lasting thing to `GameState` once
+ * concluded: every entrant's placement, via `recordEntrantResults` — see
+ * `advanceSiblingSession`.
  */
 export function startSiblingSession(
   state: GameState,
@@ -755,7 +797,10 @@ export function advanceSiblingSession(state: GameState, session: TournamentSessi
   if (isSiblingConcluded(session)) return;
   session.groups = buildNextGroups(session.groups, session.roundPairs!);
   session.currentRound += 1;
-  if (isSiblingConcluded(session)) return;
+  if (isSiblingConcluded(session)) {
+    recordEntrantResults(state, session);
+    return;
+  }
   resolveRound(state, session);
 }
 
@@ -899,6 +944,7 @@ export function advanceTournament(
     const finishingPosition = groupStartPosition(session.groups, hgi);
     const tiedCount = humanGroup.participants.length;
     finishAllRemainingGroups(state, session);
+    recordEntrantResults(state, session);
     return concludeTournament(state, session, log, session.roundsWon, finishingPosition, tiedCount);
   }
 

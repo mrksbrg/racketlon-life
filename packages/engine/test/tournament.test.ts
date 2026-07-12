@@ -17,6 +17,7 @@ import {
   combinedRating,
   drawRounds,
   finishSiblingSession,
+  getPlayer,
   isSiblingConcluded,
   isTournamentWeek,
   projectedField,
@@ -143,6 +144,7 @@ describe("bracket seeding", () => {
       ratings: { tt: glicko, bd: glicko, sq: glicko, tn: glicko },
       firPoints: null,
       simTier: 1,
+      recentResults: [],
     };
   }
 
@@ -963,6 +965,38 @@ describe("sibling division sessions", () => {
     finishSiblingSession(state, session); // already concluded — must not change anything
     expect(drawRounds(state, session)).toEqual(roundsAfterFirstFinish);
   });
+
+  it("records every entrant's placement into recentResults exactly once, on conclusion", () => {
+    const game = Game.newGame({ content: testContent, seed: "sib-4" });
+    const state = game.serialize().state;
+    const session = startSiblingSession(state, defA, 3, testContent);
+    for (const id of session.bracketBySeed) {
+      expect(getPlayer(state, id).recentResults).toHaveLength(0);
+    }
+
+    finishSiblingSession(state, session);
+
+    const seenPositions = new Set<number>();
+    for (const id of session.bracketBySeed) {
+      const player = getPlayer(state, id);
+      expect(player.recentResults).toHaveLength(1);
+      const r = player.recentResults[0]!;
+      expect(r.tournamentId).toBe(defA.id);
+      expect(r.division).toBe("A");
+      expect(r.matchesPlayed).toBeGreaterThanOrEqual(1);
+      expect(r.matchesPlayed).toBeLessThanOrEqual(3); // 8-draw's game cap
+      expect(r.finishingPosition).toBeGreaterThanOrEqual(1);
+      expect(r.finishingPosition).toBeLessThanOrEqual(8);
+      seenPositions.add(r.finishingPosition);
+    }
+    expect(seenPositions.has(1)).toBe(true); // a real champion always exists
+
+    // fast-forwarding an already-concluded session must not add a second entry
+    finishSiblingSession(state, session);
+    for (const id of session.bracketBySeed) {
+      expect(getPlayer(state, id).recentResults).toHaveLength(1);
+    }
+  });
 });
 
 describe("Game.otherDivisionDraws", () => {
@@ -1000,5 +1034,29 @@ describe("Game.otherDivisionDraws", () => {
     const lastRound = finalOther.rounds[finalOther.rounds.length - 1]!;
     const final = lastRound.sections.find((s) => s.isMainDraw)!;
     expect(final.matchups[0]!.winnerId).not.toBeNull();
+  });
+
+  it("surfaces a sibling entrant's finished tournament via opponentProfile, most recent first", () => {
+    const game = Game.newGame({ content: testContent, seed: "sib-facade-3" });
+    registerAndAdvanceTo(game, 3);
+    let match = game.enterTournament();
+    const entrantId = game.otherDivisionDraws()[0]!.rounds[0]!.sections[0]!.matchups[0]!.a.id;
+
+    expect(game.opponentProfile(entrantId)!.recentResults).toHaveLength(0);
+
+    simulateMatchAuto(match);
+    let result = game.resolveTournamentMatch(match);
+    while (result.status === "nextRound") {
+      match = result.match;
+      simulateMatchAuto(match);
+      result = game.resolveTournamentMatch(match);
+    }
+
+    const profile = game.opponentProfile(entrantId)!;
+    expect(profile.recentResults).toHaveLength(1);
+    const r = profile.recentResults[0]!;
+    expect(r.division).toBe("A");
+    expect(r.finishingPosition).toBeGreaterThanOrEqual(1);
+    expect(r.matchesPlayed).toBeGreaterThanOrEqual(1);
   });
 });
