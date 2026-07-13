@@ -372,6 +372,22 @@ describe("match engine", () => {
     expect(ttSafeCost - ttAggroCost).toBeLessThan(safeCost - aggressiveCost);
   });
 
+  it("makes conserve a real tanking choice, not just a mild low-energy mode", () => {
+    const m = createMatch(ref("a", 500), ref("b", 500), "conserve-tank");
+    m.setIndex = 2; // squash — conserve applies outside table tennis
+    resumeMatch(m);
+
+    setTactic(m, "a", "normal");
+    setTactic(m, "b", "normal");
+    const neutral = pointWinProbability(m, new Rng("conserve-probability"));
+
+    setTactic(m, "a", "conserve");
+    const conserving = pointWinProbability(m, new Rng("conserve-probability"));
+
+    expect(neutral).toBeCloseTo(0.5, 10);
+    expect(conserving).toBeLessThan(0.45);
+  });
+
   describe("pointsToWin (magic number)", () => {
     /** A match with the first three sets pre-filled and the tennis set open. */
     function atTennis(a: [number, number], b: [number, number], c: [number, number]): MatchState {
