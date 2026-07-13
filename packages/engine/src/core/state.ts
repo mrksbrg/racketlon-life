@@ -68,12 +68,20 @@ import type { Calendar } from "./date.js";
 // condition state.
 // v18: soreness gained `sorenessStartedWeek` so it can block the first three
 // weekdays after a tournament and then clear completely at week end.
-export const SAVE_VERSION = 18;
+// v19: Career gained `travelBlocks`, persistent post-tournament travel days
+// derived from trip distance so the week after a long-haul event can lock
+// return-travel slots.
+export const SAVE_VERSION = 19;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
   weekIndex: number;
   tournamentId: string;
+}
+
+export interface TravelBlock {
+  weekIndex: number;
+  slotIndices: number[];
 }
 
 /** One frozen row in a monthly ranking digest — the standings as they were
@@ -101,7 +109,7 @@ export interface InboxMessage {
   id: string;
   /** week the message arrived */
   week: number;
-  category: "welcome" | "invitation" | "ranking" | "result" | "coach";
+  category: "welcome" | "invitation" | "ranking" | "result" | "coach" | "draw";
   from: string;
   subject: string;
   body: string;
@@ -139,6 +147,10 @@ export interface Career {
    * narrative event), so it's a reliable history to mine. See
    * facade.ts's `trainedWeekDates`. */
   trainedWeeks: { weekIndex: number; sports: Sport[] }[];
+  /** forced travel slots after long tournament trips; outbound travel is
+   * derived from the current registration, return travel is scheduled when
+   * the tournament starts and persists into the following week. */
+  travelBlocks: TravelBlock[];
 }
 
 export interface GameState {

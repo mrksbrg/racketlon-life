@@ -12,6 +12,7 @@ export const ACTIVITY_COLORS: Record<ActivityType, string> = {
   rest: "var(--rest)",
   work: "var(--work)",
   social: "var(--social)",
+  travel: "var(--muted)",
 };
 
 export const SPORT_COLORS: Record<Sport, string> = {

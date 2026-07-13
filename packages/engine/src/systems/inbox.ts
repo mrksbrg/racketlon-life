@@ -11,7 +11,7 @@ import { skillCeiling } from "./effects.js";
 import { firWorldRanking } from "./ranking-points.js";
 import { eliminationLabel } from "./summary.js";
 import { travelCost } from "./travel.js";
-import { humanDivisionDef, tournamentCalendar } from "../tournament/engine.js";
+import { humanDivisionDef, projectedField, tournamentCalendar } from "../tournament/engine.js";
 
 /**
  * The diegetic "living world" feed (docs/07's Inbox). A Story-type system: it
@@ -60,6 +60,7 @@ export function generateInboxMessages(
   };
 
   addInvitations(state, content, week, add);
+  addDrawEmails(state, content, week, add);
   addTournamentResults(state, weekEvents, add);
   addRankingDigest(state, week, add);
   addPotentialClues(state, week, add);
@@ -146,6 +147,41 @@ function addTournamentResults(state: GameState, weekEvents: readonly GameEvent[]
       resultWon: won,
     });
   }
+}
+
+function addDrawEmails(
+  state: GameState,
+  content: ContentBundle,
+  week: number,
+  add: (m: InboxMessage) => void,
+): void {
+  const entry = state.career.tournamentEntries.find((e) => e.weekIndex === week);
+  if (!entry) return;
+  const def = content.tournaments[entry.tournamentId];
+  if (!def) return;
+
+  const field = projectedField(state, def, week, content);
+  const opponents = field
+    .filter((p) => p.identity.id !== state.career.playerId)
+    .slice(0, 4)
+    .map((p) => fullName(p));
+  const opponentNote = opponents.length > 0
+    ? ` Early-round possibilities include ${opponents.join(", ")}.`
+    : " The director has you listed, but the rest of the field is still light.";
+
+  add({
+    id: `draw:${week}:${def.id}`,
+    week,
+    category: "draw",
+    from: `${def.name} tournament director`,
+    subject: `Draws published: ${def.name}`,
+    body:
+      `The ${def.name} Division ${def.division} draw is out for ${def.city}. ` +
+      `Review the field before you play and use any last training slots to arrive with the right form.` +
+      opponentNote,
+    read: false,
+    tournamentWeek: week,
+  });
 }
 
 function addInvitations(

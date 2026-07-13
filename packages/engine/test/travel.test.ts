@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BALANCE, distanceKm, travelCost } from "../src/index.js";
+import { BALANCE, distanceKm, travelCost, travelDays } from "../src/index.js";
 import { testContent } from "./fixtures.js";
 
 describe("distanceKm", () => {
@@ -56,5 +56,29 @@ describe("travelCost", () => {
       countries: { SE: testContent.countries.SE! },
     };
     expect(travelCost("SE", def, contentMissingHost)).toEqual({ flight: 0, stay: 0, total: 0 });
+  });
+});
+
+
+describe("travelDays", () => {
+  it("blocks no days for a nearby drive, one day for regional travel, and two days for intercontinental travel", () => {
+    const domesticDef = testContent.tournaments["monthly-open-1"]!;
+    const regionalDef = testContent.tournaments["intl-open-1"]!;
+    const longHaulContent = {
+      ...testContent,
+      countries: {
+        ...testContent.countries,
+        AT: { name: "Austria", lat: 47.5, lon: 14.5, costIndex: 1 },
+        NZ: { name: "New Zealand", lat: -41.3, lon: 174.8, costIndex: 1.2 },
+      },
+      tournaments: {
+        ...testContent.tournaments,
+        "nz-open": { ...regionalDef, id: "nz-open", eventId: "nz-open", country: "NZ", lat: -36.8, lon: 174.8 },
+      },
+    };
+
+    expect(travelDays("SE", domesticDef, testContent)).toBe(0);
+    expect(travelDays("SE", regionalDef, testContent)).toBe(1);
+    expect(travelDays("AT", longHaulContent.tournaments["nz-open"]!, longHaulContent)).toBe(2);
   });
 });

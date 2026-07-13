@@ -10,7 +10,6 @@
   import Rankings from "./lib/Rankings.svelte";
   import Summary from "./lib/Summary.svelte";
   import Tour from "./lib/Tour.svelte";
-  import TournamentDay from "./lib/TournamentDay.svelte";
   import { store } from "./lib/store.svelte";
 
   onMount(() => {
@@ -23,11 +22,7 @@
 {:else if store.screen === "create"}
   <CharacterCreate />
 {:else if store.screen === "planner"}
-  {#if store.registeredTournamentThisWeek}
-    <TournamentDay />
-  {:else}
-    <Planner />
-  {/if}
+  <Planner />
 {:else if store.screen === "tour"}
   <Tour />
 {:else if store.screen === "rankings"}

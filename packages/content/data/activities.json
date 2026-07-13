@@ -78,5 +78,13 @@
     "fatigue": -3,
     "money": -10,
     "injuryLoad": 0
+  },
+  "travel": {
+    "id": "travel",
+    "label": "Travel",
+    "short": "Travel",
+    "fatigue": 8,
+    "money": 0,
+    "injuryLoad": 0
   }
 }

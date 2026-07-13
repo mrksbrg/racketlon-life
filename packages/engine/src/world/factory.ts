@@ -334,6 +334,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
         },
       ],
       trainedWeeks: [],
+      travelBlocks: [],
     },
   };
 

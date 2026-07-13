@@ -9,7 +9,8 @@ export type ActivityType =
   | "cardio"
   | "rest"
   | "work"
-  | "social";
+  | "social"
+  | "travel";
 
 export const ACTIVITY_TYPES: readonly ActivityType[] = [
   "trainTT",
@@ -21,6 +22,7 @@ export const ACTIVITY_TYPES: readonly ActivityType[] = [
   "rest",
   "work",
   "social",
+  "travel",
 ];
 
 /**

@@ -13,6 +13,7 @@
     ranking: "📊",
     result: "🏆",
     coach: "🧑‍🏫",
+    draw: "📋",
   };
 
   /** Trophy for a title, a plainer note otherwise — a "result" message's icon

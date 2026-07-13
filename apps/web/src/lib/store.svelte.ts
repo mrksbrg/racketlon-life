@@ -20,6 +20,7 @@ import type {
   Tactic,
   TourEntry,
   TournamentDef,
+  TravelBlock,
   TrainedWeekView,
   TrophyView,
   WeekSummary,
@@ -304,6 +305,12 @@ class GameStore {
     return this.game ? this.game.weekLabel : "";
   });
 
+
+  readonly travelBlocksThisWeek: TravelBlock[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.travelBlocksThisWeek() : [];
+  });
+
   readonly weekIndex: number = $derived.by(() => {
     this.version;
     return this.game ? this.game.weekIndex : 0;
@@ -514,7 +521,7 @@ class GameStore {
     if (!this.game) return;
     const def = this.game.registeredTournamentThisWeek();
     if (!def) return;
-    this.match = this.game.enterTournament();
+    this.match = this.game.prepareAndEnterTournament({ slots: [...this.slots] });
     this.tournamentContext = {
       name: def.name,
       round: 1,

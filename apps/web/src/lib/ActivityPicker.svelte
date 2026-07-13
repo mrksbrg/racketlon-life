@@ -14,6 +14,8 @@
     onclose: () => void;
   } = $props();
 
+  const PICKABLE_ACTIVITY_TYPES = ACTIVITY_TYPES.filter((type) => type !== "travel");
+
   const day = $derived(DAYS[Math.floor(slotIndex / PERIODS.length)]);
   const period = $derived(PERIODS[slotIndex % PERIODS.length]);
 
@@ -36,7 +38,7 @@
   <div class="handle"></div>
   <h3>{day} {period}</h3>
   <div class="grid">
-    {#each ACTIVITY_TYPES as type (type)}
+    {#each PICKABLE_ACTIVITY_TYPES as type (type)}
       <button class="option" onclick={() => onpick(type)}>
         <span class="dot" style:background={ACTIVITY_COLORS[type]}></span>
         <span class="label">{defaultContent.activities[type].label}</span>
