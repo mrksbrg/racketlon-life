@@ -5,13 +5,14 @@
   import { flagEmoji } from "./ui";
 
   type RankingView = "fir" | "race" | "ratings";
-  type SortKey = "points" | "racePoints" | "rating" | "tt" | "bd" | "sq" | "tn";
+  type SortKey = "points" | "racePoints" | "rating" | "rd";
   type SortDir = "asc" | "desc";
 
   const PAGE_SIZE = 50;
 
-  const RATING_COLUMNS: { key: SortKey; label: string }[] = [
-    { key: "rating", label: "Total" },
+  type RatingSport = "tt" | "bd" | "sq" | "tn";
+
+  const RATING_SPORTS: { key: RatingSport; label: string }[] = [
     { key: "tt", label: "TT" },
     { key: "bd", label: "BA" },
     { key: "sq", label: "SQ" },
@@ -21,6 +22,7 @@
   let view = $state<RankingView>("fir");
   let sortKey = $state<SortKey>("points");
   let sortDir = $state<SortDir>("desc");
+  let ratingSport = $state<RatingSport>("tt");
   let page = $state(0);
 
   const rankingModel = $derived.by(() => {
@@ -28,13 +30,25 @@
     const dir = sortDir === "desc" ? -1 : 1;
     const rankedRows = [...rows].sort((a, b) => {
       const aValue =
-        sortKey === "tt" || sortKey === "bd" || sortKey === "sq" || sortKey === "tn"
-          ? a.sportRatings[sortKey]
-          : a[sortKey];
+        view === "ratings" && sortKey === "rating"
+          ? a.sportRatings[ratingSport]
+          : view === "ratings" && sortKey === "rd"
+            ? a.sportRatingRds[ratingSport]
+            : sortKey === "points"
+              ? a.points
+              : sortKey === "racePoints"
+                ? a.racePoints
+                : a.rating;
       const bValue =
-        sortKey === "tt" || sortKey === "bd" || sortKey === "sq" || sortKey === "tn"
-          ? b.sportRatings[sortKey]
-          : b[sortKey];
+        view === "ratings" && sortKey === "rating"
+          ? b.sportRatings[ratingSport]
+          : view === "ratings" && sortKey === "rd"
+            ? b.sportRatingRds[ratingSport]
+            : sortKey === "points"
+              ? b.points
+              : sortKey === "racePoints"
+                ? b.racePoints
+                : b.rating;
       return dir * (aValue - bValue) || a.rank - b.rank;
     });
     const pageCount = Math.max(1, Math.ceil(rankedRows.length / PAGE_SIZE));
@@ -64,6 +78,13 @@
 
   function setPage(next: number) {
     page = Math.max(0, Math.min(next, rankingModel.pageCount - 1));
+  }
+
+  function selectRatingSport(next: RatingSport) {
+    ratingSport = next;
+    sortKey = "rating";
+    sortDir = "desc";
+    page = 0;
   }
 
   function sortBy(key: SortKey) {
@@ -99,6 +120,14 @@
     <button class:on={view === "ratings"} onclick={() => selectView("ratings")}>Ratings</button>
   </div>
 
+  {#if view === "ratings"}
+    <div class="seg rating-sports" aria-label="Rating sport">
+      {#each RATING_SPORTS as sport (sport.key)}
+        <button class:on={ratingSport === sport.key} onclick={() => selectRatingSport(sport.key)}>{sport.label}</button>
+      {/each}
+    </div>
+  {/if}
+
   {#if rankingModel.rows.length === 0}
     <p class="empty">No counted results yet in this ladder — play a tournament to appear here.</p>
   {:else}
@@ -118,7 +147,7 @@
       Showing {rankingModel.safePage * PAGE_SIZE + 1}–{Math.min((rankingModel.safePage + 1) * PAGE_SIZE, rankingModel.rankedRows.length)} of {rankingModel.rankedRows.length}
     </div>
 
-    <div class="table" class:wide={view === "ratings"}>
+    <div class="table">
       <div class="row head-row">
         <span class="c-rank">#</span>
         <span class="c-name">Player</span>
@@ -129,9 +158,8 @@
           <button class="c-num primary sortable" onclick={() => sortBy("racePoints")}>Race {arrowFor("racePoints")}</button>
           <button class="c-num sortable" onclick={() => sortBy("rating")}>Glicko {arrowFor("rating")}</button>
         {:else}
-          {#each RATING_COLUMNS as col (col.key)}
-            <button class="c-num rating-col sortable" class:primary={sortKey === col.key} onclick={() => sortBy(col.key)}>{col.label} {arrowFor(col.key)}</button>
-          {/each}
+          <button class="c-num primary sortable" onclick={() => sortBy("rating")}>Rating {arrowFor("rating")}</button>
+          <button class="c-num sortable" onclick={() => sortBy("rd")}>± RD {arrowFor("rd")}</button>
         {/if}
       </div>
       {#each rankingModel.visibleRows as row, index (row.playerId)}
@@ -145,17 +173,14 @@
             <span class="c-num primary">{row.racePoints}</span>
             <span class="c-num">{row.rating}</span>
           {:else}
-            <span class="c-num rating-col" class:primary={sortKey === "rating"}>{row.rating}</span>
-            <span class="c-num rating-col" class:primary={sortKey === "tt"}>{row.sportRatings.tt}</span>
-            <span class="c-num rating-col" class:primary={sortKey === "bd"}>{row.sportRatings.bd}</span>
-            <span class="c-num rating-col" class:primary={sortKey === "sq"}>{row.sportRatings.sq}</span>
-            <span class="c-num rating-col" class:primary={sortKey === "tn"}>{row.sportRatings.tn}</span>
+            <span class="c-num primary">{row.sportRatings[ratingSport]}</span>
+            <span class="c-num">±{row.sportRatingRds[ratingSport]}</span>
           {/if}
         </button>
       {/each}
     </div>
     <p class="foot-note">
-      FIR is the official points ladder. Race is this season's annual points. Ratings are Glicko strength estimates and can be sorted by total or sport.
+      FIR is the official points ladder. Race is this season's annual points. Ratings are per-sport Glicko strength estimates with uncertainty (RD).
     </p>
   {/if}
 </main>
@@ -200,7 +225,8 @@
     color: var(--text);
   }
 
-  .views {
+  .views,
+  .rating-sports {
     margin-bottom: 12px;
   }
 
@@ -317,10 +343,6 @@
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: var(--muted);
-  }
-
-  .rating-col {
-    width: 52px;
   }
 
   .c-num.primary {
