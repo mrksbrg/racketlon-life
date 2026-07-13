@@ -18,7 +18,7 @@ export const STAT_MAX = 20;
  * never strong-in-all-four). Attributes stay **flat** (1 point per level) —
  * a separate, simpler mechanic. */
 export const SPORT_POINT_BUDGET = 50;
-export const ATTR_POINT_BUDGET = 30;
+export const ATTR_POINT_BUDGET = 36;
 
 /**
  * Marginal creation cost to raise a sport INTO `level` (from `level-1`).

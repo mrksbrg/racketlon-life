@@ -1,7 +1,7 @@
 import { BALANCE } from "../balance.js";
 import { ageOn } from "../core/date.js";
 import { clamp, round1 } from "../core/util.js";
-import type { Player } from "../model/player.js";
+import type { Player, TrainableAttribute } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import { SKILL_MAX, SPORTS, levelForSkill } from "../model/sport.js";
 import { countEntries, expectedSessionGain, formDelta } from "./effects.js";
@@ -26,6 +26,7 @@ export const TrainingSystem: GameSystem = {
       const counts = ctx.plans.get(player.identity.id);
       if (!counts) continue;
       const sessionsBySport: Record<Sport, number> = { tt: 0, bd: 0, sq: 0, tn: 0 };
+      const trainedAttributes = new Set<TrainableAttribute>();
       for (const [type, sessions] of countEntries(counts)) {
         const def = ctx.content.activities[type];
         if (def.sport !== undefined && def.trainingBase !== undefined) {
@@ -35,20 +36,26 @@ export const TrainingSystem: GameSystem = {
           }
           sessionsBySport[def.sport] += sessions;
           trainSport(ctx, player, def.sport, def.trainingBase, sessions);
+          if (applySportStaminaGain(player, def.sport, sessions) > 0) trainedAttributes.add("stamina");
         } else if (type === "gym") {
           player.attributes.coreStrength = clamp(
             player.attributes.coreStrength + BALANCE.training.gymCoreStrengthGain * sessions,
             0,
             1,
           );
+          trainedAttributes.add("coreStrength");
+          if (player.identity.id === ctx.state.career.playerId) {
+            ctx.log.emit("training.attribute", player.identity.id, { attribute: "coreStrength", sessions });
+          }
         } else if (type === "cardio") {
-          player.attributes.stamina = clamp(
-            player.attributes.stamina + BALANCE.training.cardioStaminaGain * sessions,
-            0,
-            1,
-          );
+          applyStaminaGain(player, BALANCE.training.cardioStaminaGain * sessions);
+          trainedAttributes.add("stamina");
+          if (player.identity.id === ctx.state.career.playerId) {
+            ctx.log.emit("training.attribute", player.identity.id, { attribute: "stamina", sessions });
+          }
         }
       }
+      decayUntrainedAttributes(player, trainedAttributes);
       updateForm(ctx, player, sessionsBySport);
 
       if (player.identity.id === ctx.state.career.playerId) {
@@ -131,4 +138,31 @@ function applyGain(ctx: SystemContext, player: Player, sport: Sport, gain: numbe
     ctx.log.emit("training.levelUp", player.identity.id, { sport, level: levelAfter });
   }
   return after - before;
+}
+
+function decayUntrainedAttributes(player: Player, trainedAttributes: Set<TrainableAttribute>): void {
+  const decay = BALANCE.training.attributeDecayUntrained;
+  if (!trainedAttributes.has("stamina")) player.attributes.stamina = clamp(player.attributes.stamina - decay, 0, 1);
+  if (!trainedAttributes.has("coreStrength")) {
+    player.attributes.coreStrength = clamp(player.attributes.coreStrength - decay, 0, 1);
+  }
+}
+
+function applySportStaminaGain(player: Player, sport: Sport, sessions: number): number {
+  const base = BALANCE.training.sportStaminaGain[sport] * sessions;
+  if (base <= 0) return 0;
+  return applyStaminaGain(player, taperedAttributeGain(player.attributes.stamina, base));
+}
+
+function applyStaminaGain(player: Player, gain: number): number {
+  const before = player.attributes.stamina;
+  player.attributes.stamina = clamp(before + gain, 0, 1);
+  return player.attributes.stamina - before;
+}
+
+function taperedAttributeGain(current: number, base: number): number {
+  // Body attributes have no separate visible form layer; taper near the hidden
+  // 0..1 ceiling so racket-sport cross-training helps most at lower stamina
+  // and can't replace dedicated cardio forever.
+  return base * Math.max(BALANCE.training.minTaper, 1 - current);
 }

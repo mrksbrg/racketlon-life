@@ -1059,6 +1059,10 @@ export class Game {
         fatigue: human.condition.fatigue,
         money: this.state.career.money,
         formBySport: { ...human.condition.formBySport },
+        trainableAttributes: {
+          stamina: human.attributes.stamina,
+          coreStrength: human.attributes.coreStrength,
+        },
       };
     }
     return this.weekSnapshot;

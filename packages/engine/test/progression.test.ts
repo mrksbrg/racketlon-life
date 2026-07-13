@@ -24,6 +24,10 @@ function makeContext(state: GameState, log: EventLog): SystemContext {
       fatigue: human.condition.fatigue,
       money: state.career.money,
       formBySport: { ...human.condition.formBySport },
+      trainableAttributes: {
+        stamina: human.attributes.stamina,
+        coreStrength: human.attributes.coreStrength,
+      },
     },
     outputs: {},
   };

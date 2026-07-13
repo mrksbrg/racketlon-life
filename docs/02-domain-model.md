@@ -10,7 +10,7 @@ Player
 ├─ identity     immutable: id, name, nationality, club, birthDate, gender, isReal
 ├─ attributes   slow, mostly hidden: skills {tt,bd,sq,tn} 0–1000,
 │               potential {tt,bd,sq,tn} 0..1 (hidden per-sport ceiling),
-│               durability, professionalism, stamina, coreStrength
+│               durability, professionalism, trainable stamina/coreStrength
 ├─ condition    fast, visible: fatigue 0–100, formBySport {tt,bd,sq,tn} 0..20,
 │               confidence −10..+10, injury | null
 ├─ ratings      per sport Glicko-2 {rating, rd, volatility}  ← observed layer

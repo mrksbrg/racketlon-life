@@ -1,6 +1,8 @@
 import type { Sport } from "./sport.js";
 
 export type Skills = Record<Sport, number>; // 0–1000 internal scale
+export type TrainableAttribute = "stamina" | "coreStrength";
+export const TRAINABLE_ATTRIBUTES: readonly TrainableAttribute[] = ["stamina", "coreStrength"];
 
 export interface PlayerIdentity {
   id: string;

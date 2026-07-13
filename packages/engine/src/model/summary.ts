@@ -1,4 +1,5 @@
 import type { Sport } from "./sport.js";
+import type { TrainableAttribute } from "./player.js";
 
 export interface SportSummary {
   level: number;
@@ -17,11 +18,18 @@ export interface SportSummary {
   formDelta: number;
 }
 
+export interface AttributeSummary {
+  value: number;
+  beforeValue: number;
+  delta: number;
+}
+
 /** The weekly digest shown to the player, composed by SummarySystem. */
 export interface WeekSummary {
   weekIndex: number;
   weekLabel: string;
   sports: Record<Sport, SportSummary>;
+  trainableAttributes: Record<TrainableAttribute, AttributeSummary>;
   fatigue: { value: number; delta: number };
   money: { value: number; delta: number };
   /** human-readable highlights derived from the EventLog */

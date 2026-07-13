@@ -38,6 +38,18 @@ describe("AgingSystem", () => {
     expect(after).toBeLessThan(before);
   });
 
+
+  it("erodes trainable body attributes past declineFromAge", () => {
+    const game = withBirthDate("aging-attrs", "1981-01-15");
+    const before = game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
+
+    for (let i = 0; i < 10; i++) game.submitWeek(WORK);
+
+    const after = game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
+    expect(after.stamina).toBeLessThan(before.stamina);
+    expect(after.coreStrength).toBeLessThan(before.coreStrength);
+  });
+
   it("fires the 40-45 step-down exactly once, and only within that window", () => {
     // 40 at game start, run the whole five-year window (260 weeks) — the
     // escalating final-year chance makes this ~99.98% certain to fire.
