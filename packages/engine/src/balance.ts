@@ -29,6 +29,8 @@ export const BALANCE = {
     gymCoreStrengthGain: 0.015,
     /** attribute gain per cardio session, on the 0..1 internal attribute scale */
     cardioStaminaGain: 0.015,
+    /** small stamina carryover from especially physical racket-sport sessions */
+    sportStaminaGain: { tt: 0, bd: 0.0015, sq: 0.003, tn: 0 },
     /** weekly fade for trainable body attributes that were not trained */
     attributeDecayUntrained: 0.003,
     /** weekly fade for trainable body attributes above age declineFromAge */
