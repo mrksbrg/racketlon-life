@@ -25,6 +25,19 @@
 
   const rows = $derived(store.rankings);
   const youId = $derived(store.you?.id);
+  const primaryKey = $derived<SortKey>(view === "fir" ? "points" : "rating");
+
+  const sortedRows = $derived.by(() =>
+    [...rows].sort((a, b) => b[primaryKey] - a[primaryKey] || a.rank - b.rank),
+  );
+  const pageCount = $derived(Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE)));
+  const safePage = $derived(Math.min(page, pageCount - 1));
+  const visibleRows = $derived(sortedRows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE));
+
+  function selectView(next: RankingView) {
+    view = next;
+    page = 0;
+  }
 
   function valueFor(row: (typeof rows)[number], key: SortKey): number {
     if (key === "tt" || key === "bd" || key === "sq" || key === "tn") return row.sportRatings[key];
