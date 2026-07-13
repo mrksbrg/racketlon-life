@@ -6,10 +6,8 @@
   import {
     SPORT_COLORS,
     SPORT_SHORT,
-    conditionWord,
     finishLabel,
     flagEmoji,
-    formatInjury,
     formatMoney,
     formColor,
     formWord,
@@ -124,11 +122,6 @@
           </div>
         </div>
       {/each}
-      <p class="footnote">
-        Levels are your own progression; Glicko is the world's estimate of you (±&nbsp;uncertainty). Form is your
-        tournament readiness — it rises when you train a sport and fades when you neglect it, so staying sharp in all
-        four at once is hard.
-      </p>
     </section>
 
     <!-- Attributes -->
@@ -167,27 +160,6 @@
       </section>
     {/if}
 
-    <!-- Condition -->
-    <section class="card">
-      <h2>Condition</h2>
-      <div class="cond-grid">
-        <div class="cond">
-          <div class="cond-cap">Fatigue</div>
-          <div class="cond-val">{you.fatigue}<span class="unit">/100</span></div>
-        </div>
-        <div class="cond">
-          <div class="cond-cap">Soreness</div>
-          <div class="cond-val">{you.soreness}<span class="unit">/100</span></div>
-        </div>
-        <div class="cond">
-          <div class="cond-cap">Confidence</div>
-          <div class="cond-val">{conditionWord(you.confidence)}</div>
-        </div>
-      </div>
-      {#if you.injury}
-        <div class="injury">{formatInjury(you.injury)}</div>
-      {/if}
-    </section>
     {:else if section === "statistics"}
 
     <!-- Career stats -->
@@ -580,13 +552,6 @@
     color: var(--muted);
   }
 
-  .footnote {
-    font-size: 11.5px;
-    color: var(--muted);
-    margin: 10px 0 0;
-    line-height: 1.4;
-  }
-
   /* Attributes */
   .attr {
     display: flex;
@@ -668,47 +633,6 @@
     color: var(--danger);
   }
 
-  /* Condition */
-  .cond-grid {
-    display: flex;
-    gap: 10px;
-  }
-
-  .cond {
-    flex: 1;
-  }
-
-  .cond-cap {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--muted);
-  }
-
-  .cond-val {
-    font-size: 17px;
-    font-weight: 700;
-    margin-top: 3px;
-  }
-
-  .cond-val .unit {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted);
-  }
-
-  .injury {
-    margin-top: 12px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--danger) 14%, var(--card));
-    border: 1px solid var(--danger);
-    color: var(--danger);
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  /* Career stats */
   .stats-head {
     display: flex;
     align-items: center;
