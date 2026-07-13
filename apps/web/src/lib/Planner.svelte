@@ -7,7 +7,7 @@
   import StatusBar from "./StatusBar.svelte";
   import TabBar from "./TabBar.svelte";
   import { TEMPLATES, store } from "./store.svelte";
-  import { ACTIVITY_COLORS } from "./ui";
+  import { ACTIVITY_COLORS, formatMoney } from "./ui";
 
   let picking = $state<number | null>(null);
 
@@ -42,6 +42,21 @@
     <div class="tournament-missed">
       <span>🏆 {t.name} is on this week — entry closed. Register on the Tour tab at least two weeks ahead next time.</span>
     </div>
+  {/if}
+
+  {#if store.you}
+    <section class="home-hubs" aria-label="Home summaries">
+      <button class="hub-card" title="Finances will become a dedicated section in Home">
+        <span class="hub-label">Money</span>
+        <strong class:negative={store.you.money < 0}>{formatMoney(store.you.money)}</strong>
+        <small>This week’s budget belongs here.</small>
+      </button>
+      <button class="hub-card" title="Health will become a dedicated section in Home">
+        <span class="hub-label">Health</span>
+        <strong>⚡ {store.you.fatigue} · 💢 {store.you.soreness}</strong>
+        <small>Recovery, form, and injury risk.</small>
+      </button>
+    </section>
   {/if}
 
   <div class="templates">
@@ -113,6 +128,48 @@
     display: flex;
     flex-direction: column;
     gap: 5px;
+  }
+
+  .home-hubs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .hub-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    min-height: 78px;
+    padding: 11px 12px;
+    border-radius: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    text-align: left;
+  }
+
+  .hub-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .hub-card strong {
+    font-size: 17px;
+  }
+
+  .hub-card strong.negative {
+    color: var(--danger);
+  }
+
+  .hub-card small {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.25;
   }
 
   .travel-note {

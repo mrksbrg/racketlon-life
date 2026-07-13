@@ -3,6 +3,17 @@
   import { store } from "./store.svelte";
   import { SPORT_COLORS, SPORT_SHORT, formColor, formatInjury, formatMoney } from "./ui";
 
+  const SCREEN_LABELS: Partial<Record<string, string>> = {
+    planner: "Home",
+    tour: "Tour",
+    rankings: "Rankings",
+    world: "World",
+    inbox: "Inbox",
+    me: "Me",
+  };
+
+  const screenLabel = $derived(SCREEN_LABELS[store.screen] ?? "Home");
+
   function confirmNewGame() {
     if (confirm("Start a new career? Your current save will be lost.")) {
       void store.newGame();
@@ -13,14 +24,20 @@
 {#if store.you}
   <header>
     <div class="top">
-      <button class="identity" onclick={() => store.goToTab("me")} title="View your profile">
-        <div class="name">{store.you.name}, {store.you.age} ›</div>
+      <div class="context">
+        <div class="screen">{screenLabel}</div>
         <div class="week">{store.weekLabel}</div>
-      </button>
+      </div>
       <div class="right">
         <div class="money" class:negative={store.you.money < 0}>
           {formatMoney(store.you.money)}
         </div>
+        <button class="inbox" onclick={() => store.goToTab("world")} title="Open inbox">
+          <span class="envelope">✉</span>
+          {#if store.unreadCount > 0}
+            <span class="badge">{store.unreadCount > 9 ? "9+" : store.unreadCount}</span>
+          {/if}
+        </button>
         <button class="reset" onclick={confirmNewGame} title="New career">⟲</button>
       </div>
     </div>
@@ -72,13 +89,12 @@
     align-items: center;
   }
 
-  .identity {
-    text-align: left;
-    display: block;
+  .context {
+    min-width: 0;
   }
 
-  .name {
-    font-weight: 700;
+  .screen {
+    font-weight: 800;
   }
 
   .week {
@@ -99,6 +115,33 @@
 
   .money.negative {
     color: var(--danger);
+  }
+
+  .inbox {
+    position: relative;
+    color: var(--muted);
+    font-size: 17px;
+    padding: 4px 7px;
+  }
+
+  .envelope {
+    line-height: 1;
+  }
+
+  .badge {
+    position: absolute;
+    top: -5px;
+    right: -2px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    line-height: 16px;
+    text-align: center;
   }
 
   .reset {

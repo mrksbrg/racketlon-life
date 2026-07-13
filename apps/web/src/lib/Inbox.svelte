@@ -5,6 +5,8 @@
   import { store } from "./store.svelte";
   import { flagEmoji } from "./ui";
 
+  let { embedded = false } = $props<{ embedded?: boolean }>();
+
   let expanded = $state<string | null>(null);
 
   const CATEGORY_ICON: Record<InboxView["category"], string> = {
@@ -37,9 +39,11 @@
 
 </script>
 
-<StatusBar />
+{#if !embedded}
+  <StatusBar />
+{/if}
 
-<main>
+<main class:embedded>
   <div class="head">
     <h2>Inbox</h2>
     {#if store.unreadCount > 0}
@@ -117,13 +121,21 @@
   </div>
 </main>
 
-<TabBar />
+{#if !embedded}
+  <TabBar />
+{/if}
 
 <style>
   main {
     flex: 1;
     overflow-y: auto;
     padding: 16px;
+  }
+
+  main.embedded {
+    flex: initial;
+    overflow: visible;
+    padding: 0;
   }
 
   .head {
