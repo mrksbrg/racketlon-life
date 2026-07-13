@@ -88,6 +88,17 @@ describe("training", () => {
     expect(easy.fatigue.delta).toBeLessThan(0);
     expect(easy.fatigue.value).toBe(0);
   });
+
+  it("a full rest week can wipe maximum fatigue", () => {
+    const game = Game.newGame({ content: testContent, seed: "recovery-wipes-fatigue" });
+    const save = game.serialize();
+    save.state.players.find((p) => p.identity.id === "you")!.condition.fatigue = 100;
+
+    const recovered = Game.fromSave(save, testContent).submitWeek(planWith({}));
+
+    expect(recovered.fatigue.delta).toBe(-100);
+    expect(recovered.fatigue.value).toBe(0);
+  });
 });
 
 describe("trainedWeekDates (season calendar history)", () => {

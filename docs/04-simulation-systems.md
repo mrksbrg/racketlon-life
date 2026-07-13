@@ -278,10 +278,10 @@ pattern as Ranking): `trainingAgeMultiplier` (effects.ts's
 
 - A "training camp" week (14 sessions) → +47 fatigue: two such weeks back-to-back hit
   the fatigue ceiling. Intended pressure, feels right.
-- A full recovery week used to wipe ~85-99 fatigue regardless of starting point — too
-  forgiving now that overtraining also feeds injury risk. First-pass fix in M1:
-  `recovery.weeklyBase` 15→10, `rest` activity fatigue −4→−3 (content). Still a numeric
-  nudge, not a redesign — wants real playtesting.
+- A full recovery week should genuinely clear fatigue, including from the ceiling;
+  natural recovery stays modest (`recovery.weeklyBase` 10) while dedicated `rest`
+  slots are strong enough to carry the deload (`rest` activity fatigue −6 in
+  content). Still a numeric nudge, not a redesign — wants real playtesting.
 - Diminishing returns are visible in forecasts (best sport shows `+` while weaker
   sports show `++` for the same session count) — good, keep.
 - Money pressure (entry fees vs. work vs. training costs) is still untouched from M0 —
