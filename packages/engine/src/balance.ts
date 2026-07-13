@@ -25,8 +25,14 @@ export const BALANCE = {
     fatiguePenaltyAt100: 0.3,
     /** per-session random spread, ± proportion of the expected gain */
     randomness: 0.25,
-    /** conditioning: skill points per physical session, applied to all sports */
-    physicalAllSportGain: 0.8,
+    /** attribute gain per gym session, on the 0..1 internal attribute scale */
+    gymCoreStrengthGain: 0.015,
+    /** attribute gain per cardio session, on the 0..1 internal attribute scale */
+    cardioStaminaGain: 0.015,
+    /** weekly fade for trainable body attributes that were not trained */
+    attributeDecayUntrained: 0.003,
+    /** weekly fade for trainable body attributes above age declineFromAge */
+    attributeAgeDeclineRate: 0.0008,
   },
   recovery: {
     /** natural fatigue recovery per week, on top of rest/social activities.

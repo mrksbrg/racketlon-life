@@ -134,7 +134,7 @@ export const TEMPLATES: Record<string, (ranked: Sport[]) => ActivityType[]> = {
     put(slots, "Thu", "Eve", "work");
     put(slots, "Wed", "Eve", TRAIN_FOR[ranked[0]!]);
     put(slots, "Fri", "Eve", "social");
-    put(slots, "Sat", "Mor", "physical");
+    put(slots, "Sat", "Mor", "gym");
     put(slots, "Sun", "Mor", "social");
     put(slots, "Sun", "Aft", "social");
     return slots;
@@ -142,18 +142,18 @@ export const TEMPLATES: Record<string, (ranked: Sport[]) => ActivityType[]> = {
 
   Recovery: () => {
     const slots = blankWeek();
-    for (const day of WEEKDAYS) {
-      put(slots, day, "Mor", "work");
-      put(slots, day, "Aft", "work");
-    }
-    put(slots, "Wed", "Eve", "physical");
-    put(slots, "Sat", "Mor", "physical");
+    // A deload week: no racket sessions, but keep light PT. Gym/cardio
+    // build attributes only, so sport skills cannot move while fatigue and
+    // injury risk come down hard.
+    put(slots, "Wed", "Eve", "cardio");
+    put(slots, "Fri", "Eve", "social");
+    put(slots, "Sat", "Aft", "gym");
     return slots;
   },
 
   "Training camp": (ranked) => {
     const slots = blankWeek();
-    // no job at all — a mix of all four racket sports + physical training,
+    // no job at all — a mix of all four racket sports + gym work,
     // cycling through the player's own ranking so every sport gets court
     // time, across Mon-Fri (minus Wed evening, which is social)
     const cycle: ActivityType[] = [
@@ -161,7 +161,7 @@ export const TEMPLATES: Record<string, (ranked: Sport[]) => ActivityType[]> = {
       TRAIN_FOR[ranked[1]!],
       TRAIN_FOR[ranked[2]!],
       TRAIN_FOR[ranked[3]!],
-      "physical",
+      "gym",
     ];
     const weekdaySlots: Array<[keyof typeof DAY, keyof typeof PERIOD]> = [
       ["Mon", "Mor"], ["Mon", "Aft"], ["Mon", "Eve"],

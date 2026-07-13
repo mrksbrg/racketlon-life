@@ -18,7 +18,7 @@ export const STAT_MAX = 20;
  * never strong-in-all-four). Attributes stay **flat** (1 point per level) —
  * a separate, simpler mechanic. */
 export const SPORT_POINT_BUDGET = 50;
-export const ATTR_POINT_BUDGET = 30;
+export const ATTR_POINT_BUDGET = 36;
 
 /**
  * Marginal creation cost to raise a sport INTO `level` (from `level-1`).
@@ -54,14 +54,15 @@ function raiseCost(key: StatKey, currentLevel: number): number {
   return isSportKey(key) ? sportStepCost(currentLevel + 1) : 1;
 }
 
-/** The five character attributes, in display order. */
-export type CharAttr = "stamina" | "intelligence" | "clutch" | "composure" | "resilience";
+/** The character attributes, in display order. */
+export type CharAttr = "stamina" | "coreStrength" | "intelligence" | "clutch" | "composure" | "resilience";
 
-/** Any stat the pool spends on — the four sports plus the five attributes. */
+/** Any stat the pool spends on — the four sports plus the character attributes. */
 export type StatKey = Sport | CharAttr;
 
 export const CHAR_ATTRS: readonly CharAttr[] = [
   "stamina",
+  "coreStrength",
   "intelligence",
   "clutch",
   "composure",
@@ -84,7 +85,8 @@ export const SPORT_META: Record<Sport, StatMeta> = {
 };
 
 export const ATTR_META: Record<CharAttr, StatMeta> = {
-  stamina: { label: "Stamina", hint: "Fuel for long matches", color: "var(--physical)" },
+  stamina: { label: "Stamina", hint: "Fuel for long matches", color: "var(--cardio)" },
+  coreStrength: { label: "Core strength", hint: "Built in the gym", color: "var(--gym)" },
   intelligence: { label: "Intelligence", hint: "Unlocks university studies", color: "var(--tn)" },
   clutch: { label: "Clutch", hint: "Wins the deciding gummiarm", color: "var(--tt)" },
   composure: { label: "Composure", hint: "Shrugs off setbacks", color: "var(--sq)" },
@@ -313,6 +315,7 @@ export function randomDraft(): CharacterDraft {
     birthDate: randomBirthDate(),
     sports: { tt: STAT_MIN, bd: STAT_MIN, sq: STAT_MIN, tn: STAT_MIN },
     stamina: STAT_MIN,
+    coreStrength: STAT_MIN,
     intelligence: STAT_MIN,
     clutch: STAT_MIN,
     composure: STAT_MIN,

@@ -1,8 +1,11 @@
 <script lang="ts">
   import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
   import AnimatedNumber from "./AnimatedNumber.svelte";
+  import { ATTR_META, type CharAttr } from "./character";
   import { store } from "./store.svelte";
   import { SPORT_COLORS, SPORT_SHORT, formColor, formatSignedMoney } from "./ui";
+
+  const TRAINABLE_ATTRS = ["stamina", "coreStrength"] as const satisfies readonly CharAttr[];
 
   // bars render at their "before" width on first paint, then flip to
   // "after" a tick later — the CSS transition on .fill is what actually
@@ -62,6 +65,32 @@
               {/if}
             </span>
           </div>
+        </div>
+      {/each}
+    </section>
+
+    <section class="card">
+      <h3>Body</h3>
+      {#each TRAINABLE_ATTRS as attr (attr)}
+        {@const row = s.trainableAttributes[attr]}
+        {@const meta = ATTR_META[attr]}
+        <div class="attr-row">
+          <span class="attr-name">{meta.label}</span>
+          <span class="attr-level">Lv {Math.max(1, Math.min(20, Math.round(row.value * 20)))}</span>
+          <div class="bar">
+            <div
+              class="fill"
+              style:width="{(settled ? row.value : row.beforeValue) * 100}%"
+              style:background={meta.color}
+            ></div>
+          </div>
+          <span class="attr-delta" class:up={row.delta > 0} class:down={row.delta < 0}>
+            {#if row.delta !== 0}
+              <AnimatedNumber value={row.delta} decimals={1} signed />
+            {:else}
+              ·
+            {/if}
+          </span>
         </div>
       {/each}
     </section>
@@ -203,6 +232,35 @@
 
   .delta.up {
     color: var(--ok);
+  }
+
+  .attr-row {
+    display: grid;
+    grid-template-columns: 1fr 44px 90px 48px;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 14px;
+  }
+
+  .attr-level,
+  .attr-delta {
+    font-weight: 700;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .attr-delta {
+    color: var(--muted);
+    font-size: 11px;
+  }
+
+  .attr-delta.up {
+    color: var(--ok);
+  }
+
+  .attr-delta.down {
+    color: var(--danger);
   }
 
   .form-row {

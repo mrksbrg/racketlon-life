@@ -7,11 +7,11 @@ export const ACTIVITY_COLORS: Record<ActivityType, string> = {
   trainBD: "var(--bd)",
   trainSQ: "var(--sq)",
   trainTN: "var(--tn)",
-  physical: "var(--physical)",
+  gym: "var(--gym)",
+  cardio: "var(--cardio)",
   rest: "var(--rest)",
   work: "var(--work)",
   social: "var(--social)",
-  errands: "var(--errands)",
 };
 
 export const SPORT_COLORS: Record<Sport, string> = {

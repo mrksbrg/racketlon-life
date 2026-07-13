@@ -37,6 +37,7 @@ export const AgingSystem: GameSystem = {
       if (age < b.declineFromAge) continue;
 
       reduceSkillsByFraction(player, b.weeklyDeclineRate);
+      reduceTrainableAttributesByFraction(player, BALANCE.training.attributeAgeDeclineRate);
       maybeStepDown(ctx, player, age, "step1", b.step1FromAge, b.step1ToAge, b.step1WeeklyChance, b.step1DropPct);
       maybeStepDown(ctx, player, age, "step2", b.step2FromAge, b.step2ToAge, b.step2WeeklyChance, b.step2DropPct);
     }
@@ -47,6 +48,11 @@ function reduceSkillsByFraction(player: Player, fraction: number): void {
   for (const sport of SPORTS) {
     player.attributes.skills[sport] = Math.max(0, player.attributes.skills[sport] * (1 - fraction));
   }
+}
+
+function reduceTrainableAttributesByFraction(player: Player, fraction: number): void {
+  player.attributes.stamina = Math.max(0, player.attributes.stamina * (1 - fraction));
+  player.attributes.coreStrength = Math.max(0, player.attributes.coreStrength * (1 - fraction));
 }
 
 /**

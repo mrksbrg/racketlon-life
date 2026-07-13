@@ -3,7 +3,7 @@ import type { WeekLog } from "../core/events.js";
 import type { Rng } from "../core/rng.js";
 import type { GameState } from "../core/state.js";
 import type { ActivityCounts, PlayerPlan } from "../model/plan.js";
-import type { Skills } from "../model/player.js";
+import type { Skills, TrainableAttribute } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import type { WeekSummary } from "../model/summary.js";
 
@@ -13,6 +13,7 @@ export interface HumanSnapshot {
   fatigue: number;
   money: number;
   formBySport: Record<Sport, number>;
+  trainableAttributes: Record<TrainableAttribute, number>;
 }
 
 export interface WeekOutputs {

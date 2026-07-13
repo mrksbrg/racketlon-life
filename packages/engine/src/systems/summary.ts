@@ -1,7 +1,8 @@
 import { weekLabel } from "../core/date.js";
 import { humanPlayer } from "../core/state.js";
 import { round1 } from "../core/util.js";
-import type { SportSummary } from "../model/summary.js";
+import type { AttributeSummary, SportSummary } from "../model/summary.js";
+import type { TrainableAttribute } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import { SPORTS, SPORT_LABELS, levelForSkill, levelProgress } from "../model/sport.js";
 import type { GameSystem } from "./types.js";
@@ -34,12 +35,26 @@ export const SummarySystem: GameSystem = {
       };
     }
 
+    const trainableAttributes = {} as Record<TrainableAttribute, AttributeSummary>;
+    for (const attr of ["stamina", "coreStrength"] as const) {
+      const before = snap.trainableAttributes[attr];
+      const after = human.attributes[attr];
+      trainableAttributes[attr] = {
+        beforeValue: before,
+        value: after,
+        delta: round1((after - before) * 20),
+      };
+    }
+
     const notes: string[] = [];
     for (const event of ctx.log.thisWeek()) {
       if (event.subject !== human.identity.id) continue;
       if (event.type === "training.levelUp") {
         const d = event.data as { sport: Sport; level: number };
         notes.push(`${SPORT_LABELS[d.sport]} reached level ${d.level}!`);
+      } else if (event.type === "training.attribute") {
+        const d = event.data as { attribute: "stamina" | "coreStrength" };
+        notes.push(d.attribute === "stamina" ? "Cardio built your stamina." : "Gym work built your core strength.");
       } else if (event.type === "condition.warning") {
         notes.push("You are running on fumes — schedule some rest.");
       } else if (event.type === "economy.broke") {
@@ -105,6 +120,7 @@ export const SummarySystem: GameSystem = {
       weekIndex: ctx.state.calendar.weekIndex,
       weekLabel: weekLabel(ctx.state.calendar),
       sports,
+      trainableAttributes,
       fatigue: {
         value: Math.round(human.condition.fatigue),
         delta: Math.round(human.condition.fatigue - snap.fatigue),
