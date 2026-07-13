@@ -326,7 +326,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
           week: 0,
           category: "welcome",
           from: "Your coach",
-          subject: "Welcome to the tour",
+          subject: "Welcome to the FIR World Tour 2026",
           body:
             "This is your inbox — invitations, monthly rankings, and news land here. " +
             "Plan your weeks, register for tournaments on the Tour, and let's build a career.",
