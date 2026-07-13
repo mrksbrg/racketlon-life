@@ -246,6 +246,27 @@ describe("match engine", () => {
     }
   });
 
+  it("makes a dominant squash point cheap for the controller and expensive for the chaser", () => {
+    const m = createMatch(ref("a", 1000, { stamina: 0.5 }), ref("b", 1, { stamina: 0.5 }), "squash-control");
+    m.setIndex = 2;
+    m.phase = "playing";
+
+    const pA = pointWinProbability(m, new Rng("squash-control-prob"));
+    const outcome = playPoint(m);
+
+    expect(outcome?.winner).toBe("a");
+    const control = (pA - 0.5) * 2;
+    const base = BALANCE.match.energyCostPerPoint.sq;
+    expect(m.energy.a).toBeCloseTo(100 - base * (1 - BALANCE.match.controlEnergy.sq.winnerDiscount * control), 5);
+    expect(m.energy.b).toBeCloseTo(100 - base * (1 + BALANCE.match.controlEnergy.sq.loserTax * control), 5);
+    expect(100 - m.energy.b).toBeGreaterThan(100 - m.energy.a);
+  });
+
+  it("keeps badminton's control-energy asymmetry smaller than squash's", () => {
+    expect(BALANCE.match.controlEnergy.bd.winnerDiscount).toBeLessThan(BALANCE.match.controlEnergy.sq.winnerDiscount);
+    expect(BALANCE.match.controlEnergy.bd.loserTax).toBeLessThan(BALANCE.match.controlEnergy.sq.loserTax);
+  });
+
   it("buckets fatigue without ever exposing the exact number", () => {
     expect(fatigueTell(95)).toBe("fresh");
     expect(fatigueTell(70)).toBe("working");

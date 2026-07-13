@@ -211,6 +211,20 @@ export const BALANCE = {
      * squash is the grind).
      */
     energyCostPerPoint: { tt: 0.15, bd: 0.6, sq: 0.75, tn: 0.45 },
+    /**
+     * Asymmetric energy tax for a point where the expected winner actually
+     * wins. This models court control: the player dictating play spends less
+     * energy, while the opponent chases. Squash has the largest swing because
+     * controlling the T is cheap and being moved off it is punishing; badminton
+     * has a smaller version of the same pattern. Values are proportional to
+     * point-control strength (0 at a coin flip, 1 near a guaranteed point).
+     */
+    controlEnergy: {
+      tt: { winnerDiscount: 0, loserTax: 0 },
+      bd: { winnerDiscount: 0.08, loserTax: 0.18 },
+      sq: { winnerDiscount: 0.18, loserTax: 0.45 },
+      tn: { winnerDiscount: 0.05, loserTax: 0.12 },
+    },
     /** energy-cost multiplier from the Stamina attribute (0..1) —
      * staminaCostFloor + (1−stamina) × staminaCostSpan, so a stamina-1 player
      * burns energy at 0.8× the baseline rate per point and a stamina-0 player
