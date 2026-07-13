@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { InboxView } from "@racketlon/engine";
-  import StatusBar from "./StatusBar.svelte";
-  import TabBar from "./TabBar.svelte";
   import { store } from "./store.svelte";
   import { flagEmoji } from "./ui";
+
+  let { embedded = false } = $props<{ embedded?: boolean }>();
 
   let expanded = $state<string | null>(null);
 
@@ -37,11 +37,14 @@
 
 </script>
 
-<StatusBar />
-
-<main>
+<main class:embedded>
   <div class="head">
-    <h2>Inbox</h2>
+    <div class="title-row">
+      {#if !embedded}
+        <button class="back" onclick={() => store.closeInbox()}>‹ Back</button>
+      {/if}
+      <h2>Inbox</h2>
+    </div>
     {#if store.unreadCount > 0}
       <button class="mark-all" onclick={() => void store.markAllRead()}>Mark all read</button>
     {/if}
@@ -117,8 +120,6 @@
   </div>
 </main>
 
-<TabBar />
-
 <style>
   main {
     flex: 1;
@@ -126,11 +127,29 @@
     padding: 16px;
   }
 
+  main.embedded {
+    flex: initial;
+    overflow: visible;
+    padding: 0;
+  }
+
   .head {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin-bottom: 14px;
+  }
+
+  .title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .back {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
   }
 
   h2 {
