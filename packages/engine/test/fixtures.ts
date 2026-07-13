@@ -42,7 +42,7 @@ export const testContent: ContentBundle = {
     trainTN: { id: "trainTN", label: "Tennis", short: "TN", sport: "tn", trainingBase: 6, fatigue: 7, money: -60, injuryLoad: 1.5 },
     gym: { id: "gym", label: "Gym", short: "Gym", fatigue: 6, money: -30, injuryLoad: 1.5 },
     cardio: { id: "cardio", label: "Cardio", short: "Run", fatigue: 5, money: 0, injuryLoad: 1.2 },
-    rest: { id: "rest", label: "Rest", short: "—", fatigue: -4, money: 0, injuryLoad: 0 },
+    rest: { id: "rest", label: "Rest", short: "—", fatigue: -6, money: 0, injuryLoad: 0 },
     work: { id: "work", label: "Work", short: "Job", fatigue: 4, money: 800, injuryLoad: 0 },
     social: { id: "social", label: "Social", short: "Soc", fatigue: -3, money: -100, injuryLoad: 0 },
   },

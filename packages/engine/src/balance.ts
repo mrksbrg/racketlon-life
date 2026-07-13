@@ -42,9 +42,8 @@ export const BALANCE = {
   },
   recovery: {
     /** natural fatigue recovery per week, on top of rest/social activities.
-     * Cut from 15 in M1: combined with a full week of `rest` slots this used
-     * to wipe ~85-99 fatigue in one week regardless of how tired you started
-     * — too forgiving now that overtraining also feeds injury risk. */
+     * Cut from 15 in M1: activity rest now carries the full-recovery tuning,
+     * while this stays as the baseline recovery every week. */
     weeklyBase: 10,
     /** emit condition.warning at or above this fatigue */
     warnAt: 75,
