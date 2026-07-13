@@ -117,6 +117,20 @@
             <span class="domestic">Domestic — no travel cost</span>
           </div>
         {/if}
+        {#if entry.status !== "closed"}
+          <div class="actions inline">
+            {#if entry.status === "open"}
+              <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Enter tournament ▸</button>
+            {:else}
+              <button class="skip" onclick={() => void store.withdrawRegistration(entry.weekIndex)}>Withdraw</button>
+              {#if divisionFor(entry) !== t.division}
+                <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Switch class ▸</button>
+              {:else if canPlayNow}
+                <button class="enter" onclick={() => store.enterTournament()}>Play now ▸</button>
+              {/if}
+            {/if}
+          </div>
+        {/if}
         <div class="field">
           <div class="field-label">Field ({choice.entrants.length + 1} entered)</div>
           <div class="field-you">You</div>
@@ -132,21 +146,6 @@
           {/each}
         </div>
       </div>
-
-      {#if entry.status !== "closed"}
-        <div class="actions">
-          {#if entry.status === "open"}
-            <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Register ▸</button>
-          {:else}
-            <button class="skip" onclick={() => void store.withdrawRegistration(entry.weekIndex)}>Withdraw</button>
-            {#if divisionFor(entry) !== t.division}
-              <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Switch class ▸</button>
-            {:else if canPlayNow}
-              <button class="enter" onclick={() => store.enterTournament()}>Play now ▸</button>
-            {/if}
-          {/if}
-        </div>
-      {/if}
     </div>
   {/if}
 </main>
@@ -391,6 +390,10 @@
     display: flex;
     gap: 8px;
     padding: 0 14px 14px;
+  }
+
+  .actions.inline {
+    padding: 8px 0 4px;
   }
 
   .skip {
