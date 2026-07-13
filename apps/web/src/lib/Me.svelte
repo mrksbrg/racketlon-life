@@ -165,6 +165,10 @@
           <div class="cond-val">{you.fatigue}<span class="unit">/100</span></div>
         </div>
         <div class="cond">
+          <div class="cond-cap">Soreness</div>
+          <div class="cond-val">{you.soreness}<span class="unit">/100</span></div>
+        </div>
+        <div class="cond">
           <div class="cond-cap">Confidence</div>
           <div class="cond-val">{conditionWord(you.confidence)}</div>
         </div>

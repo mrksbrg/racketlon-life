@@ -63,7 +63,12 @@ import type { Calendar } from "./date.js";
 // v16: planning split `physical` into `gym`/`cardio`, removed `errands`, and
 // PlayerAttributes gained `coreStrength`; old saves/plans have obsolete
 // activity ids and missing player fields, so they are discarded.
-export const SAVE_VERSION = 16;
+// v17: `PlayerCondition` gained `soreness`, a visible short-term tournament
+// muscle-damage bar; old saves are discarded rather than left with missing
+// condition state.
+// v18: soreness gained `sorenessStartedWeek` so it can block the first three
+// weekdays after a tournament and then clear completely at week end.
+export const SAVE_VERSION = 18;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {

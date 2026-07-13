@@ -137,6 +137,8 @@ function makePlayer(spec: PlayerSpec): Player {
     },
     condition: {
       fatigue: 20,
+      soreness: 0,
+      sorenessStartedWeek: null,
       formBySport: allSports(BALANCE.form.initial),
       neglectWeeks: allSports(0),
       confidence: 0,

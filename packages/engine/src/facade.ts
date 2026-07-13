@@ -150,6 +150,7 @@ export interface HumanView {
   /** rolled personality traits — identity/flavor, shown to the player themself */
   traits: TraitView[];
   fatigue: number;
+  soreness: number;
   money: number;
   /** 0..20 per sport — see PlayerCondition.formBySport */
   formBySport: Record<Sport, number>;
@@ -524,6 +525,7 @@ export class Game {
         .map((id) => traitView(this.content, id))
         .filter((t): t is TraitView => t !== null),
       fatigue: Math.round(human.condition.fatigue),
+      soreness: Math.round(human.condition.soreness),
       money: this.state.career.money,
       formBySport: { ...human.condition.formBySport },
       confidence: human.condition.confidence,

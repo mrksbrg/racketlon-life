@@ -48,6 +48,7 @@ export interface MatchPlayerRef {
   /** 0..20 per sport — see BALANCE.form and `formFactor` below */
   formBySport: Record<Sport, number>;
   fatigue: number; // 0..100, entering the match
+  soreness?: number; // 0..100, entering the match
   /** 0..1 — slows in-match energy burn; see `staminaEnergyMult` and, for
    * tournament play, `staminaRecoveryMult` (systems/effects.ts) */
   stamina: number;
@@ -115,6 +116,7 @@ export function matchRefFromPlayer(player: Player, age: number): MatchPlayerRef 
     skills: { ...player.attributes.skills },
     formBySport: { ...player.condition.formBySport },
     fatigue: player.condition.fatigue,
+    soreness: player.condition.soreness,
     stamina: player.attributes.stamina,
     age,
   };
@@ -247,6 +249,7 @@ function effectiveStrength(
   let eff =
     ref.skills[sport] * formFactor(ref.formBySport[sport]) -
     ref.fatigue * b.fatigueWeight -
+    (ref.soreness ?? 0) * b.sorenessWeight -
     (100 - energy) * b.energyWeight +
     t.eff +
     matchAgeModifier(ref.age);
@@ -301,7 +304,7 @@ export function playPoint(m: MatchState): PointOutcome | null {
     const baseCost =
       BALANCE.match.energyCostPerPoint[sport] *
       BALANCE.match.tacticEnergyMult[sport][m.tactics[side]] *
-      staminaEnergyMult(m.players[side].stamina);
+      staminaEnergyMult(m.players[side].stamina ?? 0.5);
     const controlMult =
       side === winner
         ? 1 - controlEnergy.winnerDiscount * control
