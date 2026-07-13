@@ -39,13 +39,21 @@
     "money": -6,
     "injuryLoad": 1.5
   },
-  "physical": {
-    "id": "physical",
-    "label": "Physical training",
-    "short": "PT",
-    "fatigue": 8,
+  "gym": {
+    "id": "gym",
+    "label": "Gym",
+    "short": "Gym",
+    "fatigue": 6,
     "money": -3,
-    "injuryLoad": 2
+    "injuryLoad": 1.5
+  },
+  "cardio": {
+    "id": "cardio",
+    "label": "Cardio",
+    "short": "Run",
+    "fatigue": 5,
+    "money": 0,
+    "injuryLoad": 1.2
   },
   "rest": {
     "id": "rest",
@@ -69,14 +77,6 @@
     "short": "Soc",
     "fatigue": -3,
     "money": -10,
-    "injuryLoad": 0
-  },
-  "errands": {
-    "id": "errands",
-    "label": "Errands",
-    "short": "Err",
-    "fatigue": 2,
-    "money": -5,
     "injuryLoad": 0
   }
 }

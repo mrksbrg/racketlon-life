@@ -73,6 +73,10 @@ export function simulateWeek(
     fatigue: human.condition.fatigue,
     money: state.career.money,
     formBySport: { ...human.condition.formBySport },
+    trainableAttributes: {
+      stamina: human.attributes.stamina,
+      coreStrength: human.attributes.coreStrength,
+    },
   };
   const plans = new Map<string, ActivityCounts>();
   const outputs: WeekOutputs = {};

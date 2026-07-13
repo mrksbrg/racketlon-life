@@ -17,11 +17,11 @@
   --tn: #38bdf8;
 
   /* other activities */
-  --physical: #fb7185;
+  --gym: #fb7185;
+  --cardio: #22c55e;
   --rest: #334155;
   --work: #94a3b8;
   --social: #f0abfc;
-  --errands: #a8a29e;
 }
 
 * {

@@ -5,22 +5,22 @@ export type ActivityType =
   | "trainBD"
   | "trainSQ"
   | "trainTN"
-  | "physical"
+  | "gym"
+  | "cardio"
   | "rest"
   | "work"
-  | "social"
-  | "errands";
+  | "social";
 
 export const ACTIVITY_TYPES: readonly ActivityType[] = [
   "trainTT",
   "trainBD",
   "trainSQ",
   "trainTN",
-  "physical",
+  "gym",
+  "cardio",
   "rest",
   "work",
   "social",
-  "errands",
 ];
 
 /**

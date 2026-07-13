@@ -37,7 +37,7 @@ Per session: `gain = base × taper(skill, ceiling) × potentialMult × fatigueMu
 sport's hidden soft cap derived from `potential` (`skillCeiling`) — a low-potential
 sport plateaus earlier than a high-potential one, even at identical training. Session
 quality also uses the fatigue a player *brought into* the week — overtraining hurts
-next week, visibly. Physical training gives a small all-sport conditioning gain.
+next week, visibly. Gym/cardio build physical attributes (core strength/stamina) rather than racket-sport skills; squash and, to a smaller extent, badminton maintain stamina at two sessions per week and add a small stamina bonus above that because they are physically demanding. Body-attribute gains taper near the hidden 0..1 ceiling; stamina drifts down when ignored, core strength decays on a slower monthly tick, and both erode slowly with age.
 Level-band crossings emit `training.levelUp`.
 
 Same loop also updates **per-sport form** (0..20, "tournament readiness"): a sport
