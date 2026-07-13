@@ -13,7 +13,7 @@ import type { WeekSummary } from "./model/summary.js";
 import type { Sport } from "./model/sport.js";
 import { SPORTS, levelForSkill, levelProgress, levelRangeForSkill } from "./model/sport.js";
 import type { MatchState } from "./match/engine.js";
-import { simulateWeek } from "./orchestrator.js";
+import { simulateTournamentPreparation, simulateWeek } from "./orchestrator.js";
 import { recoveryAgeMultiplier } from "./systems/age.js";
 import {
   expectedSessionGain,
@@ -447,6 +447,7 @@ export class Game {
    * whenever no tournament is active. */
   private siblingSessions: Map<DivisionCode, TournamentSession> = new Map();
   private weekSnapshot: HumanSnapshot | null = null;
+  private tournamentPreparationDone = false;
 
   private constructor(
     private readonly state: GameState,
@@ -969,6 +970,17 @@ export class Game {
    * the human's first-round MatchState for the UI to play interactively.
    * Only callable once registered — see `registeredTournamentThisWeek`.
    */
+  prepareAndEnterTournament(plan: PlayerPlan): MatchState {
+    const def = this.registeredTournamentThisWeek();
+    if (!def) throw new Error("Not registered for a tournament this week");
+    if (!this.tournamentPreparationDone) {
+      const snapshot = this.ensureWeekSnapshot();
+      simulateTournamentPreparation(this.state, plan, this.content, this.log, snapshot);
+      this.tournamentPreparationDone = true;
+    }
+    return this.enterTournament();
+  }
+
   enterTournament(): MatchState {
     const def = this.registeredTournamentThisWeek();
     if (!def) throw new Error("Not registered for a tournament this week");
@@ -1074,6 +1086,7 @@ export class Game {
     const snapshot = this.ensureWeekSnapshot();
     const outcome = simulateWeek(this.state, plan, this.content, this.log, snapshot);
     this.weekSnapshot = null;
+    this.tournamentPreparationDone = false;
     return outcome.summary;
   }
 

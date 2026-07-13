@@ -369,6 +369,19 @@ describe("tournament facade flow", () => {
     expect(game.you.money).toBe(before - 300);
   });
 
+  it("applies planned tournament-week preparation before the first match", () => {
+    const game = Game.newGame({ content: testContent, seed: "tour-prep" });
+    registerAndAdvanceTo(game, 3);
+    const before = game.you.money;
+    const ttBefore = game.you.sports.tt.level + game.you.sports.tt.progress;
+    const prepPlan = planWith({ trainTT: 3, rest: 18 });
+
+    game.prepareAndEnterTournament(prepPlan);
+
+    expect(game.you.money).toBe(before - 3 * 60 - BALANCE.economy.weeklyExpenses - 300);
+    expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBeGreaterThan(ttBefore);
+  });
+
   it("deducts entry fee plus travel cost for a foreign tournament", () => {
     const game = Game.newGame({ content: testContent, seed: "tour-2b" });
     registerAndAdvanceTo(game, 20); // intl-open-1 — NO, foreign to the SE default human

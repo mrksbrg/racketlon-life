@@ -101,7 +101,7 @@ export interface InboxMessage {
   id: string;
   /** week the message arrived */
   week: number;
-  category: "welcome" | "invitation" | "ranking" | "result" | "coach";
+  category: "welcome" | "invitation" | "ranking" | "result" | "coach" | "draw";
   from: string;
   subject: string;
   body: string;
