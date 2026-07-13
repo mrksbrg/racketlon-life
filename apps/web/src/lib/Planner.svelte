@@ -49,12 +49,10 @@
       <button class="hub-card" title="Finances will become a dedicated section in Home">
         <span class="hub-label">Money</span>
         <strong class:negative={store.you.money < 0}>{formatMoney(store.you.money)}</strong>
-        <small>This week’s budget belongs here.</small>
       </button>
       <button class="hub-card" title="Health will become a dedicated section in Home">
         <span class="hub-label">Health</span>
         <strong>⚡ {store.you.fatigue} · 💢 {store.you.soreness}</strong>
-        <small>Recovery, form, and injury risk.</small>
       </button>
     </section>
   {/if}
@@ -142,7 +140,7 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
-    min-height: 78px;
+    min-height: 58px;
     padding: 11px 12px;
     border-radius: 14px;
     background: var(--card);
@@ -166,11 +164,6 @@
     color: var(--danger);
   }
 
-  .hub-card small {
-    color: var(--muted);
-    font-size: 11px;
-    line-height: 1.25;
-  }
 
   .travel-note {
     display: block;

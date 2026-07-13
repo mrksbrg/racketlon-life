@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Inbox from "./Inbox.svelte";
   import StatusBar from "./StatusBar.svelte";
   import TabBar from "./TabBar.svelte";
 </script>
@@ -15,13 +14,6 @@
   </div>
 
   <section class="sections" aria-label="World sections">
-    <article class="section active">
-      <span class="icon">✉</span>
-      <div>
-        <h3>Inbox</h3>
-        <p>Invitations, draw notes, ranking digests, and world news.</p>
-      </div>
-    </article>
     <article class="section muted">
       <span class="icon">🤝</span>
       <div>
@@ -44,8 +36,6 @@
       </div>
     </article>
   </section>
-
-  <Inbox embedded />
 </main>
 
 <TabBar />
@@ -76,7 +66,7 @@
 
   .sections {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 14px;
   }
@@ -89,10 +79,6 @@
     border-radius: 14px;
     background: var(--card);
     border: 1px solid var(--border);
-  }
-
-  .section.active {
-    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
   }
 
   .section.muted {

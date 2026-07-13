@@ -16,7 +16,10 @@
   } from "./ui";
 
   type StatView = "lifetime" | "byYear";
+  type MeSection = "characteristics" | "statistics" | "trophies";
+
   let statView = $state<StatView>("lifetime");
+  let section = $state<MeSection>("characteristics");
 
   const you = $derived(store.you);
   const stats = $derived(store.careerStats);
@@ -81,6 +84,14 @@
         <div class="side-cap">Balance</div>
       </div>
     </section>
+
+    <nav class="section-tabs" aria-label="Me sections">
+      <button class:on={section === "characteristics"} onclick={() => (section = "characteristics")}>Characteristics</button>
+      <button class:on={section === "statistics"} onclick={() => (section = "statistics")}>Statistics</button>
+      <button class:on={section === "trophies"} onclick={() => (section = "trophies")}>Prize cabinet</button>
+    </nav>
+
+    {#if section === "characteristics"}
 
     <!-- Sports: levels + Glicko -->
     <section class="card">
@@ -177,6 +188,7 @@
         <div class="injury">{formatInjury(you.injury)}</div>
       {/if}
     </section>
+    {:else if section === "statistics"}
 
     <!-- Career stats -->
     <section class="card">
@@ -223,6 +235,7 @@
     </section>
 
     <!-- Trophy cabinet -->
+    {:else if section === "trophies"}
     {#if trophies.length > 0}
       <section class="card">
         <h2>Trophy cabinet</h2>
@@ -238,10 +251,14 @@
           {/each}
         </div>
       </section>
+    {:else}
+      <section class="card"><p class="empty">No trophies yet — podium finishes will appear here.</p></section>
+    {/if}
+
     {/if}
 
     <!-- Results -->
-    {#if stats.results.length > 0}
+    {#if section === "statistics" && stats.results.length > 0}
       <section class="card">
         <h2>Results</h2>
         <div class="results">
@@ -262,7 +279,7 @@
     {/if}
 
     <!-- Recent matches -->
-    {#if store.recentMatches.length > 0}
+    {#if section === "statistics" && store.recentMatches.length > 0}
       <section class="card">
         <h2>Recent matches</h2>
         <div class="matches">
@@ -438,6 +455,28 @@
 
   .side-num.money.negative {
     color: var(--danger);
+  }
+
+  .section-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .section-tabs button {
+    min-height: 44px;
+    padding: 8px 6px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .section-tabs button.on {
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   /* Cards */

@@ -29,10 +29,12 @@
         <div class="week">{store.weekLabel}</div>
       </div>
       <div class="right">
-        <div class="money" class:negative={store.you.money < 0}>
-          {formatMoney(store.you.money)}
-        </div>
-        <button class="inbox" onclick={() => store.goToTab("world")} title="Open inbox">
+        {#if store.screen !== "planner"}
+          <div class="money" class:negative={store.you.money < 0}>
+            {formatMoney(store.you.money)}
+          </div>
+        {/if}
+        <button class="inbox" onclick={() => store.openInbox()} title="Open inbox">
           <span class="envelope">✉</span>
           {#if store.unreadCount > 0}
             <span class="badge">{store.unreadCount > 9 ? "9+" : store.unreadCount}</span>

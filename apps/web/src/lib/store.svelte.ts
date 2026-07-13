@@ -416,10 +416,21 @@ class GameStore {
     this.screen = "planner";
   }
 
-  /** Bottom tab bar navigation — only valid while already on a tab screen. */
+  /** Bottom tab bar navigation — valid on tabs and from lightweight modal-like flows such as inbox. */
   goToTab(screen: TabScreen): void {
-    if (!TAB_SCREENS.includes(this.screen)) return;
+    if (!TAB_SCREENS.includes(this.screen) && this.screen !== "inbox") return;
     this.screen = screen;
+  }
+
+  /** Opens the global inbox as a separate flow so the bottom nav can stay focused. */
+  openInbox(): void {
+    this.previousScreen = this.screen;
+    this.screen = "inbox";
+  }
+
+  /** Returns from the inbox to the screen that opened it. */
+  closeInbox(): void {
+    this.screen = this.previousScreen;
   }
 
   /** Opens a public profile for another player — reachable from a draw, a
