@@ -263,7 +263,7 @@ export const BALANCE = {
      * badminton/squash/tennis feel it much more, squash most of all.
      */
     tactics: {
-      conserve: { eff: -14, chaos: 0 },
+      conserve: { eff: -80, chaos: 0 },
       safe: { eff: -8, chaos: 0 },
       normal: { eff: 0, chaos: 0 },
       aggressive: { eff: 8, chaos: 25 },
