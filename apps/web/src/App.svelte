@@ -10,6 +10,7 @@
   import Rankings from "./lib/Rankings.svelte";
   import Summary from "./lib/Summary.svelte";
   import Tour from "./lib/Tour.svelte";
+  import World from "./lib/World.svelte";
   import { store } from "./lib/store.svelte";
 
   onMount(() => {
@@ -29,6 +30,8 @@
   <Rankings />
 {:else if store.screen === "inbox"}
   <Inbox />
+{:else if store.screen === "world"}
+  <World />
 {:else if store.screen === "me"}
   <Me />
 {:else if store.screen === "simulating"}

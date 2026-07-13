@@ -53,6 +53,7 @@ export type Screen =
   | "tour"
   | "rankings"
   | "inbox"
+  | "world"
   | "me"
   | "simulating"
   | "summary"
@@ -62,10 +63,10 @@ export type Screen =
 
 /** Screens reachable from the bottom tab bar (docs/07's nav model — full-screen
  * flows like match/summary/create run over the top, without it). */
-export type TabScreen = "planner" | "tour" | "rankings" | "inbox" | "me";
+export type TabScreen = "planner" | "tour" | "rankings" | "world" | "me";
 
 /** Screens that show the persistent bottom tab bar. */
-export const TAB_SCREENS: readonly Screen[] = ["planner", "tour", "rankings", "inbox", "me"];
+export const TAB_SCREENS: readonly Screen[] = ["planner", "tour", "rankings", "world", "me"];
 
 export type MatchSpeed = 1 | 2 | 3;
 
