@@ -44,9 +44,22 @@
     return row[key];
   }
 
-  const sortedRows = $derived.by(() => {
+  function valueFor(row: (typeof rows)[number], key: SortKey): number {
+    if (key === "tt" || key === "bd" || key === "sq" || key === "tn") return row.sportRatings[key];
+    return row[key];
+  }
+
+  const rankedRows = $derived.by(() => {
     const dir = sortDir === "desc" ? -1 : 1;
     return [...rows].sort((a, b) => dir * (valueFor(a, sortKey) - valueFor(b, sortKey)) || a.rank - b.rank);
+  });
+  const pageCount = $derived(Math.max(1, Math.ceil(rankedRows.length / PAGE_SIZE)));
+  const safePage = $derived(Math.min(page, pageCount - 1));
+  const visibleRows = $derived(rankedRows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE));
+  const pageButtons = $derived.by(() => {
+    const start = Math.max(0, Math.min(safePage - 3, pageCount - 7));
+    const end = Math.min(pageCount, start + 7);
+    return Array.from({ length: end - start }, (_, i) => start + i);
   });
   const pageCount = $derived(Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE)));
   const safePage = $derived(Math.min(page, pageCount - 1));
@@ -56,6 +69,23 @@
     const end = Math.min(pageCount, start + 7);
     return Array.from({ length: end - start }, (_, i) => start + i);
   });
+
+  function defaultSort(next: RankingView): SortKey {
+    if (next === "race") return "racePoints";
+    if (next === "ratings") return "rating";
+    return "points";
+  }
+
+  function selectView(next: RankingView) {
+    view = next;
+    sortKey = defaultSort(next);
+    sortDir = "desc";
+    page = 0;
+  }
+
+  function setPage(next: number) {
+    page = Math.max(0, Math.min(next, pageCount - 1));
+  }
 
   function defaultSort(next: RankingView): SortKey {
     if (next === "race") return "racePoints";
@@ -123,7 +153,7 @@
     </div>
 
     <div class="range-note">
-      Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, sortedRows.length)} of {sortedRows.length}
+      Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, rankedRows.length)} of {rankedRows.length}
     </div>
 
     <div class="table" class:wide={view === "ratings"}>
