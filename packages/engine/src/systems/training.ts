@@ -36,7 +36,8 @@ export const TrainingSystem: GameSystem = {
           }
           sessionsBySport[def.sport] += sessions;
           trainSport(ctx, player, def.sport, def.trainingBase, sessions);
-          if (applySportStaminaGain(player, def.sport, sessions) > 0) trainedAttributes.add("stamina");
+          if (sportMaintainsStamina(def.sport, sessions)) trainedAttributes.add("stamina");
+          applySportStaminaBonus(player, def.sport, sessions);
         } else if (type === "gym") {
           player.attributes.coreStrength = clamp(
             player.attributes.coreStrength + BALANCE.training.gymCoreStrengthGain * sessions,
@@ -55,7 +56,7 @@ export const TrainingSystem: GameSystem = {
           }
         }
       }
-      decayUntrainedAttributes(player, trainedAttributes);
+      decayUntrainedAttributes(ctx, player, trainedAttributes);
       updateForm(ctx, player, sessionsBySport);
 
       if (player.identity.id === ctx.state.career.playerId) {
@@ -140,16 +141,23 @@ function applyGain(ctx: SystemContext, player: Player, sport: Sport, gain: numbe
   return after - before;
 }
 
-function decayUntrainedAttributes(player: Player, trainedAttributes: Set<TrainableAttribute>): void {
+function decayUntrainedAttributes(ctx: SystemContext, player: Player, trainedAttributes: Set<TrainableAttribute>): void {
   const decay = BALANCE.training.attributeDecayUntrained;
   if (!trainedAttributes.has("stamina")) player.attributes.stamina = clamp(player.attributes.stamina - decay, 0, 1);
-  if (!trainedAttributes.has("coreStrength")) {
+
+  const isCoreDecayWeek = (ctx.state.calendar.weekIndex + 1) % BALANCE.training.coreStrengthDecayIntervalWeeks === 0;
+  if (isCoreDecayWeek && !trainedAttributes.has("coreStrength")) {
     player.attributes.coreStrength = clamp(player.attributes.coreStrength - decay, 0, 1);
   }
 }
 
-function applySportStaminaGain(player: Player, sport: Sport, sessions: number): number {
-  const base = BALANCE.training.sportStaminaGain[sport] * sessions;
+function sportMaintainsStamina(sport: Sport, sessions: number): boolean {
+  return BALANCE.training.sportStaminaBonus[sport] > 0 && sessions >= BALANCE.training.sportStaminaMaintainSessions;
+}
+
+function applySportStaminaBonus(player: Player, sport: Sport, sessions: number): number {
+  const bonusSessions = Math.max(0, sessions - BALANCE.training.sportStaminaMaintainSessions);
+  const base = BALANCE.training.sportStaminaBonus[sport] * bonusSessions;
   if (base <= 0) return 0;
   return applyStaminaGain(player, taperedAttributeGain(player.attributes.stamina, base));
 }
