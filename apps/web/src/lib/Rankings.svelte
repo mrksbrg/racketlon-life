@@ -23,13 +23,10 @@
   let sortDir = $state<SortDir>("desc");
   let page = $state(0);
 
-  const rows = $derived(store.rankings);
-  const youId = $derived(store.you?.id);
-  const primaryKey = $derived<SortKey>(view === "fir" ? "points" : "rating");
-
-  const rankedRows = $derived.by(() => {
+  const rankingModel = $derived.by(() => {
+    const rows = store.rankings;
     const dir = sortDir === "desc" ? -1 : 1;
-    return [...rows].sort((a, b) => {
+    const rankedRows = [...rows].sort((a, b) => {
       const aValue =
         sortKey === "tt" || sortKey === "bd" || sortKey === "sq" || sortKey === "tn"
           ? a.sportRatings[sortKey]
@@ -40,40 +37,17 @@
           : b[sortKey];
       return dir * (aValue - bValue) || a.rank - b.rank;
     });
-  });
-  const pageCount = $derived(Math.max(1, Math.ceil(rankedRows.length / PAGE_SIZE)));
-  const safePage = $derived(Math.min(page, pageCount - 1));
-  const visibleRows = $derived(rankedRows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE));
-  const pageButtons = $derived.by(() => {
+    const pageCount = Math.max(1, Math.ceil(rankedRows.length / PAGE_SIZE));
+    const safePage = Math.min(page, pageCount - 1);
+    const visibleRows = rankedRows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE);
     const start = Math.max(0, Math.min(safePage - 3, pageCount - 7));
     const end = Math.min(pageCount, start + 7);
-    return Array.from({ length: end - start }, (_, i) => start + i);
-  });
-  const pageCount = $derived(Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE)));
-  const safePage = $derived(Math.min(page, pageCount - 1));
-  const visibleRows = $derived(sortedRows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE));
-  const pageButtons = $derived.by(() => {
-    const start = Math.max(0, Math.min(safePage - 3, pageCount - 7));
-    const end = Math.min(pageCount, start + 7);
-    return Array.from({ length: end - start }, (_, i) => start + i);
+    const pageButtons = Array.from({ length: end - start }, (_, i) => start + i);
+
+    return { rows, rankedRows, pageCount, safePage, visibleRows, pageButtons };
   });
 
-  function defaultSort(next: RankingView): SortKey {
-    if (next === "race") return "racePoints";
-    if (next === "ratings") return "rating";
-    return "points";
-  }
-
-  function selectView(next: RankingView) {
-    view = next;
-    sortKey = defaultSort(next);
-    sortDir = "desc";
-    page = 0;
-  }
-
-  function setPage(next: number) {
-    page = Math.max(0, Math.min(next, pageCount - 1));
-  }
+  const youId = $derived(store.you?.id);
 
   function defaultSort(next: RankingView): SortKey {
     if (next === "race") return "racePoints";
@@ -89,24 +63,7 @@
   }
 
   function setPage(next: number) {
-    page = Math.max(0, Math.min(next, pageCount - 1));
-  }
-
-  function defaultSort(next: RankingView): SortKey {
-    if (next === "race") return "racePoints";
-    if (next === "ratings") return "rating";
-    return "points";
-  }
-
-  function selectView(next: RankingView) {
-    view = next;
-    sortKey = defaultSort(next);
-    sortDir = "desc";
-    page = 0;
-  }
-
-  function setPage(next: number) {
-    page = Math.max(0, Math.min(next, pageCount - 1));
+    page = Math.max(0, Math.min(next, rankingModel.pageCount - 1));
   }
 
   function sortBy(key: SortKey) {
@@ -142,23 +99,23 @@
     <button class:on={view === "ratings"} onclick={() => selectView("ratings")}>Ratings</button>
   </div>
 
-  {#if rows.length === 0}
+  {#if rankingModel.rows.length === 0}
     <p class="empty">No counted results yet in this ladder — play a tournament to appear here.</p>
   {:else}
     <div class="pager" aria-label="Ranking pages">
-      <button disabled={safePage === 0} onclick={() => setPage(0)}>▌◀</button>
-      <button disabled={safePage === 0} onclick={() => setPage(Math.max(0, safePage - 5))}>◀◀</button>
-      <button disabled={safePage === 0} onclick={() => setPage(safePage - 1)}>◀</button>
-      {#each pageButtons as p (p)}
-        <button class:on={safePage === p} onclick={() => setPage(p)}>{p + 1}</button>
+      <button disabled={rankingModel.safePage === 0} onclick={() => setPage(0)}>▌◀</button>
+      <button disabled={rankingModel.safePage === 0} onclick={() => setPage(Math.max(0, rankingModel.safePage - 5))}>◀◀</button>
+      <button disabled={rankingModel.safePage === 0} onclick={() => setPage(rankingModel.safePage - 1)}>◀</button>
+      {#each rankingModel.pageButtons as p (p)}
+        <button class:on={rankingModel.safePage === p} onclick={() => setPage(p)}>{p + 1}</button>
       {/each}
-      <button disabled={safePage >= pageCount - 1} onclick={() => setPage(safePage + 1)}>▶</button>
-      <button disabled={safePage >= pageCount - 1} onclick={() => setPage(Math.min(pageCount - 1, safePage + 5))}>▶▶</button>
-      <button disabled={safePage >= pageCount - 1} onclick={() => setPage(pageCount - 1)}>▶▌</button>
+      <button disabled={rankingModel.safePage >= rankingModel.pageCount - 1} onclick={() => setPage(rankingModel.safePage + 1)}>▶</button>
+      <button disabled={rankingModel.safePage >= rankingModel.pageCount - 1} onclick={() => setPage(Math.min(rankingModel.pageCount - 1, rankingModel.safePage + 5))}>▶▶</button>
+      <button disabled={rankingModel.safePage >= rankingModel.pageCount - 1} onclick={() => setPage(rankingModel.pageCount - 1)}>▶▌</button>
     </div>
 
     <div class="range-note">
-      Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, rankedRows.length)} of {rankedRows.length}
+      Showing {rankingModel.safePage * PAGE_SIZE + 1}–{Math.min((rankingModel.safePage + 1) * PAGE_SIZE, rankingModel.rankedRows.length)} of {rankingModel.rankedRows.length}
     </div>
 
     <div class="table" class:wide={view === "ratings"}>
@@ -177,9 +134,9 @@
           {/each}
         {/if}
       </div>
-      {#each visibleRows as row, index (row.playerId)}
+      {#each rankingModel.visibleRows as row, index (row.playerId)}
         <button class="row" class:you={row.playerId === youId} onclick={() => store.viewOpponent(row.playerId)}>
-          <span class="c-rank">{safePage * PAGE_SIZE + index + 1}</span>
+          <span class="c-rank">{rankingModel.safePage * PAGE_SIZE + index + 1}</span>
           <span class="c-name">{flagEmoji(row.nationality)} {row.name}</span>
           {#if view === "fir"}
             <span class="c-num primary">{row.points}</span>
