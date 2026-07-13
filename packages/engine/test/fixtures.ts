@@ -45,6 +45,7 @@ export const testContent: ContentBundle = {
     rest: { id: "rest", label: "Rest", short: "—", fatigue: -6, money: 0, injuryLoad: 0 },
     work: { id: "work", label: "Work", short: "Job", fatigue: 4, money: 800, injuryLoad: 0 },
     social: { id: "social", label: "Social", short: "Soc", fatigue: -3, money: -100, injuryLoad: 0 },
+    travel: { id: "travel", label: "Travel", short: "Travel", fatigue: 8, money: 0, injuryLoad: 0 },
   },
   names: {
     SE: { m: ["Test"], f: ["Test"], last: ["Player"] },

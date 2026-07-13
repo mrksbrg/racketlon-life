@@ -30,6 +30,7 @@ export const activitiesSchema = z.object({
   rest: activitySchema,
   work: activitySchema,
   social: activitySchema,
+  travel: activitySchema,
 });
 
 /** Gendered so generated NPCs get a name matching their rolled gender —

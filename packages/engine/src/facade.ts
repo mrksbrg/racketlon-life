@@ -3,10 +3,10 @@ import type { ContentBundle, TraitCategory, TraitTone } from "./content.js";
 import { ageOn, dateForWeek, weekLabel, weekLabelAt, yearOfWeek } from "./core/date.js";
 import type { EventLog, GameEvent } from "./core/events.js";
 import { eventsForWeek } from "./core/events.js";
-import type { GameState, InboxMessage } from "./core/state.js";
+import type { GameState, InboxMessage, TravelBlock } from "./core/state.js";
 import { SAVE_VERSION, getPlayer, humanPlayer } from "./core/state.js";
 import type { ActivityCounts, PlayerPlan } from "./model/plan.js";
-import { countsFromSlots } from "./model/plan.js";
+import { countsFromSlots, slotIndex } from "./model/plan.js";
 import type { Player } from "./model/player.js";
 import { fullName } from "./model/player.js";
 import type { WeekSummary } from "./model/summary.js";
@@ -25,8 +25,8 @@ import {
 import { combinedRating } from "./systems/ranking.js";
 import { firRacePointsTotal, firWorldRanking } from "./systems/ranking-points.js";
 import type { HumanSnapshot } from "./systems/types.js";
-import type { TravelCost } from "./systems/travel.js";
-import { travelCost } from "./systems/travel.js";
+import type { TravelCost, TravelDays } from "./systems/travel.js";
+import { travelCost, travelDays } from "./systems/travel.js";
 import type {
   DivisionCode,
   DrawRound,
@@ -292,6 +292,8 @@ export interface TourEntry {
    * systems/travel.ts. Identical across every division of one event (they
    * share a host city), so it doesn't vary per `eligibleDivisions` entry. */
   travelCost: TravelCost;
+  /** forced travel days on each side of the trip: 0 for a car drive, 1 within a continent, 2 intercontinental. */
+  travelDays: TravelDays;
   /** every class the human may register for — their own division first,
    * then progressively tougher ones ("playing up"). Always at least one
    * entry. See `humanEligibleDivisions`. */
@@ -437,6 +439,25 @@ export interface NewGameOptions {
   seed?: string;
   playerName?: { first: string; last: string };
   character?: CharacterDraft;
+}
+
+function outboundTravelSlots(days: TravelDays): number[] {
+  const travelDays = days === 2 ? [3, 4] : days === 1 ? [4] : [];
+  return travelDays.flatMap((day) => [0, 1, 2].map((period) => slotIndex(day, period)));
+}
+
+function returnTravelSlots(days: TravelDays): number[] {
+  const travelDays = days === 2 ? [0, 1] : days === 1 ? [0] : [];
+  return travelDays.flatMap((day) => [0, 1, 2].map((period) => slotIndex(day, period)));
+}
+
+function applyTravelBlocks(plan: PlayerPlan, blocks: readonly TravelBlock[]): PlayerPlan {
+  if (blocks.length === 0) return plan;
+  const slots = [...plan.slots];
+  for (const block of blocks) {
+    for (const index of block.slotIndices) slots[index] = "travel";
+  }
+  return { slots };
 }
 
 export class Game {
@@ -802,6 +823,21 @@ export class Game {
     };
   }
 
+  travelBlocksThisWeek(): TravelBlock[] {
+    const week = this.state.calendar.weekIndex;
+    const blocks = this.state.career.travelBlocks.filter((block) => block.weekIndex === week);
+    const entry = this.state.career.tournamentEntries.find((e) => e.weekIndex === week);
+    if (entry) {
+      const def = this.content.tournaments[entry.tournamentId];
+      if (def) {
+        const days = travelDays(humanPlayer(this.state).identity.nationality, def, this.content);
+        const slotIndices = outboundTravelSlots(days);
+        if (slotIndices.length > 0) blocks.push({ weekIndex: week, slotIndices });
+      }
+    }
+    return blocks;
+  }
+
   /**
    * The real-calendar tournament landing this week, if any — regardless of
    * whether the human registered for it. Informational only; whether it can
@@ -870,6 +906,7 @@ export class Game {
         status,
         entrants: rankedEntrants(projectedField(this.state, def, weekIndex, this.content), standings),
         travelCost: travelCost(homeCountry, def, this.content),
+        travelDays: travelDays(homeCountry, def, this.content),
         eligibleDivisions: eligible.map((eligibleDef) => ({
           def: eligibleDef,
           entrants: rankedEntrants(safeProjectedField(this.state, eligibleDef, weekIndex, this.content), standings),
@@ -975,7 +1012,7 @@ export class Game {
     if (!def) throw new Error("Not registered for a tournament this week");
     if (!this.tournamentPreparationDone) {
       const snapshot = this.ensureWeekSnapshot();
-      simulateTournamentPreparation(this.state, plan, this.content, this.log, snapshot);
+      simulateTournamentPreparation(this.state, applyTravelBlocks(plan, this.travelBlocksThisWeek()), this.content, this.log, snapshot);
       this.tournamentPreparationDone = true;
     }
     return this.enterTournament();
@@ -985,6 +1022,10 @@ export class Game {
     const def = this.registeredTournamentThisWeek();
     if (!def) throw new Error("Not registered for a tournament this week");
     this.ensureWeekSnapshot();
+    const returnSlots = returnTravelSlots(travelDays(humanPlayer(this.state).identity.nationality, def, this.content));
+    if (returnSlots.length > 0 && !this.state.career.travelBlocks.some((b) => b.weekIndex === this.state.calendar.weekIndex + 1)) {
+      this.state.career.travelBlocks.push({ weekIndex: this.state.calendar.weekIndex + 1, slotIndices: returnSlots });
+    }
     this.tournamentSession = startTournament(this.state, def, this.content, this.log);
     const match = this.tournamentSession.pendingMatch;
     if (!match) throw new Error("Tournament started with no pending match");

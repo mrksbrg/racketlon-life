@@ -12,6 +12,12 @@
   let picking = $state<number | null>(null);
 
   const tournamentEntry = $derived(store.tourEntries.find((e) => e.isThisWeek) ?? null);
+  const travelSlots = $derived(new Set(store.travelBlocksThisWeek.flatMap((block) => block.slotIndices)));
+
+  function openPicker(index: number) {
+    if (travelSlots.has(index)) return;
+    picking = index;
+  }
 
   function pick(activity: ActivityType) {
     if (picking !== null) store.setSlot(picking, activity);
@@ -26,8 +32,8 @@
     {@const t = store.registeredTournamentThisWeek}
     <div class="tournament-missed tournament-ready">
       <strong>🏆 {t.name} week:</strong> plan any last sessions before you press Play. Training can sharpen form, but fatigue and injury risk still count.
-      {#if tournamentEntry.travelCost.total > 0}
-        <span class="travel-note">Travel booked: keep space around the event for the trip out and the trip home.</span>
+      {#if tournamentEntry.travelDays > 0}
+        <span class="travel-note">Travel booked: {tournamentEntry.travelDays === 2 ? "two travel days" : "one travel day"} each way are blocked around the event.</span>
       {/if}
       <span class="travel-note">Check the draw email in your inbox, then tune the week for the players in your field.</span>
     </div>
@@ -53,12 +59,14 @@
       <div class="row-head">{day}</div>
       {#each PERIODS as period, p (period)}
         {@const i = slotIndex(d, p)}
-        {@const activity = store.slots[i] ?? "rest"}
+        {@const activity = travelSlots.has(i) ? "travel" : (store.slots[i] ?? "rest")}
         <button
           class="slot"
           class:is-rest={activity === "rest"}
+          class:is-travel={activity === "travel"}
+          disabled={travelSlots.has(i)}
           style:--slot-color={ACTIVITY_COLORS[activity]}
-          onclick={() => (picking = i)}
+          onclick={() => openPicker(i)}
         >
           {defaultContent.activities[activity].short}
         </button>
@@ -162,6 +170,12 @@
     min-height: 44px;
     font-weight: 700;
     font-size: 13px;
+  }
+
+  .slot.is-travel {
+    background: color-mix(in srgb, var(--muted) 28%, var(--card));
+    border: 1px solid color-mix(in srgb, var(--muted) 55%, var(--border));
+    color: var(--text);
   }
 
   .slot.is-rest {

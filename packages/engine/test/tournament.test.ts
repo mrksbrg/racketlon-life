@@ -23,6 +23,7 @@ import {
   projectedField,
   seedBracket,
   simulateMatchAuto,
+  slotIndex,
   SPORTS,
   startSiblingSession,
   startTournament,
@@ -380,6 +381,53 @@ describe("tournament facade flow", () => {
 
     expect(game.you.money).toBe(before - 3 * 60 - BALANCE.economy.weeklyExpenses - 300);
     expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBeGreaterThan(ttBefore);
+  });
+
+  it("blocks two outbound and return travel days for an intercontinental tournament", () => {
+    const content: ContentBundle = {
+      ...testContent,
+      countries: {
+        ...testContent.countries,
+        AT: { name: "Austria", lat: 47.5, lon: 14.5, costIndex: 1 },
+        NZ: { name: "New Zealand", lat: -41.3, lon: 174.8, costIndex: 1.2 },
+      },
+      tournaments: Object.fromEntries(
+        Object.entries(testContent.tournaments).map(([id, def]) =>
+          id.startsWith("monthly-open-1")
+            ? [id, { ...def, country: "NZ", lat: -36.8, lon: 174.8 }]
+            : [id, def],
+        ),
+      ),
+    };
+    const character: CharacterDraft = {
+      firstName: "Verena",
+      lastName: "Pichler",
+      gender: "f",
+      nationality: "AT",
+      birthDate: "2004-01-01",
+      sports: { tt: 10, bd: 10, sq: 10, tn: 10 },
+      stamina: 10,
+      coreStrength: 10,
+      intelligence: 10,
+      clutch: 10,
+      composure: 10,
+      resilience: 10,
+      traits: [],
+    };
+    const game = Game.newGame({ content, character, seed: "tour-long-haul" });
+
+    registerAndAdvanceTo(game, 3);
+    expect(game.travelBlocksThisWeek()[0]?.slotIndices).toEqual([
+      slotIndex(3, 0), slotIndex(3, 1), slotIndex(3, 2),
+      slotIndex(4, 0), slotIndex(4, 1), slotIndex(4, 2),
+    ]);
+
+    game.enterTournament();
+    game.submitWeek(WORK_PLAN);
+    expect(game.travelBlocksThisWeek()[0]?.slotIndices).toEqual([
+      slotIndex(0, 0), slotIndex(0, 1), slotIndex(0, 2),
+      slotIndex(1, 0), slotIndex(1, 1), slotIndex(1, 2),
+    ]);
   });
 
   it("deducts entry fee plus travel cost for a foreign tournament", () => {

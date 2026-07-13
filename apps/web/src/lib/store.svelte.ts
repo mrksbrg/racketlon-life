@@ -20,6 +20,7 @@ import type {
   Tactic,
   TourEntry,
   TournamentDef,
+  TravelBlock,
   TrainedWeekView,
   TrophyView,
   WeekSummary,
@@ -302,6 +303,12 @@ class GameStore {
   readonly weekLabel: string = $derived.by(() => {
     this.version;
     return this.game ? this.game.weekLabel : "";
+  });
+
+
+  readonly travelBlocksThisWeek: TravelBlock[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.travelBlocksThisWeek() : [];
   });
 
   readonly weekIndex: number = $derived.by(() => {

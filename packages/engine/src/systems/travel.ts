@@ -16,6 +16,8 @@ export interface TravelCost {
   total: number;
 }
 
+export type TravelDays = 0 | 1 | 2;
+
 const ZERO: TravelCost = { flight: 0, stay: 0, total: 0 };
 
 function toRad(deg: number): number {
@@ -55,4 +57,24 @@ export function travelCost(
   const flight = Math.round(BALANCE.travel.baseFare + BALANCE.travel.perKm * km);
   const stay = Math.round(BALANCE.travel.dailyCostBase * def.nights * host.costIndex);
   return { flight, stay, total: flight + stay };
+}
+
+
+/**
+ * Days blocked on each side of a tournament trip. A nearby drive keeps the
+ * week free, a within-continent trip costs one day each way, and an
+ * intercontinental trip costs two days each way. Distance is used as the
+ * stable proxy because tournament and country content already carries
+ * lat/lon but not continent metadata.
+ */
+export function travelDays(homeCountry: string, def: TournamentDef, content: ContentBundle): TravelDays {
+  if (def.country === homeCountry) return 0;
+  const home = content.countries[homeCountry];
+  const host = content.countries[def.country];
+  if (!home || !host) return 0;
+
+  const km = distanceKm(home.lat, home.lon, def.lat, def.lon);
+  if (km < 500) return 0;
+  if (km < 4000) return 1;
+  return 2;
 }
