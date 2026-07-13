@@ -4,22 +4,62 @@
   import { store } from "./store.svelte";
   import { flagEmoji } from "./ui";
 
-  type SortKey = "points" | "racePoints" | "rating";
+  type RankingView = "fir" | "race" | "ratings";
+  type SortKey = "points" | "racePoints" | "rating" | "tt" | "bd" | "sq" | "tn";
   type SortDir = "asc" | "desc";
 
+  const PAGE_SIZE = 50;
+
+  const RATING_COLUMNS: { key: SortKey; label: string }[] = [
+    { key: "rating", label: "Total" },
+    { key: "tt", label: "TT" },
+    { key: "bd", label: "BA" },
+    { key: "sq", label: "SQ" },
+    { key: "tn", label: "TE" },
+  ];
+
+  let view = $state<RankingView>("fir");
   let sortKey = $state<SortKey>("points");
   let sortDir = $state<SortDir>("desc");
+  let page = $state(0);
 
   const rows = $derived(store.rankings);
   const youId = $derived(store.you?.id);
 
-  /** Sorts by whichever column was tapped. The leftmost `#` is the row's
-   * visible position in the current sort, so alternate views like Race still
-   * have an easy-to-scan order. */
+  function valueFor(row: (typeof rows)[number], key: SortKey): number {
+    if (key === "tt" || key === "bd" || key === "sq" || key === "tn") return row.sportRatings[key];
+    return row[key];
+  }
+
   const sortedRows = $derived.by(() => {
     const dir = sortDir === "desc" ? -1 : 1;
-    return [...rows].sort((a, b) => dir * (a[sortKey] - b[sortKey]) || a.rank - b.rank);
+    return [...rows].sort((a, b) => dir * (valueFor(a, sortKey) - valueFor(b, sortKey)) || a.rank - b.rank);
   });
+  const pageCount = $derived(Math.max(1, Math.ceil(sortedRows.length / PAGE_SIZE)));
+  const safePage = $derived(Math.min(page, pageCount - 1));
+  const visibleRows = $derived(sortedRows.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE));
+  const pageButtons = $derived.by(() => {
+    const start = Math.max(0, Math.min(safePage - 3, pageCount - 7));
+    const end = Math.min(pageCount, start + 7);
+    return Array.from({ length: end - start }, (_, i) => start + i);
+  });
+
+  function defaultSort(next: RankingView): SortKey {
+    if (next === "race") return "racePoints";
+    if (next === "ratings") return "rating";
+    return "points";
+  }
+
+  function selectView(next: RankingView) {
+    view = next;
+    sortKey = defaultSort(next);
+    sortDir = "desc";
+    page = 0;
+  }
+
+  function setPage(next: number) {
+    page = Math.max(0, Math.min(next, pageCount - 1));
+  }
 
   function sortBy(key: SortKey) {
     if (sortKey === key) {
@@ -28,14 +68,13 @@
       sortKey = key;
       sortDir = "desc";
     }
+    page = 0;
   }
 
-  const ARROW: Record<SortDir, string> = { asc: "▲", desc: "▼" };
-  const COLUMNS: { key: SortKey; label: string }[] = [
-    { key: "points", label: "Points" },
-    { key: "racePoints", label: "Race" },
-    { key: "rating", label: "Glicko" },
-  ];
+  function arrowFor(key: SortKey): string {
+    if (sortKey !== key) return "";
+    return sortDir === "desc" ? "▼" : "▲";
+  }
 </script>
 
 <StatusBar />
@@ -43,37 +82,76 @@
 <main>
   <div class="head">
     <h2>Rankings</h2>
-    <div class="seg">
-      <button class:on={store.rankingsGender === "m"} onclick={() => store.setRankingsGender("m")}>Men</button>
-      <button class:on={store.rankingsGender === "f"} onclick={() => store.setRankingsGender("f")}>Women</button>
+    <div class="seg compact">
+      <button class:on={store.rankingsGender === "m"} onclick={() => { store.setRankingsGender("m"); page = 0; }}>Men</button>
+      <button class:on={store.rankingsGender === "f"} onclick={() => { store.setRankingsGender("f"); page = 0; }}>Women</button>
     </div>
+  </div>
+
+  <div class="seg views" aria-label="Ranking views">
+    <button class:on={view === "fir"} onclick={() => selectView("fir")}>FIR Ranking</button>
+    <button class:on={view === "race"} onclick={() => selectView("race")}>Race</button>
+    <button class:on={view === "ratings"} onclick={() => selectView("ratings")}>Ratings</button>
   </div>
 
   {#if rows.length === 0}
     <p class="empty">No counted results yet in this ladder — play a tournament to appear here.</p>
   {:else}
-    <div class="table">
+    <div class="pager" aria-label="Ranking pages">
+      <button disabled={safePage === 0} onclick={() => setPage(0)}>▌◀</button>
+      <button disabled={safePage === 0} onclick={() => setPage(Math.max(0, safePage - 5))}>◀◀</button>
+      <button disabled={safePage === 0} onclick={() => setPage(safePage - 1)}>◀</button>
+      {#each pageButtons as p (p)}
+        <button class:on={safePage === p} onclick={() => setPage(p)}>{p + 1}</button>
+      {/each}
+      <button disabled={safePage >= pageCount - 1} onclick={() => setPage(safePage + 1)}>▶</button>
+      <button disabled={safePage >= pageCount - 1} onclick={() => setPage(Math.min(pageCount - 1, safePage + 5))}>▶▶</button>
+      <button disabled={safePage >= pageCount - 1} onclick={() => setPage(pageCount - 1)}>▶▌</button>
+    </div>
+
+    <div class="range-note">
+      Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, sortedRows.length)} of {sortedRows.length}
+    </div>
+
+    <div class="table" class:wide={view === "ratings"}>
       <div class="row head-row">
         <span class="c-rank">#</span>
         <span class="c-name">Player</span>
-        {#each COLUMNS as col (col.key)}
-          <button class="c-num sortable" class:active={sortKey === col.key} onclick={() => sortBy(col.key)}>
-            {col.label}
-            {#if sortKey === col.key}<span class="arrow">{ARROW[sortDir]}</span>{/if}
-          </button>
-        {/each}
+        {#if view === "fir"}
+          <button class="c-num primary sortable" onclick={() => sortBy("points")}>FIR {arrowFor("points")}</button>
+          <button class="c-num sortable" onclick={() => sortBy("rating")}>Glicko {arrowFor("rating")}</button>
+        {:else if view === "race"}
+          <button class="c-num primary sortable" onclick={() => sortBy("racePoints")}>Race {arrowFor("racePoints")}</button>
+          <button class="c-num sortable" onclick={() => sortBy("rating")}>Glicko {arrowFor("rating")}</button>
+        {:else}
+          {#each RATING_COLUMNS as col (col.key)}
+            <button class="c-num rating-col sortable" class:primary={sortKey === col.key} onclick={() => sortBy(col.key)}>{col.label} {arrowFor(col.key)}</button>
+          {/each}
+        {/if}
       </div>
-      {#each sortedRows as row, index (row.playerId)}
+      {#each visibleRows as row, index (row.playerId)}
         <button class="row" class:you={row.playerId === youId} onclick={() => store.viewOpponent(row.playerId)}>
-          <span class="c-rank">{index + 1}</span>
+          <span class="c-rank">{safePage * PAGE_SIZE + index + 1}</span>
           <span class="c-name">{flagEmoji(row.nationality)} {row.name}</span>
-          <span class="c-num">{row.points}</span>
-          <span class="c-num">{row.racePoints}</span>
-          <span class="c-num">{row.rating}</span>
+          {#if view === "fir"}
+            <span class="c-num primary">{row.points}</span>
+            <span class="c-num">{row.rating}</span>
+          {:else if view === "race"}
+            <span class="c-num primary">{row.racePoints}</span>
+            <span class="c-num">{row.rating}</span>
+          {:else}
+            <span class="c-num rating-col" class:primary={sortKey === "rating"}>{row.rating}</span>
+            <span class="c-num rating-col" class:primary={sortKey === "tt"}>{row.sportRatings.tt}</span>
+            <span class="c-num rating-col" class:primary={sortKey === "bd"}>{row.sportRatings.bd}</span>
+            <span class="c-num rating-col" class:primary={sortKey === "sq"}>{row.sportRatings.sq}</span>
+            <span class="c-num rating-col" class:primary={sortKey === "tn"}>{row.sportRatings.tn}</span>
+          {/if}
         </button>
       {/each}
     </div>
-    <p class="foot-note"># is the current sorted position · Points is the official ladder · Race is this season's points so far, reset every January · Glicko is a strength estimate, not the ranking</p>
+    <p class="foot-note">
+      FIR is the official points ladder. Race is this season's annual points. Ratings are Glicko strength estimates and can be sorted by total or sport.
+    </p>
   {/if}
 </main>
 
@@ -90,7 +168,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 14px;
+    margin-bottom: 12px;
   }
 
   h2 {
@@ -117,9 +195,51 @@
     color: var(--text);
   }
 
+  .views {
+    margin-bottom: 12px;
+  }
+
+  .views button {
+    flex: 1;
+    padding: 8px 10px;
+  }
+
   .empty {
     color: var(--muted);
     font-size: 13.5px;
+  }
+
+  .pager {
+    display: flex;
+    gap: 7px;
+    margin-bottom: 8px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .pager button {
+    flex: 0 0 44px;
+    height: 36px;
+    border-radius: 4px;
+    background: var(--card-2);
+    color: var(--muted);
+    font-size: 17px;
+    font-weight: 700;
+  }
+
+  .pager button.on {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .pager button:disabled {
+    opacity: 0.38;
+  }
+
+  .range-note {
+    color: var(--muted);
+    font-size: 11.5px;
+    margin-bottom: 8px;
   }
 
   .table {
@@ -127,6 +247,10 @@
     border: 1px solid var(--border);
     border-radius: 14px;
     overflow: hidden;
+  }
+
+  .table.wide {
+    overflow-x: auto;
   }
 
   .row {
@@ -137,6 +261,10 @@
     width: 100%;
     text-align: left;
     font-size: 13.5px;
+  }
+
+  .table.wide .row {
+    min-width: 560px;
   }
 
   .row + .row {
@@ -160,7 +288,7 @@
   }
 
   .c-rank {
-    width: 22px;
+    width: 28px;
     flex-shrink: 0;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
@@ -179,33 +307,31 @@
   }
 
   .c-num {
-    width: 48px;
+    width: 58px;
     flex-shrink: 0;
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: var(--muted);
   }
 
+  .rating-col {
+    width: 52px;
+  }
+
+  .c-num.primary {
+    color: var(--text);
+    font-weight: 700;
+  }
+
   .row.you .c-num {
     color: var(--accent);
   }
 
-  .head-row .c-num.sortable {
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  .head-row .c-num.sortable.active {
-    color: var(--accent);
-  }
-
-  .arrow {
-    display: inline-block;
-    margin-left: 2px;
-    font-size: 8px;
+  .sortable {
+    font-size: inherit;
+    font-weight: inherit;
+    text-transform: inherit;
+    letter-spacing: inherit;
   }
 
   .foot-note {
