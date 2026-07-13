@@ -426,6 +426,8 @@ export interface RankingRowView {
   points: number;
   racePoints: number;
   rating: number;
+  sportRatings: Record<Sport, number>;
+  sportRatingRds: Record<Sport, number>;
 }
 
 export interface SaveGame {
@@ -767,6 +769,18 @@ export class Game {
         ...row,
         racePoints: firRacePointsTotal(player.firResults, this.state.calendar),
         rating: Math.round(combinedRating(player)),
+        sportRatings: {
+          tt: Math.round(player.ratings.tt.rating),
+          bd: Math.round(player.ratings.bd.rating),
+          sq: Math.round(player.ratings.sq.rating),
+          tn: Math.round(player.ratings.tn.rating),
+        },
+        sportRatingRds: {
+          tt: Math.round(player.ratings.tt.rd),
+          bd: Math.round(player.ratings.bd.rd),
+          sq: Math.round(player.ratings.sq.rd),
+          tn: Math.round(player.ratings.tn.rd),
+        },
       };
     });
   }
