@@ -6,17 +6,18 @@
   import {
     SPORT_COLORS,
     SPORT_SHORT,
-    conditionWord,
     finishLabel,
     flagEmoji,
-    formatInjury,
     formatMoney,
     formColor,
     formWord,
   } from "./ui";
 
   type StatView = "lifetime" | "byYear";
+  type MeSection = "characteristics" | "statistics" | "trophies";
+
   let statView = $state<StatView>("lifetime");
+  let section = $state<MeSection>("characteristics");
 
   const you = $derived(store.you);
   const stats = $derived(store.careerStats);
@@ -82,6 +83,14 @@
       </div>
     </section>
 
+    <nav class="section-tabs" aria-label="Me sections">
+      <button class:on={section === "characteristics"} onclick={() => (section = "characteristics")}>Characteristics</button>
+      <button class:on={section === "statistics"} onclick={() => (section = "statistics")}>Statistics</button>
+      <button class:on={section === "trophies"} onclick={() => (section = "trophies")}>Prize cabinet</button>
+    </nav>
+
+    {#if section === "characteristics"}
+
     <!-- Sports: levels + Glicko -->
     <section class="card">
       <h2>Sports</h2>
@@ -113,11 +122,6 @@
           </div>
         </div>
       {/each}
-      <p class="footnote">
-        Levels are your own progression; Glicko is the world's estimate of you (±&nbsp;uncertainty). Form is your
-        tournament readiness — it rises when you train a sport and fades when you neglect it, so staying sharp in all
-        four at once is hard.
-      </p>
     </section>
 
     <!-- Attributes -->
@@ -156,27 +160,7 @@
       </section>
     {/if}
 
-    <!-- Condition -->
-    <section class="card">
-      <h2>Condition</h2>
-      <div class="cond-grid">
-        <div class="cond">
-          <div class="cond-cap">Fatigue</div>
-          <div class="cond-val">{you.fatigue}<span class="unit">/100</span></div>
-        </div>
-        <div class="cond">
-          <div class="cond-cap">Soreness</div>
-          <div class="cond-val">{you.soreness}<span class="unit">/100</span></div>
-        </div>
-        <div class="cond">
-          <div class="cond-cap">Confidence</div>
-          <div class="cond-val">{conditionWord(you.confidence)}</div>
-        </div>
-      </div>
-      {#if you.injury}
-        <div class="injury">{formatInjury(you.injury)}</div>
-      {/if}
-    </section>
+    {:else if section === "statistics"}
 
     <!-- Career stats -->
     <section class="card">
@@ -223,6 +207,7 @@
     </section>
 
     <!-- Trophy cabinet -->
+    {:else if section === "trophies"}
     {#if trophies.length > 0}
       <section class="card">
         <h2>Trophy cabinet</h2>
@@ -238,10 +223,14 @@
           {/each}
         </div>
       </section>
+    {:else}
+      <section class="card"><p class="empty">No trophies yet — podium finishes will appear here.</p></section>
+    {/if}
+
     {/if}
 
     <!-- Results -->
-    {#if stats.results.length > 0}
+    {#if section === "statistics" && stats.results.length > 0}
       <section class="card">
         <h2>Results</h2>
         <div class="results">
@@ -262,7 +251,7 @@
     {/if}
 
     <!-- Recent matches -->
-    {#if store.recentMatches.length > 0}
+    {#if section === "statistics" && store.recentMatches.length > 0}
       <section class="card">
         <h2>Recent matches</h2>
         <div class="matches">
@@ -440,6 +429,28 @@
     color: var(--danger);
   }
 
+  .section-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .section-tabs button {
+    min-height: 44px;
+    padding: 8px 6px;
+    border-radius: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .section-tabs button.on {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
   /* Cards */
   .card {
     background: var(--card);
@@ -541,13 +552,6 @@
     color: var(--muted);
   }
 
-  .footnote {
-    font-size: 11.5px;
-    color: var(--muted);
-    margin: 10px 0 0;
-    line-height: 1.4;
-  }
-
   /* Attributes */
   .attr {
     display: flex;
@@ -629,47 +633,6 @@
     color: var(--danger);
   }
 
-  /* Condition */
-  .cond-grid {
-    display: flex;
-    gap: 10px;
-  }
-
-  .cond {
-    flex: 1;
-  }
-
-  .cond-cap {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--muted);
-  }
-
-  .cond-val {
-    font-size: 17px;
-    font-weight: 700;
-    margin-top: 3px;
-  }
-
-  .cond-val .unit {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--muted);
-  }
-
-  .injury {
-    margin-top: 12px;
-    padding: 6px 10px;
-    border-radius: 8px;
-    background: color-mix(in srgb, var(--danger) 14%, var(--card));
-    border: 1px solid var(--danger);
-    color: var(--danger);
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  /* Career stats */
   .stats-head {
     display: flex;
     align-items: center;
