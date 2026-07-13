@@ -264,7 +264,7 @@ function addRankingDigest(state: GameState, week: number, add: (m: InboxMessage)
     id: `ranking:${monthKeyForWeek(state.calendar, week)}`,
     week,
     category: "ranking",
-    from: "FIR World Ranking",
+    from: "FIR Rankings Officer, James Pope",
     subject: `${monthLabel} FIR world ranking`,
     body: you
       ? `The ${monthLabel} FIR World Ranking is out. ${youName} sits at #${you.rank} of ${ownStandings.length}, with ${you.points} points.`

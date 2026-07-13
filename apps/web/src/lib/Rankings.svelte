@@ -280,6 +280,10 @@
     overflow: hidden;
   }
 
+  .table.wide {
+    overflow-x: auto;
+  }
+
   .row {
     display: flex;
     align-items: center;
@@ -288,6 +292,10 @@
     width: 100%;
     text-align: left;
     font-size: 13.5px;
+  }
+
+  .table.wide .row {
+    min-width: 560px;
   }
 
   .row + .row {

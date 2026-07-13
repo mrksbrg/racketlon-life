@@ -325,11 +325,11 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
           id: "welcome",
           week: 0,
           category: "welcome",
-          from: "FIR President",
+          from: "FIR President, Duncan Stahl",
           subject: "Welcome to the FIR World Tour 2026",
           body:
             "This is your inbox — invitations, monthly rankings, and news land here. " +
-            "Plan your weeks, register for tournaments on the Tour, and let's build a career. - Duncan Stahl",
+            "Plan your weeks, register for tournaments on the Tour, and let's build a career.",
           read: false,
         },
       ],
