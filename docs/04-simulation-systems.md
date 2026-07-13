@@ -89,7 +89,10 @@ exhibition sandbox: no fatigue/rating/money effects until TournamentSystem lands
   BA=4, SQ=5, TE=3), and the dial's energy swing scales with that — table tennis
   stays cheap regardless of tactic (there the dial reads as a mental/consistency
   game, not a physical one — see the TT-specific flavor text in `MatchScreen.svelte`),
-  while squash swings the most.
+  while squash swings the most. Energy burn is also asymmetric when the
+  expected winner actually wins the point: the controller spends less and the
+  chaser spends more, strongest in squash to reflect controlling the T, with a
+  smaller badminton version of the same effect.
 - `MatchState` is plain serializable data; each point derives its RNG stream from
   `(matchSeed, pointCount)`, so matches replay identically and the UI steps them one
   point at a time (`playPoint`). AI opponents choose tactics via `aiChooseTactic`:

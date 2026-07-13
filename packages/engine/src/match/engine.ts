@@ -293,12 +293,20 @@ export function playPoint(m: MatchState): PointOutcome | null {
   const decay = BALANCE.match.momentumDecay;
   m.momentum = decay * m.momentum + (1 - decay) * surpriseA;
 
+  const winnerProbability = winner === "a" ? pA : 1 - pA;
+  const control = Math.max(0, (winnerProbability - 0.5) * 2);
+  const controlEnergy = BALANCE.match.controlEnergy[sport];
+
   for (const side of ["a", "b"] as const) {
-    const cost =
+    const baseCost =
       BALANCE.match.energyCostPerPoint[sport] *
       BALANCE.match.tacticEnergyMult[sport][m.tactics[side]] *
       staminaEnergyMult(m.players[side].stamina);
-    m.energy[side] = Math.max(0, m.energy[side] - cost);
+    const controlMult =
+      side === winner
+        ? 1 - controlEnergy.winnerDiscount * control
+        : 1 + controlEnergy.loserTax * control;
+    m.energy[side] = Math.max(0, m.energy[side] - baseCost * controlMult);
   }
 
   const outcome: PointOutcome = { winner, sport, a: set.a, b: set.b };
