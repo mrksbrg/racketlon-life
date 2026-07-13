@@ -203,6 +203,7 @@ export const BALANCE = {
     /** effective strength modifiers (form is applied multiplicatively to
      * skill instead — see BALANCE.form.matchFloor/matchSpan) */
     fatigueWeight: 0.5, // 100 pre-match fatigue → −50 eff
+    sorenessWeight: 0.3, // 100 soreness → −30 eff
     energyWeight: 0.35, // fully drained in-match energy → −35 eff
     /**
      * Baseline in-match energy burned per point, per sport — relative stamina
@@ -327,6 +328,22 @@ export const BALANCE = {
     /** cumulative in-tournament energy spent × this = fatigue added to the
      * player's condition once the event concludes */
     fatigueConversionFactor: 0.5,
+    /** Soreness at or above this blocks sport/body training on Mon-Wed of the following week. */
+    sorenessTrainingBlockAt: 40,
+    /** Base soreness gained per completed match before modifiers. */
+    sorenessPerMatch: 14,
+    /** Extra soreness from energy spent during a match. */
+    sorenessPerEnergySpent: 0.12,
+    /** Core strength reduces soreness build-up by up to this fraction. */
+    coreStrengthSorenessProtection: 0.3,
+    /** Durability/resilience reduces soreness build-up by up to this fraction. */
+    durabilitySorenessProtection: 0.25,
+    /** Soreness starts increasing with age after this age. */
+    sorenessAgeFrom: 30,
+    /** Added soreness multiplier per year past sorenessAgeFrom. */
+    sorenessAgePerYear: 0.025,
+    /** Cap for the age-related soreness multiplier bonus. */
+    sorenessAgeCap: 0.75,
     /** `projectedField`'s geographic entry bias (systems/travel.ts's
      * `distanceKm` feeds `entryWeight` — see tournament/engine.ts):
      * weight = 1 / (1 + km / geoBiasScaleKm). At this many km from the host,

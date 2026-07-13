@@ -19,6 +19,10 @@ export const RecoverySystem: GameSystem = {
       const c = player.condition;
       const age = ageOn(ctx.state.calendar.mondayISO, player.identity.birthDate);
       c.fatigue = clamp(c.fatigue - BALANCE.recovery.weeklyBase * recoveryAgeMultiplier(age), 0, 100);
+      if (c.soreness > 0 && c.sorenessStartedWeek !== ctx.state.calendar.weekIndex) {
+        c.soreness = 0;
+        c.sorenessStartedWeek = null;
+      }
       if (c.fatigue > BALANCE.form.highFatigueThreshold) {
         for (const sport of SPORTS) {
           c.formBySport[sport] = Math.max(0, c.formBySport[sport] - BALANCE.form.highFatiguePenalty);

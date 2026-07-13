@@ -137,6 +137,8 @@ describe("bracket seeding", () => {
       },
       condition: {
         fatigue: 0,
+        soreness: 0,
+        sorenessStartedWeek: null,
         formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
         neglectWeeks: { tt: 0, bd: 0, sq: 0, tn: 0 },
         confidence: 0,

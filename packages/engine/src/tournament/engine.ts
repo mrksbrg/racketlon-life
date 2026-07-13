@@ -871,6 +871,15 @@ export function finishSiblingSession(state: GameState, session: TournamentSessio
   }
 }
 
+
+function sorenessGainForMatch(player: Player, age: number, energySpent: number): number {
+  const b = BALANCE.tournament;
+  const ageBonus = age <= b.sorenessAgeFrom ? 0 : Math.min(b.sorenessAgeCap, (age - b.sorenessAgeFrom) * b.sorenessAgePerYear);
+  const coreProtection = 1 - player.attributes.coreStrength * b.coreStrengthSorenessProtection;
+  const durabilityProtection = 1 - player.attributes.durability * b.durabilitySorenessProtection;
+  return (b.sorenessPerMatch + Math.max(0, energySpent) * b.sorenessPerEnergySpent) * (1 + ageBonus) * coreProtection * durabilityProtection;
+}
+
 /**
  * Concludes the tournament once the human's own group is decided. `prize`
  * still indexes off `roundsWon` (total matches won, not exact position) — a
@@ -985,7 +994,12 @@ export function advanceTournament(
   }
   const humanWon = finishedMatch.winner === "a";
   const spent = session.humanEnergyCarry - finishedMatch.energy.a;
-  session.cumulativeEnergySpent += Math.max(0, spent);
+  const energySpent = Math.max(0, spent);
+  session.cumulativeEnergySpent += energySpent;
+  const human = getPlayer(state, session.humanId);
+  const age = ageOn(state.calendar.mondayISO, human.identity.birthDate);
+  human.condition.soreness = clamp(human.condition.soreness + sorenessGainForMatch(human, age, energySpent), 0, 100);
+  human.condition.sorenessStartedWeek = session.weekIndex;
   recordMatchResults(session.resultsBook, finishedMatch);
 
   // one entry per individual match the human plays (not just the eventual
@@ -1015,7 +1029,6 @@ export function advanceTournament(
   session.pendingPairIndexInGroup = null;
 
   if (humanWon) session.roundsWon += 1;
-  const human = getPlayer(state, session.humanId);
   session.humanEnergyCarry = carryEnergy(finishedMatch.energy.a, human.attributes.stamina);
   const opponent = getPlayer(state, finishedMatch.players.b.id);
   session.entrantEnergyCarry.set(

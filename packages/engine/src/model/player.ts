@@ -59,6 +59,13 @@ export interface Injury {
 /** Fast-changing, visible condition. */
 export interface PlayerCondition {
   fatigue: number; // 0..100
+  /** 0..100 — short-term muscle soreness from hard match play. Unlike
+   * fatigue, it specifically spikes across multi-day tournaments and makes
+   * older, less resilient bodies feel each additional match. */
+  soreness: number;
+  /** The tournament week that created the current soreness. Lets the next
+   * week block early-week training and then clear the soreness completely. */
+  sorenessStartedWeek: number | null;
   /** 0..20 per sport — "tournament readiness," driven by training neglect:
    * rises when a sport is trained this week, decays when it isn't (see
    * systems/training.ts). Visible to the player; scales usable skill in

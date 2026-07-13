@@ -89,6 +89,33 @@ describe("training", () => {
     expect(easy.fatigue.value).toBe(0);
   });
 
+  it("blocks physical training for the first three weekdays after a high-soreness tournament, then clears soreness", () => {
+    const game = Game.newGame({ content: testContent, seed: "sore-block" });
+    const save = game.serialize();
+    save.state.calendar.weekIndex = 1;
+    const human = save.state.players.find((p) => p.identity.id === "you")!;
+    human.condition.soreness = 50;
+    human.condition.sorenessStartedWeek = 0;
+
+    const slots = [
+      ...Array.from({ length: 3 }, () => "trainTT" as const),
+      ...Array.from({ length: 3 }, () => "work" as const),
+      ...Array.from({ length: 3 }, () => "social" as const),
+      ...Array.from({ length: 3 }, () => "trainBD" as const),
+      ...Array.from({ length: 9 }, () => "rest" as const),
+    ];
+
+    const soreGame = Game.fromSave(save, testContent);
+    const summary = soreGame.submitWeek({ slots });
+    const after = soreGame.serialize().state.players.find((p) => p.identity.id === "you")!;
+
+    expect(summary.sports.tt.skillDelta).toBe(0);
+    expect(summary.sports.bd.skillDelta).toBeGreaterThan(0);
+    expect(summary.money.delta).toBe(1640);
+    expect(after.condition.soreness).toBe(0);
+    expect(after.condition.sorenessStartedWeek).toBeNull();
+  });
+
   it("a full rest week can wipe maximum fatigue", () => {
     const game = Game.newGame({ content: testContent, seed: "recovery-wipes-fatigue" });
     const save = game.serialize();

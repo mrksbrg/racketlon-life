@@ -41,11 +41,18 @@
           </div>
         </div>
       {/each}
-      <div class="level fatigue">
+      <div class="level fatigue" title="Fatigue">
         <span class="tag" style:background="var(--danger)">⚡</span>
         <span class="num">{store.you.fatigue}</span>
         <div class="bar">
           <div class="fill" style:width="{store.you.fatigue}%" style:background="var(--danger)"></div>
+        </div>
+      </div>
+      <div class="level soreness" title="Soreness from recent match play">
+        <span class="tag" style:background="var(--warn)">💢</span>
+        <span class="num">{store.you.soreness}</span>
+        <div class="bar">
+          <div class="fill" style:width="{store.you.soreness}%" style:background="var(--warn)"></div>
         </div>
       </div>
     </div>
