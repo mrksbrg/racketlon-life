@@ -116,6 +116,16 @@ describe("inbox generation", () => {
     expect(invitesForSeven).toHaveLength(0);
   });
 
+  it("sends the registered tournament draw email on arrival week", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-draw" });
+    game.registerForTournament(3);
+    advance(game, 3);
+    const draw = game.inbox.find((m) => m.category === "draw" && m.tournamentWeek === 3);
+    expect(draw).toBeTruthy();
+    expect(draw?.from).toMatch(/tournament director/i);
+    expect(draw?.body).toMatch(/last training slots/i);
+  });
+
   it("marks messages read and clears the unread count", () => {
     const game = Game.newGame({ content: testContent, seed: "inbox-read" });
     expect(game.unreadCount).toBeGreaterThan(0);

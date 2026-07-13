@@ -514,7 +514,7 @@ class GameStore {
     if (!this.game) return;
     const def = this.game.registeredTournamentThisWeek();
     if (!def) return;
-    this.match = this.game.enterTournament();
+    this.match = this.game.prepareAndEnterTournament({ slots: [...this.slots] });
     this.tournamentContext = {
       name: def.name,
       round: 1,

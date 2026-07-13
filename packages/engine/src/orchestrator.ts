@@ -10,7 +10,7 @@ import type { WeekSummary } from "./model/summary.js";
 import { AgingSystem } from "./systems/aging.js";
 import { EconomySystem } from "./systems/economy.js";
 import { FatigueSystem } from "./systems/fatigue.js";
-import { InboxSystem } from "./systems/inbox.js";
+import { generateInboxMessages, InboxSystem } from "./systems/inbox.js";
 import { InjurySystem } from "./systems/injury.js";
 import { PlanningSystem } from "./systems/planning.js";
 import { ProgressionSystem } from "./systems/progression.js";
@@ -59,13 +59,14 @@ export interface WeekOutcome {
  * given (state, plan, content) — each system gets a private RNG stream
  * derived from the world seed and week index.
  */
-export function simulateWeek(
+function runSystems(
+  systems: readonly GameSystem[],
   state: GameState,
   humanPlan: PlayerPlan,
   content: ContentBundle,
   log: EventLog,
   snapshotOverride?: HumanSnapshot,
-): WeekOutcome {
+): WeekOutputs {
   const week = state.calendar.weekIndex;
   const human = humanPlayer(state);
   const snapshot: HumanSnapshot = snapshotOverride ?? {
@@ -81,7 +82,7 @@ export function simulateWeek(
   const plans = new Map<string, ActivityCounts>();
   const outputs: WeekOutputs = {};
 
-  for (const system of SYSTEMS) {
+  for (const system of systems) {
     system.run({
       state,
       content,
@@ -93,6 +94,36 @@ export function simulateWeek(
       log: new WeekLog(log, week),
     });
   }
+
+  return outputs;
+}
+
+export function simulateTournamentPreparation(
+  state: GameState,
+  humanPlan: PlayerPlan,
+  content: ContentBundle,
+  log: EventLog,
+  snapshotOverride?: HumanSnapshot,
+): void {
+  runSystems(
+    [PlanningSystem, TrainingSystem, EconomySystem, FatigueSystem, RecoverySystem, InjurySystem],
+    state,
+    humanPlan,
+    content,
+    log,
+    snapshotOverride,
+  );
+}
+
+export function simulateWeek(
+  state: GameState,
+  humanPlan: PlayerPlan,
+  content: ContentBundle,
+  log: EventLog,
+  snapshotOverride?: HumanSnapshot,
+): WeekOutcome {
+  const outputs = runSystems(SYSTEMS, state, humanPlan, content, log, snapshotOverride);
+  const week = state.calendar.weekIndex;
 
   // No-show: a tournament registered for this week that was never entered
   // (`enterTournament` consumes/removes its `tournamentEntries` row on entry)
@@ -117,6 +148,7 @@ export function simulateWeek(
   }
 
   state.calendar = advanceWeek(state.calendar);
+  state.career.inbox.push(...generateInboxMessages(state, content, state.calendar.weekIndex));
 
   const summary = outputs.summary;
   if (!summary) throw new Error("SummarySystem did not produce a summary");

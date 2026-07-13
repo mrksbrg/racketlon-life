@@ -11,6 +11,8 @@
 
   let picking = $state<number | null>(null);
 
+  const tournamentEntry = $derived(store.tourEntries.find((e) => e.isThisWeek) ?? null);
+
   function pick(activity: ActivityType) {
     if (picking !== null) store.setSlot(picking, activity);
     picking = null;
@@ -20,7 +22,16 @@
 <StatusBar />
 
 <main>
-  {#if store.tournamentThisWeek}
+  {#if store.registeredTournamentThisWeek && tournamentEntry}
+    {@const t = store.registeredTournamentThisWeek}
+    <div class="tournament-missed tournament-ready">
+      <strong>🏆 {t.name} week:</strong> plan any last sessions before you press Play. Training can sharpen form, but fatigue and injury risk still count.
+      {#if tournamentEntry.travelCost.total > 0}
+        <span class="travel-note">Travel booked: keep space around the event for the trip out and the trip home.</span>
+      {/if}
+      <span class="travel-note">Check the draw email in your inbox, then tune the week for the players in your field.</span>
+    </div>
+  {:else if store.tournamentThisWeek}
     {@const t = store.tournamentThisWeek}
     <div class="tournament-missed">
       <span>🏆 {t.name} is on this week — entry closed. Register on the Tour tab at least two weeks ahead next time.</span>
@@ -59,7 +70,11 @@
 <footer>
   <ForecastBar />
   <div class="actions">
-    <button class="simulate" onclick={() => void store.simulateWeek()}>Simulate week ▸</button>
+    {#if store.registeredTournamentThisWeek}
+      <button class="simulate" onclick={() => store.enterTournament()}>Play tournament ▸</button>
+    {:else}
+      <button class="simulate" onclick={() => void store.simulateWeek()}>Simulate week ▸</button>
+    {/if}
   </div>
 </footer>
 
@@ -84,6 +99,16 @@
     margin-bottom: 12px;
     font-size: 12.5px;
     color: var(--muted);
+  }
+
+  .tournament-ready {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .travel-note {
+    display: block;
   }
 
   .templates {
