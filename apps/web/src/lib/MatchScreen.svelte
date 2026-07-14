@@ -165,6 +165,15 @@
         </div>
         <span class="energy-val">{Math.round(m.energy.a)}%</span>
       </div>
+      {#if store.tournamentContext}
+        <div class="energy-row soreness-row">
+          <span class="energy-label">Soreness</span>
+          <div class="bar soreness-bar">
+            <div class="fill" style:width="{(store.you?.soreness ?? 0)}%" style:background="var(--warn)"></div>
+          </div>
+          <span class="energy-val">{(store.you?.soreness ?? 0)}%</span>
+        </div>
+      {/if}
       <div class="energy-row">
         <span class="energy-label">{m.players.b.name}</span>
         <div class="bar energy-bar">
@@ -481,6 +490,14 @@
   .energy-val.opp {
     color: var(--muted);
     font-style: italic;
+  }
+
+  .soreness-row {
+    color: var(--warn);
+  }
+
+  .soreness-bar {
+    background: color-mix(in srgb, var(--warn) 18%, var(--card-2));
   }
 
   .sets {
