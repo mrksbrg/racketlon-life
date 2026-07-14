@@ -13,6 +13,7 @@
   };
 
   const screenLabel = $derived(SCREEN_LABELS[store.screen] ?? "Home");
+  const showSoreness = $derived(Boolean(store.tournamentContext));
 
   function confirmNewGame() {
     if (confirm("Start a new career? Your current save will be lost.")) {
@@ -67,13 +68,15 @@
           <div class="fill" style:width="{store.you.fatigue}%" style:background="var(--danger)"></div>
         </div>
       </div>
-      <div class="level soreness" title="Soreness from recent match play">
-        <span class="tag" style:background="var(--warn)">💢</span>
-        <span class="num">{store.you.soreness}</span>
-        <div class="bar">
-          <div class="fill" style:width="{store.you.soreness}%" style:background="var(--warn)"></div>
+      {#if showSoreness}
+        <div class="level soreness" title="Tournament soreness from recent match play">
+          <span class="tag" style:background="var(--warn)">💢</span>
+          <span class="num">{store.you.soreness}</span>
+          <div class="bar">
+            <div class="fill" style:width="{store.you.soreness}%" style:background="var(--warn)"></div>
+          </div>
         </div>
-      </div>
+      {/if}
     </div>
   </header>
 {/if}

@@ -52,7 +52,7 @@
       </button>
       <button class="hub-card" title="Health will become a dedicated section in Home">
         <span class="hub-label">Health</span>
-        <strong>⚡ {store.you.fatigue} · 💢 {store.you.soreness}</strong>
+        <strong>⚡ {store.you.fatigue}</strong>
       </button>
     </section>
   {/if}
