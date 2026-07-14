@@ -312,6 +312,11 @@ class GameStore {
     return this.game ? this.game.travelBlocksThisWeek() : [];
   });
 
+  readonly tournamentBlocksThisWeek: TravelBlock[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.tournamentBlocksThisWeek() : [];
+  });
+
   readonly weekIndex: number = $derived.by(() => {
     this.version;
     return this.game ? this.game.weekIndex : 0;
@@ -320,7 +325,7 @@ class GameStore {
   readonly forecast: Forecast | null = $derived.by(() => {
     this.version;
     if (!this.game) return null;
-    return this.game.previewPlan({ slots: [...this.slots] });
+    return this.game.previewPlan({ slots: this.availableSlots() });
   });
 
   /** Points still to spend in the creation screen — sports and traits are
@@ -472,6 +477,17 @@ class GameStore {
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
   }
 
+  private availableSlots(): ActivityType[] {
+    const slots = [...this.slots];
+    for (const block of this.travelBlocksThisWeek) {
+      for (const index of block.slotIndices) slots[index] = "travel";
+    }
+    for (const block of this.tournamentBlocksThisWeek) {
+      for (const index of block.slotIndices) slots[index] = "rest";
+    }
+    return slots;
+  }
+
   setSlot(index: number, activity: ActivityType): void {
     this.slots[index] = activity;
   }
@@ -485,7 +501,7 @@ class GameStore {
   async simulateWeek(): Promise<void> {
     if (!this.game || this.screen !== "planner") return;
     this.screen = "simulating";
-    this.summary = this.game.submitWeek({ slots: [...this.slots] });
+    this.summary = this.game.submitWeek({ slots: this.availableSlots() });
     this.version++;
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
     await new Promise((resolve) => setTimeout(resolve, 650));
@@ -520,7 +536,7 @@ class GameStore {
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
   }
 
-/** Round-name/main-vs-plate context for the human's current match — falls
+  /** Round-name/main-vs-plate context for the human's current match — falls
    * back to a plain "Round N" if the engine has no section info yet (e.g.
    * mid-transition), so the UI always has something sane to show. */
   private sectionInfo(round: number): { roundName: string; isMainDraw: boolean } {
@@ -533,7 +549,7 @@ class GameStore {
     if (!this.game) return;
     const def = this.game.registeredTournamentThisWeek();
     if (!def) return;
-    this.match = this.game.prepareAndEnterTournament({ slots: [...this.slots] });
+    this.match = this.game.prepareAndEnterTournament({ slots: this.availableSlots() });
     this.tournamentContext = {
       name: def.name,
       round: 1,

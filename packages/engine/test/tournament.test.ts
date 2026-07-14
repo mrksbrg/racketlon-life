@@ -16,6 +16,7 @@ import {
   advanceTournament,
   combinedRating,
   drawRounds,
+  emptyPlan,
   finishSiblingSession,
   getPlayer,
   isSiblingConcluded,
@@ -375,12 +376,35 @@ describe("tournament facade flow", () => {
     registerAndAdvanceTo(game, 3);
     const before = game.you.money;
     const ttBefore = game.you.sports.tt.level + game.you.sports.tt.progress;
-    const prepPlan = planWith({ trainTT: 3, rest: 18 });
+    const prepPlan = emptyPlan();
+    prepPlan.slots[slotIndex(2, 0)] = "trainTT";
+    prepPlan.slots[slotIndex(2, 1)] = "trainTT";
+    prepPlan.slots[slotIndex(2, 2)] = "trainTT";
 
     game.prepareAndEnterTournament(prepPlan);
 
     expect(game.you.money).toBe(before - 3 * 60 - BALANCE.economy.weeklyExpenses - 300);
     expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBeGreaterThan(ttBefore);
+  });
+
+  it("blocks tournament days and ignores planned training on those slots", () => {
+    const game = Game.newGame({ content: testContent, seed: "tour-event-blocks" });
+    registerAndAdvanceTo(game, 3);
+
+    expect(game.tournamentBlocksThisWeek()[0]?.slotIndices).toEqual([
+      slotIndex(0, 0), slotIndex(0, 1), slotIndex(0, 2),
+      slotIndex(1, 0), slotIndex(1, 1), slotIndex(1, 2),
+    ]);
+
+    const before = game.you.sports.tt.level + game.you.sports.tt.progress;
+    const blockedTraining = emptyPlan();
+    blockedTraining.slots[slotIndex(0, 0)] = "trainTT";
+    blockedTraining.slots[slotIndex(0, 1)] = "trainTT";
+    blockedTraining.slots[slotIndex(0, 2)] = "trainTT";
+
+    game.prepareAndEnterTournament(blockedTraining);
+
+    expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBe(before);
   });
 
   it("blocks two outbound and return travel days for an intercontinental tournament", () => {
