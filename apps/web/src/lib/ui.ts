@@ -1,4 +1,4 @@
-import type { ActivityType, FatigueTell, FirStandingView, InjuryView, LuckTell, Sport, Tactic } from "@racketlon/engine";
+import type { ActivityType, FatigueTell, FirStandingView, InjuryView, LuckTell, MentalTell, Sport, Tactic } from "@racketlon/engine";
 import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
 
 /** CSS variable per activity for slot chips and the picker. */
@@ -78,6 +78,21 @@ export const LUCK_READ: Record<LuckTell, string> = {
   neutral: "",
   unlucky: "getting no breaks",
 };
+
+export const MENTAL_LABEL: Record<MentalTell, string> = {
+  lockedIn: "Locked in",
+  confident: "Confident",
+  steady: "Steady",
+  shaky: "Shaky",
+  fragile: "Fragile",
+};
+
+export function mentalColor(strength: number): string {
+  if (strength >= 80) return "var(--ok)";
+  if (strength >= 65) return "var(--accent)";
+  if (strength >= 40) return "var(--warn)";
+  return "var(--danger)";
+}
 
 /** Maps the match's signed momentum EMA (typically ±0.2, occasionally up to
  * ~±0.45 during a real run — see `BALANCE.match.momentumWeight`'s doc

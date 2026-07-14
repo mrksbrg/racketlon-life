@@ -8,6 +8,8 @@ import {
   createMatch,
   fatigueTell,
   luckTell,
+  mentalStrength,
+  mentalTell,
   maxRemainingFor,
   playPoint,
   pointWinProbability,
@@ -306,6 +308,17 @@ describe("match engine", () => {
     expect(m!.momentum).toBeLessThan(-(1 - decay) * 0.9);
     expect(luckTell(m!, "b")).toBe("lucky");
     expect(luckTell(m!, "a")).toBe("unlucky");
+  });
+
+  it("reports mental strength from visible pressure without exposing soreness", () => {
+    const m = createMatch(ref("a", 500), ref("b", 500), "mental");
+    m.sets[0] = { a: 15, b: 9, done: false };
+    m.momentum = 0.25;
+    m.energy = { a: 90, b: 20 };
+
+    expect(mentalStrength(m, "a")).toBeGreaterThan(mentalStrength(m, "b"));
+    expect(mentalTell(mentalStrength(m, "a"))).toBe("confident");
+    expect(mentalTell(mentalStrength(m, "b"))).toBe("fragile");
   });
 
   it("feeds momentum back into point probability, favoring whichever side is hot", () => {
