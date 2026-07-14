@@ -160,6 +160,7 @@
 
     {#if store.tournamentContext}
       <div class="soreness-strip">
+        <div class="meter-section-title soreness-title">Soreness</div>
         <div class="bar soreness-mini">
           <div class="fill" style:width="{Math.round(m.feltSoreness.a)}%" style:background="var(--warn)"></div>
         </div>
@@ -192,7 +193,7 @@
         <span class="energy-val">{Math.round(m.energy.a)}%</span>
       </div>
       <div class="energy-row">
-        <span class="energy-label">{m.players.b.name}</span>
+        <span class="energy-label">Opponent</span>
         <div class="bar energy-bar">
           <div class="fill" style:width="{m.energy.b}%" style:background={energyColor(m.energy.b)}></div>
         </div>
@@ -208,7 +209,7 @@
         <span class="energy-val">{MENTAL_LABEL[mentalTellA]}</span>
       </div>
       <div class="energy-row mental-row">
-        <span class="energy-label">{m.players.b.name}</span>
+        <span class="energy-label">Opponent</span>
         <div class="bar mental-bar">
           <div class="fill" style:width="{mentalB}%" style:background={mentalColor(mentalB)}></div>
         </div>
@@ -420,9 +421,12 @@
   }
 
   /* shared "who's got the flow" bar — a tug-of-war from a fixed center
-     tick, not a per-side stat, so it isn't grouped with the energy rows */
+     tick, not a per-side stat, so it isn't grouped with the energy rows.
+     Centered (unlike the other section titles) to read as belonging to
+     both sides, not just the one it's left-aligned under. */
   .momentum-title {
     margin-top: -2px;
+    text-align: center;
   }
 
   .momentum-bar {
