@@ -1,5 +1,6 @@
 import { BALANCE } from "./balance.js";
 import type { ContentBundle, TraitCategory, TraitTone } from "./content.js";
+import type { Calendar } from "./core/date.js";
 import { ageOn, dateForWeek, weekLabel, weekLabelAt, yearOfWeek } from "./core/date.js";
 import type { EventLog, GameEvent } from "./core/events.js";
 import { eventsForWeek } from "./core/events.js";
@@ -453,11 +454,33 @@ function returnTravelSlots(days: TravelDays): number[] {
   return travelDays.flatMap((day) => [0, 1, 2].map((period) => slotIndex(day, period)));
 }
 
-function applyTravelBlocks(plan: PlayerPlan, blocks: readonly TravelBlock[]): PlayerPlan {
-  if (blocks.length === 0) return plan;
+const DAY_MS = 86_400_000;
+
+function tournamentDaySlots(cal: Calendar, def: TournamentDef): number[] {
+  const weekStart = new Date(`${cal.mondayISO}T00:00:00Z`).getTime();
+  const eventStart = new Date(`${def.date}T00:00:00Z`).getTime();
+  const slots: number[] = [];
+  for (let offset = 0; offset <= def.nights; offset++) {
+    const day = Math.floor((eventStart + offset * DAY_MS - weekStart) / DAY_MS);
+    if (day >= 0 && day < 7) {
+      slots.push(...[0, 1, 2].map((period) => slotIndex(day, period)));
+    }
+  }
+  return slots;
+}
+
+function applyUnavailableBlocks(
+  plan: PlayerPlan,
+  travelBlocks: readonly TravelBlock[],
+  tournamentBlocks: readonly TravelBlock[],
+): PlayerPlan {
+  if (travelBlocks.length === 0 && tournamentBlocks.length === 0) return plan;
   const slots = [...plan.slots];
-  for (const block of blocks) {
+  for (const block of travelBlocks) {
     for (const index of block.slotIndices) slots[index] = "travel";
+  }
+  for (const block of tournamentBlocks) {
+    for (const index of block.slotIndices) slots[index] = "rest";
   }
   return { slots };
 }
@@ -837,6 +860,15 @@ export class Game {
     };
   }
 
+  tournamentBlocksThisWeek(): TravelBlock[] {
+    const week = this.state.calendar.weekIndex;
+    const entry = this.state.career.tournamentEntries.find((e) => e.weekIndex === week);
+    const def = entry ? this.content.tournaments[entry.tournamentId] : null;
+    if (!def) return [];
+    const slotIndices = tournamentDaySlots(this.state.calendar, def);
+    return slotIndices.length > 0 ? [{ weekIndex: week, slotIndices }] : [];
+  }
+
   travelBlocksThisWeek(): TravelBlock[] {
     const week = this.state.calendar.weekIndex;
     const blocks = this.state.career.travelBlocks.filter((block) => block.weekIndex === week);
@@ -1026,7 +1058,13 @@ export class Game {
     if (!def) throw new Error("Not registered for a tournament this week");
     if (!this.tournamentPreparationDone) {
       const snapshot = this.ensureWeekSnapshot();
-      simulateTournamentPreparation(this.state, applyTravelBlocks(plan, this.travelBlocksThisWeek()), this.content, this.log, snapshot);
+      simulateTournamentPreparation(
+        this.state,
+        applyUnavailableBlocks(plan, this.travelBlocksThisWeek(), this.tournamentBlocksThisWeek()),
+        this.content,
+        this.log,
+        snapshot,
+      );
       this.tournamentPreparationDone = true;
     }
     return this.enterTournament();

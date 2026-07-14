@@ -16,6 +16,7 @@ import {
   advanceTournament,
   combinedRating,
   drawRounds,
+  emptyPlan,
   finishSiblingSession,
   getPlayer,
   isSiblingConcluded,
@@ -375,12 +376,55 @@ describe("tournament facade flow", () => {
     registerAndAdvanceTo(game, 3);
     const before = game.you.money;
     const ttBefore = game.you.sports.tt.level + game.you.sports.tt.progress;
-    const prepPlan = planWith({ trainTT: 3, rest: 18 });
+    const prepPlan = emptyPlan();
+    prepPlan.slots[slotIndex(2, 0)] = "trainTT";
+    prepPlan.slots[slotIndex(2, 1)] = "trainTT";
+    prepPlan.slots[slotIndex(2, 2)] = "trainTT";
 
     game.prepareAndEnterTournament(prepPlan);
 
     expect(game.you.money).toBe(before - 3 * 60 - BALANCE.economy.weeklyExpenses - 300);
     expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBeGreaterThan(ttBefore);
+  });
+
+  it("blocks tournament days and ignores planned training on those slots", () => {
+    const game = Game.newGame({ content: testContent, seed: "tour-event-blocks" });
+    registerAndAdvanceTo(game, 3);
+
+    expect(game.tournamentBlocksThisWeek()[0]?.slotIndices).toEqual([
+      slotIndex(0, 0), slotIndex(0, 1), slotIndex(0, 2),
+      slotIndex(1, 0), slotIndex(1, 1), slotIndex(1, 2),
+    ]);
+
+    const before = game.you.sports.tt.level + game.you.sports.tt.progress;
+    const blockedTraining = emptyPlan();
+    blockedTraining.slots[slotIndex(0, 0)] = "trainTT";
+    blockedTraining.slots[slotIndex(0, 1)] = "trainTT";
+    blockedTraining.slots[slotIndex(0, 2)] = "trainTT";
+
+    game.prepareAndEnterTournament(blockedTraining);
+
+    expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBe(before);
+  });
+
+
+  it("blocks every tournament day for a weekend event", () => {
+    const content: ContentBundle = {
+      ...testContent,
+      tournaments: {
+        ...testContent.tournaments,
+        "monthly-open-1": { ...testContent.tournaments["monthly-open-1"]!, date: "2026-01-30", nights: 2 },
+        "monthly-open-1-a": { ...testContent.tournaments["monthly-open-1-a"]!, date: "2026-01-30", nights: 2 },
+      },
+    };
+    const game = Game.newGame({ content, seed: "tour-weekend-blocks" });
+    registerAndAdvanceTo(game, 3);
+
+    expect(game.tournamentBlocksThisWeek()[0]?.slotIndices).toEqual([
+      slotIndex(4, 0), slotIndex(4, 1), slotIndex(4, 2),
+      slotIndex(5, 0), slotIndex(5, 1), slotIndex(5, 2),
+      slotIndex(6, 0), slotIndex(6, 1), slotIndex(6, 2),
+    ]);
   });
 
   it("blocks two outbound and return travel days for an intercontinental tournament", () => {

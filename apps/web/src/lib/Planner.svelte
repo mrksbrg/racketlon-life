@@ -13,9 +13,11 @@
 
   const tournamentEntry = $derived(store.tourEntries.find((e) => e.isThisWeek) ?? null);
   const travelSlots = $derived(new Set(store.travelBlocksThisWeek.flatMap((block) => block.slotIndices)));
+  const tournamentSlots = $derived(new Set(store.tournamentBlocksThisWeek.flatMap((block) => block.slotIndices)));
+  const activeTournamentThisWeek = $derived(store.registeredTournamentThisWeek ?? (tournamentSlots.size > 0 ? tournamentEntry?.tournament : null));
 
   function openPicker(index: number) {
-    if (travelSlots.has(index)) return;
+    if (travelSlots.has(index) || tournamentSlots.has(index)) return;
     picking = index;
   }
 
@@ -28,14 +30,15 @@
 <StatusBar />
 
 <main>
-  {#if store.registeredTournamentThisWeek && tournamentEntry}
-    {@const t = store.registeredTournamentThisWeek}
+  {#if activeTournamentThisWeek && tournamentEntry}
+    {@const t = activeTournamentThisWeek}
     <div class="tournament-missed tournament-ready">
       <strong>🏆 {t.name} week:</strong> plan any last sessions before you press Play. Training can sharpen form, but fatigue and injury risk still count.
+      <span class="travel-note">Tournament days are blocked for match play and cannot be used for training.</span>
       {#if tournamentEntry.travelDays > 0}
         <span class="travel-note">Travel booked: {tournamentEntry.travelDays === 2 ? "two travel days" : "one travel day"} each way are blocked around the event.</span>
       {/if}
-      <span class="travel-note">Check the draw email in your inbox, then tune the week for the players in your field.</span>
+      <span class="travel-note">Check the draw email in your inbox, then tune any free sessions before the event.</span>
     </div>
   {:else if store.tournamentThisWeek}
     {@const t = store.tournamentThisWeek}
@@ -72,16 +75,18 @@
       <div class="row-head">{day}</div>
       {#each PERIODS as period, p (period)}
         {@const i = slotIndex(d, p)}
+        {@const isTournament = tournamentSlots.has(i)}
         {@const activity = travelSlots.has(i) ? "travel" : (store.slots[i] ?? "rest")}
         <button
           class="slot"
           class:is-rest={activity === "rest"}
           class:is-travel={activity === "travel"}
-          disabled={travelSlots.has(i)}
+          class:is-tournament={isTournament}
+          disabled={travelSlots.has(i) || isTournament}
           style:--slot-color={ACTIVITY_COLORS[activity]}
           onclick={() => openPicker(i)}
         >
-          {defaultContent.activities[activity].short}
+          {isTournament ? "Match" : defaultContent.activities[activity].short}
         </button>
       {/each}
     {/each}
@@ -91,7 +96,7 @@
 <footer>
   <ForecastBar />
   <div class="actions">
-    {#if store.registeredTournamentThisWeek}
+    {#if activeTournamentThisWeek}
       <button class="simulate" onclick={() => store.enterTournament()}>Play tournament ▸</button>
     {:else}
       <button class="simulate" onclick={() => void store.simulateWeek()}>Simulate week ▸</button>
@@ -220,6 +225,13 @@
     min-height: 44px;
     font-weight: 700;
     font-size: 13px;
+  }
+
+  .slot.is-tournament {
+    background: rgba(250, 204, 21, 0.16);
+    border-color: rgba(250, 204, 21, 0.42);
+    color: #fde68a;
+    cursor: not-allowed;
   }
 
   .slot.is-travel {
