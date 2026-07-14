@@ -847,7 +847,7 @@ export class Game {
     }
 
     const fatigueDelta =
-      fatigueDeltaFromCounts(counts, this.content) - BALANCE.recovery.weeklyBase * recoveryAgeMultiplier(age);
+      fatigueDeltaFromCounts(counts, this.content, human.attributes.coreStrength) - BALANCE.recovery.weeklyBase * recoveryAgeMultiplier(age);
     const { earned, spent } = moneyDeltaFromCounts(counts, this.content);
     const net = earned - spent - BALANCE.economy.weeklyExpenses;
     const rounding = BALANCE.forecast.moneyRounding;
