@@ -85,11 +85,37 @@ export function formDelta(sessionsThisSport: number, neglectWeeks: number): numb
     : -formDecayRate(neglectWeeks);
 }
 
-/** Net fatigue change from the week's activities (rest/social are negative). */
-export function fatigueDeltaFromCounts(counts: ActivityCounts, content: ContentBundle): number {
+const CORE_PROTECTED_ACTIVITY_TYPES: ReadonlySet<ActivityType> = new Set([
+  "trainTT",
+  "trainBD",
+  "trainSQ",
+  "trainTN",
+  "gym",
+  "cardio",
+]);
+
+/** Net fatigue change from the week's activities (rest/social are negative).
+ * Core strength can absorb the fatigue from a balanced handful of physical
+ * training sessions; it does not discount work, travel, or overtraining. */
+export function fatigueDeltaFromCounts(
+  counts: ActivityCounts,
+  content: ContentBundle,
+  coreStrength = 0,
+): number {
   let delta = 0;
+  let protectedSessionsLeft =
+    BALANCE.recovery.coreStrengthGraceSessions * Math.min(1, coreStrength / BALANCE.recovery.coreStrengthGraceAt);
+
   for (const [type, n] of countEntries(counts)) {
-    delta += content.activities[type].fatigue * n;
+    const fatigue = content.activities[type].fatigue;
+    if (fatigue <= 0 || !CORE_PROTECTED_ACTIVITY_TYPES.has(type)) {
+      delta += fatigue * n;
+      continue;
+    }
+
+    const protectedSessions = Math.min(n, protectedSessionsLeft);
+    delta += fatigue * (n - protectedSessions);
+    protectedSessionsLeft -= protectedSessions;
   }
   return delta;
 }

@@ -3,6 +3,11 @@ import { Game, expectedSessionGain } from "../src/index.js";
 import { planWith, testContent } from "./fixtures.js";
 
 describe("training", () => {
+  it("starts a new career fresh", () => {
+    const game = Game.newGame({ content: testContent, seed: "fresh-start" });
+    expect(game.you.fatigue).toBe(0);
+  });
+
   it("raises the trained sport and leaves untrained racket sports alone", () => {
     const game = Game.newGame({ content: testContent, seed: "t1" });
     const summary = game.submitWeek(planWith({ trainTT: 5, work: 5 }));
@@ -83,10 +88,25 @@ describe("training", () => {
     const heavy = grind.submitWeek(planWith({ trainTT: 8, trainBD: 7 }));
     expect(heavy.fatigue.delta).toBeGreaterThan(0);
 
-    const rested = Game.newGame({ content: testContent, seed: "t2" });
-    const easy = rested.submitWeek(planWith({}));
+    const easy = grind.submitWeek(planWith({}));
     expect(easy.fatigue.delta).toBeLessThan(0);
     expect(easy.fatigue.value).toBe(0);
+  });
+
+  it("keeps a balanced handful-of-training week fatigue-neutral with enough core strength", () => {
+    const game = Game.newGame({ content: testContent, seed: "balanced-fatigue" });
+    const summary = game.submitWeek(planWith({ trainTT: 2, trainBD: 2, trainSQ: 1, work: 10, social: 2 }));
+    expect(summary.fatigue.delta).toBe(0);
+    expect(summary.fatigue.value).toBe(0);
+  });
+
+  it("adds fatigue for the same balanced week when core strength is too low", () => {
+    const game = Game.newGame({ content: testContent, seed: "low-core-balanced-fatigue" });
+    const save = game.serialize();
+    save.state.players.find((p) => p.identity.id === "you")!.attributes.coreStrength = 0;
+    const lowCoreGame = Game.fromSave(save, testContent);
+    const summary = lowCoreGame.submitWeek(planWith({ trainTT: 2, trainBD: 2, trainSQ: 1, work: 10, social: 2 }));
+    expect(summary.fatigue.delta).toBeGreaterThan(0);
   });
 
   it("blocks physical training for the first three weekdays after a high-soreness tournament, then clears soreness", () => {
