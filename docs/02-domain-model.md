@@ -11,7 +11,8 @@ Player
 ├─ attributes   slow, mostly hidden: skills {tt,bd,sq,tn} 0–1000,
 │               potential {tt,bd,sq,tn} 0..1 (hidden per-sport ceiling),
 │               durability, professionalism, trainable stamina/coreStrength
-├─ condition    fast, visible: fatigue 0–100, formBySport {tt,bd,sq,tn} 0..20,
+├─ condition    fast, visible: fatigue 0–100, soreness 0–100 (short-term,
+│               tournament-driven), formBySport {tt,bd,sq,tn} 0..20,
 │               confidence −10..+10, injury | null
 ├─ ratings      per sport Glicko-2 {rating, rd, volatility}  ← observed layer
 └─ simTier      0 human · 1 active NPC · 2 background

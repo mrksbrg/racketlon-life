@@ -52,6 +52,14 @@ export interface MatchPlayerRef {
   /** 0..1 — slows in-match energy burn; see `staminaEnergyMult` and, for
    * tournament play, `staminaRecoveryMult` (systems/effects.ts) */
   stamina: number;
+  /** 0..1 — how much `sharpness` resists being pulled around by momentum
+   * swings each point ("shrugs off setbacks"); see the per-point update in
+   * `playPoint` and `BALANCE.match.sharpnessPull`. */
+  composure: number;
+  /** 0..1 — decisive-instant performance (a set/match point, or the
+   * gummiarm); see `clutchMoment` and `BALANCE.match.clutchWeight`. Centered
+   * at 0.5 (no effect); above/below tilts the eff gap only on those points. */
+  clutch: number;
   /** whole years — the match engine stays calendar-agnostic, so callers
    * compute this from birthDate via core/date.ts's ageOn() */
   age: number;
@@ -94,6 +102,32 @@ export interface MatchState {
    */
   momentum: number;
   /**
+   * 0..100 per side, both start at 100 fresh every match — a psychological
+   * reset per match, not a physical-fatigue-style carryover like energy.
+   * Pulled each point toward a momentum-derived target (see `playPoint`);
+   * how fast it moves is damped by the player's `composure`. Feeds back
+   * into `effectiveStrength` via `BALANCE.match.sharpnessWeight`, so unlike
+   * `momentum` (which is presentation *and* a feedback signal already),
+   * this is composure's own mechanical hook — a rattled, low-composure
+   * player's usable skill genuinely erodes as a match swings against them.
+   */
+  sharpness: { a: number; b: number };
+  /**
+   * 0..100 per side, live in-match muscle stiffness — distinct from
+   * `MatchPlayerRef.soreness` (each side's fixed *entering* baseline, from
+   * `PlayerCondition.soreness`, which never changes during the match). Starts
+   * at that baseline (worst right away, before warming up), eases down
+   * toward `BALANCE.match.sorenessWarmupFloor` × baseline while points are
+   * being played, and jumps back up toward the baseline at every break (side
+   * change, set change, gummiarm) — the body cools and stiffens the moment
+   * play stops. Never worse than the entering baseline mid-match; a real
+   * increase to that baseline only happens overnight/after the match (see
+   * `sorenessGainForMatch` in tournament/engine.ts). Feeds back into
+   * `effectiveStrength` via `BALANCE.match.sorenessWeight`, same as before,
+   * just live instead of frozen for the match's whole duration.
+   */
+  feltSoreness: { a: number; b: number };
+  /**
    * The "N points needed" magic-number cue, frozen the moment the tennis set
    * begins. Computed once from `pointsToWin` at that instant and never
    * recomputed, so it stays fixed for the whole set even as the live score
@@ -118,6 +152,8 @@ export function matchRefFromPlayer(player: Player, age: number): MatchPlayerRef 
     fatigue: player.condition.fatigue,
     soreness: player.condition.soreness,
     stamina: player.attributes.stamina,
+    composure: player.attributes.composure,
+    clutch: player.attributes.clutch,
     age,
   };
 }
@@ -138,6 +174,8 @@ export function createMatch(a: MatchPlayerRef, b: MatchPlayerRef, seed: string):
     gummiarm: false,
     decidedEarly: false,
     momentum: 0,
+    sharpness: { a: 100, b: 100 },
+    feltSoreness: { a: a.soreness ?? 0, b: b.soreness ?? 0 },
     tennisTarget: null,
   };
 }
@@ -230,6 +268,30 @@ export function pointsToWin(m: MatchState): { side: Side; points: number } | nul
   return { side: leader, points };
 }
 
+export type ClutchMoment = "gummiarm" | "match" | "set" | null;
+
+/**
+ * Is the *next* point a decisive instant — a set point, a match point, or
+ * the sudden-death gummiarm — where `clutch` (Part 3 of the match-feel plan)
+ * kicks in? Reuses the same scaffolding `tennisTarget`/`pointsToWin` already
+ * use rather than inventing new state: a match point is "the leader is one
+ * point from winning" (`pointsToWin(m)?.points === 1`); a set point is
+ * "either side scoring next would close out the current set 21+, win by 2".
+ * Gummiarm is always decisive (every point there is sudden death).
+ */
+export function clutchMoment(m: MatchState): ClutchMoment {
+  if (m.gummiarm) return "gummiarm";
+  const ptw = pointsToWin(m);
+  if (ptw && ptw.points === 1) return "match";
+  const set = m.sets[m.setIndex];
+  if (set) {
+    const aSetPoint = set.a + 1 >= 21 && set.a + 1 - set.b >= 2;
+    const bSetPoint = set.b + 1 >= 21 && set.b + 1 - set.a >= 2;
+    if (aSetPoint || bSetPoint) return "set";
+  }
+  return null;
+}
+
 /** Fraction of true skill that shows up on court at this form level — see
  * BALANCE.form.matchFloor/matchSpan. 1.0 at full form, never below the floor. */
 function formFactor(form: number): number {
@@ -241,29 +303,55 @@ function effectiveStrength(
   ref: MatchPlayerRef,
   sport: Sport,
   energy: number,
+  soreness: number,
+  sharpness: number,
   tactic: Tactic,
   rng: Rng,
+  decisive: boolean,
 ): number {
   const b = BALANCE.match;
   const t = b.tactics[tactic];
   let eff =
     ref.skills[sport] * formFactor(ref.formBySport[sport]) -
     ref.fatigue * b.fatigueWeight -
-    (ref.soreness ?? 0) * b.sorenessWeight -
-    (100 - energy) * b.energyWeight +
+    soreness * b.sorenessWeight -
+    (100 - energy) * b.energyWeight -
+    (100 - sharpness) * b.sharpnessWeight +
     t.eff +
     matchAgeModifier(ref.age);
+  if (decisive) eff += (ref.clutch - 0.5) * 2 * b.clutchWeight;
   if (t.chaos > 0) eff += rng.range(-t.chaos, t.chaos);
   return eff;
 }
 
 /** P(side a wins the next point). Folds in `m.momentum` (positive favors a)
  * scaled by `BALANCE.match.momentumWeight` — see that constant's doc
- * comment for why this doesn't need an explicit cap. */
+ * comment for why this doesn't need an explicit cap. Also folds in each
+ * side's live `feltSoreness`/`sharpness` and, on a set/match point or the
+ * gummiarm, `clutch` (see `clutchMoment`/`BALANCE.match.clutchWeight`). */
 export function pointWinProbability(m: MatchState, rng: Rng): number {
   const sport = currentSport(m);
-  const effA = effectiveStrength(m.players.a, sport, m.energy.a, m.tactics.a, rng);
-  const effB = effectiveStrength(m.players.b, sport, m.energy.b, m.tactics.b, rng);
+  const decisive = clutchMoment(m) !== null;
+  const effA = effectiveStrength(
+    m.players.a,
+    sport,
+    m.energy.a,
+    m.feltSoreness.a,
+    m.sharpness.a,
+    m.tactics.a,
+    rng,
+    decisive,
+  );
+  const effB = effectiveStrength(
+    m.players.b,
+    sport,
+    m.energy.b,
+    m.feltSoreness.b,
+    m.sharpness.b,
+    m.tactics.b,
+    rng,
+    decisive,
+  );
   const momentumBonus = m.momentum * BALANCE.match.momentumWeight;
   return 1 / (1 + Math.exp(-(effA - effB + momentumBonus) / BALANCE.match.scales[sport]));
 }
@@ -273,6 +361,16 @@ export function pointWinProbability(m: MatchState, rng: Rng): number {
 function recoverEnergyAtBreak(m: MatchState, amount: number): void {
   m.energy.a = Math.min(100, m.energy.a + amount);
   m.energy.b = Math.min(100, m.energy.b + amount);
+}
+
+/** The body cools and stiffens back up the moment play stops — pulls each
+ * side's `feltSoreness` back up toward its entering-match baseline at every
+ * break (side change, set change, gummiarm). See `BALANCE.match.sorenessCooldownBump`. */
+function coolDownSoreness(m: MatchState): void {
+  for (const side of ["a", "b"] as const) {
+    const baseline = m.players[side].soreness ?? 0;
+    m.feltSoreness[side] += (baseline - m.feltSoreness[side]) * BALANCE.match.sorenessCooldownBump;
+  }
 }
 
 /**
@@ -295,6 +393,26 @@ export function playPoint(m: MatchState): PointOutcome | null {
   const surpriseA = (winner === "a" ? 1 : 0) - pA;
   const decay = BALANCE.match.momentumDecay;
   m.momentum = decay * m.momentum + (1 - decay) * surpriseA;
+
+  // Pull each side's sharpness toward a momentum-derived target — a hot
+  // streak against you pulls sharpness down, riding one pulls it up. How
+  // fast it moves is damped by composure (near 1, barely moves at all;
+  // near 0, chases every swing). See MatchState.sharpness's doc comment.
+  for (const side of ["a", "b"] as const) {
+    const momentumSigned = side === "a" ? m.momentum : -m.momentum;
+    const target = Math.max(0, Math.min(100, 50 + momentumSigned * 50));
+    const pull = BALANCE.match.sharpnessPull * (1 - m.players[side].composure);
+    m.sharpness[side] += (target - m.sharpness[side]) * pull;
+  }
+
+  // The body loosens up while play continues — feltSoreness eases toward a
+  // warmed-up floor (a fraction of the entering baseline) every point. It
+  // stiffens back up at breaks instead — see `coolDownSoreness`.
+  for (const side of ["a", "b"] as const) {
+    const baseline = m.players[side].soreness ?? 0;
+    const floor = baseline * BALANCE.match.sorenessWarmupFloor;
+    m.feltSoreness[side] += (floor - m.feltSoreness[side]) * BALANCE.match.sorenessWarmupPull;
+  }
 
   const winnerProbability = winner === "a" ? pA : 1 - pA;
   const control = Math.max(0, (winnerProbability - 0.5) * 2);
@@ -339,6 +457,7 @@ export function playPoint(m: MatchState): PointOutcome | null {
       m.gummiarm = true;
       m.phase = "break";
       m.breakReason = "gummiarm";
+      coolDownSoreness(m);
     } else {
       m.setIndex++;
       m.sideChangeDone = false;
@@ -346,6 +465,7 @@ export function playPoint(m: MatchState): PointOutcome | null {
       m.breakReason = "setEnd";
       m.momentum = 0;
       recoverEnergyAtBreak(m, BALANCE.match.setChangeEnergyRecovery);
+      coolDownSoreness(m);
       if (m.setIndex === 3) m.tennisTarget = pointsToWin(m);
     }
     return outcome;
@@ -357,6 +477,7 @@ export function playPoint(m: MatchState): PointOutcome | null {
     m.breakReason = "sideChange";
     m.momentum = 0;
     recoverEnergyAtBreak(m, BALANCE.match.sideChangeEnergyRecovery);
+    coolDownSoreness(m);
   }
 
   return outcome;
@@ -407,22 +528,15 @@ export function luckTell(m: MatchState, side: Side): LuckTell {
 }
 
 /**
- * A live, observable 0..100 composure read for a side. Unlike soreness, this
- * is match-body-language information both players can see: recent momentum,
- * scoreboard pressure, and whether tired legs are starting to test the head.
- * It deliberately does not feed back into point odds; `momentum` already does
- * that. This is a halftime/changeover planning signal for the UI.
+ * A live, observable 0..100 mental-sharpness read for a side — just
+ * `MatchState.sharpness[side]`, rounded. Unlike soreness, this genuinely
+ * feeds back into point odds (`effectiveStrength`'s `sharpnessWeight`) via
+ * the per-point pull in `playPoint`, damped by the player's `composure` — a
+ * rattled, low-composure player's usable skill really does erode as a match
+ * swings against them, not just a cosmetic readout.
  */
 export function mentalStrength(m: MatchState, side: Side): number {
-  const other: Side = side === "a" ? "b" : "a";
-  const set = m.sets[m.setIndex];
-  const signedMomentum = side === "a" ? m.momentum : -m.momentum;
-  const totalLead = totalPoints(m, side) - totalPoints(m, other);
-  const setLead = set ? set[side] - set[other] : 0;
-  const energy = m.energy[side];
-  const energyPenalty = Math.max(0, 35 - energy) * 0.35;
-  const raw = 50 + signedMomentum * 80 + totalLead * 0.8 + setLead * 0.6 - energyPenalty;
-  return Math.round(Math.max(0, Math.min(100, raw)));
+  return Math.round(Math.max(0, Math.min(100, m.sharpness[side])));
 }
 
 export type MentalTell = "fragile" | "shaky" | "steady" | "confident" | "lockedIn";

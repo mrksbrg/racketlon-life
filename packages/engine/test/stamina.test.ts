@@ -21,6 +21,8 @@ function ref(id: string, stamina: number): MatchPlayerRef {
     formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
     fatigue: 0,
     stamina,
+    composure: 0.5,
+    clutch: 0.5,
     age: 25,
   };
 }

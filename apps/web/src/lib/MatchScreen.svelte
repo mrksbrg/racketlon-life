@@ -1,8 +1,9 @@
 <script lang="ts">
-  import type { Sport, Tactic } from "@racketlon/engine";
+  import type { ClutchMoment, Sport, Tactic } from "@racketlon/engine";
   import {
     SPORTS,
     SPORT_LABELS,
+    clutchMoment,
     currentSport,
     fatigueTell,
     luckTell,
@@ -64,6 +65,12 @@
     return (sport === "tt" ? TT_HINTS[tactic] : undefined) ?? GENERIC_HINTS[tactic];
   }
 
+  const CLUTCH_LABEL: Record<Exclude<ClutchMoment, null>, string> = {
+    set: "⚡ Set point",
+    match: "⚡ Match point",
+    gummiarm: "⚡ Winner takes all",
+  };
+
   // autoplay: one point per tick while the match is in the playing phase
   $effect(() => {
     const m = store.match;
@@ -116,6 +123,7 @@
   {@const mentalTellA = mentalTell(mentalA)}
   {@const mentalTellB = mentalTell(mentalB)}
   {@const momentumPos = momentumBarPosition(m.momentum)}
+  {@const moment = m.phase === "playing" ? clutchMoment(m) : null}
   <div class="match">
     <div class="top">
       <span class="label">
@@ -150,6 +158,15 @@
       <button class="pname" onclick={() => store.viewOpponent(m.players.b.id)}>{m.players.b.name}</button>
     </div>
 
+    {#if store.tournamentContext}
+      <div class="soreness-strip">
+        <div class="bar soreness-mini">
+          <div class="fill" style:width="{Math.round(m.feltSoreness.a)}%" style:background="var(--warn)"></div>
+        </div>
+      </div>
+    {/if}
+
+    <div class="meter-section-title momentum-title">Momentum</div>
     <div class="momentum-bar">
       <div
         class="fill"
@@ -174,15 +191,6 @@
         </div>
         <span class="energy-val">{Math.round(m.energy.a)}%</span>
       </div>
-      {#if store.tournamentContext}
-        <div class="energy-row soreness-row">
-          <span class="energy-label">Soreness</span>
-          <div class="bar soreness-bar">
-            <div class="fill" style:width="{(store.you?.soreness ?? 0)}%" style:background="var(--warn)"></div>
-          </div>
-          <span class="energy-val">{(store.you?.soreness ?? 0)}%</span>
-        </div>
-      {/if}
       <div class="energy-row">
         <span class="energy-label">{m.players.b.name}</span>
         <div class="bar energy-bar">
@@ -275,6 +283,9 @@
           {SPORT_LABELS[sport]}{m.gummiarm ? " — gummiarm" : ""}
         </div>
         <div class="score">{m.sets[m.setIndex]?.a ?? 0} – {m.sets[m.setIndex]?.b ?? 0}</div>
+        {#if moment}
+          <div class="clutch-flash" class:gummiarm={moment === "gummiarm"}>{CLUTCH_LABEL[moment]}</div>
+        {/if}
         <div class="speeds">
           {#each [1, 2, 3] as s (s)}
             <button
@@ -395,15 +406,31 @@
     color: var(--danger, #d66);
   }
 
+  /* small, own-side-only — deliberately not shown for the opponent, and not
+     grouped with the labeled energy/mental-strength rows below; live
+     in-match muscle stiffness (MatchState.feltSoreness), not a static number */
+  .soreness-strip {
+    width: 96px;
+    margin: -4px 0 0;
+  }
+
+  .soreness-mini {
+    height: 4px;
+    background: color-mix(in srgb, var(--warn) 18%, var(--card-2));
+  }
+
   /* shared "who's got the flow" bar — a tug-of-war from a fixed center
      tick, not a per-side stat, so it isn't grouped with the energy rows */
+  .momentum-title {
+    margin-top: -2px;
+  }
+
   .momentum-bar {
     position: relative;
     height: 5px;
     border-radius: 3px;
     background: var(--card-2);
     overflow: hidden;
-    margin: -6px 0 0;
   }
 
   .momentum-bar .fill {
@@ -530,14 +557,6 @@
     font-style: italic;
   }
 
-  .soreness-row {
-    color: var(--warn);
-  }
-
-  .soreness-bar {
-    background: color-mix(in srgb, var(--warn) 18%, var(--card-2));
-  }
-
   .mental-bar {
     background: color-mix(in srgb, var(--accent) 14%, var(--card-2));
   }
@@ -610,6 +629,34 @@
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1;
+  }
+
+  .clutch-flash {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    color: var(--warn);
+    background: color-mix(in srgb, var(--warn) 16%, var(--card-2));
+    border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--border));
+    border-radius: 999px;
+    padding: 4px 12px;
+    animation: clutch-pulse 1.1s ease-in-out infinite;
+  }
+
+  .clutch-flash.gummiarm {
+    color: var(--danger, #d66);
+    background: color-mix(in srgb, var(--danger, #d66) 16%, var(--card-2));
+    border-color: color-mix(in srgb, var(--danger, #d66) 40%, var(--border));
+  }
+
+  @keyframes clutch-pulse {
+    0%,
+    100% {
+      opacity: 0.75;
+    }
+    50% {
+      opacity: 1;
+    }
   }
 
   .speeds {

@@ -108,9 +108,24 @@ exhibition sandbox: no fatigue/rating/money effects until TournamentSystem lands
   not hidden information; `luckTell` buckets a `momentum` EMA of (actual outcome −
   modeled point probability) into lucky/neutral/unlucky, so a run of points going
   against the odds reads as "getting no breaks" regardless of the overall scoreline.
-  Presentation-only for now — momentum explains what the player is seeing but does
-  not feed back into point probability; a "hot hand" mechanical effect would be a
-  natural follow-up.
+  Momentum genuinely feeds back into point probability (`BALANCE.match.momentumWeight`)
+  and resets to 0 at every side-change/set-end break — self-limiting by construction,
+  since a hot streak raising win probability makes continuing to win less
+  "surprising" to the EMA, so it doesn't need an explicit cap.
+- **Mental sharpness and clutch** (the Composure/Clutch creation attributes,
+  previously decorative) are both real mechanics. `MatchState.sharpness` (0..100
+  per side, both start fresh at 100 every match — a psychological reset, not a
+  physical carryover like energy) is pulled each point toward a momentum-derived
+  target, damped by `composure` (near 1, barely moves; near 0, chases every
+  swing — see the per-point update in `playPoint`); it feeds `effectiveStrength`
+  via `BALANCE.match.sharpnessWeight`, softer than energy's weight. `clutch`
+  only ever applies on a decisive instant — a set point, match point, or the
+  gummiarm (`clutchMoment`, reusing the same `pointsToWin` scaffolding as the
+  "N points needed" cue) — tilting that single point's eff gap
+  (`BALANCE.match.clutchWeight`), centered at clutch 0.5 (no effect). Both are
+  shown live in `MatchScreen.svelte`'s "Mental strength" rows (same bar/label
+  treatment as energy) plus a small pulsing "⚡ Set point"/"Match point"/
+  "Winner takes all" flash during a decisive point.
 - A full match costs well under a millisecond — tournament draws stay trivially cheap.
 - Still pending: confidence/injury/equipment modifiers on effective strength.
 

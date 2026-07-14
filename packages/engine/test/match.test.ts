@@ -5,6 +5,7 @@ import {
   Rng,
   SPORTS,
   aiChooseTactic,
+  clutchMoment,
   createMatch,
   fatigueTell,
   luckTell,
@@ -27,6 +28,8 @@ function ref(id: string, skill: number, overrides: Partial<MatchPlayerRef> = {})
     formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
     fatigue: 20,
     stamina: 0.5,
+    composure: 0.5,
+    clutch: 0.5,
     age: 25, // neutral age-modifier window — these tests aren't about aging
     ...overrides,
   };
@@ -310,15 +313,158 @@ describe("match engine", () => {
     expect(luckTell(m!, "a")).toBe("unlucky");
   });
 
-  it("reports mental strength from visible pressure without exposing soreness", () => {
-    const m = createMatch(ref("a", 500), ref("b", 500), "mental");
-    m.sets[0] = { a: 15, b: 9, done: false };
-    m.momentum = 0.25;
-    m.energy = { a: 90, b: 20 };
+  it("starts mental sharpness fresh at 100/100 every match", () => {
+    const m = createMatch(ref("a", 500), ref("b", 500), "sharp-fresh");
+    expect(m.sharpness).toEqual({ a: 100, b: 100 });
+    expect(mentalStrength(m, "a")).toBe(100);
+    expect(mentalTell(mentalStrength(m, "a"))).toBe("lockedIn");
+  });
 
-    expect(mentalStrength(m, "a")).toBeGreaterThan(mentalStrength(m, "b"));
-    expect(mentalTell(mentalStrength(m, "a"))).toBe("confident");
-    expect(mentalTell(mentalStrength(m, "b"))).toBe("fragile");
+  it("pulls sharpness down for the side losing a sustained run, more for a low-composure player", () => {
+    // a heavy favorite for "a" builds a sustained run of momentum against
+    // "b" — b's sharpness should erode, and erode faster the less composed
+    // b is (composure damps the per-point pull — see BALANCE.match.sharpnessPull).
+    const steady = createMatch(ref("a", 900, { composure: 0.9 }), ref("b", 100, { composure: 0.9 }), "sharp-steady");
+    const rattled = createMatch(ref("a", 900, { composure: 0.1 }), ref("b", 100, { composure: 0.1 }), "sharp-rattled");
+    resumeMatch(steady);
+    resumeMatch(rattled);
+    for (let i = 0; i < 15; i++) {
+      if (steady.phase === "playing") playPoint(steady);
+      if (rattled.phase === "playing") playPoint(rattled);
+    }
+    expect(rattled.sharpness.b).toBeLessThan(100);
+    expect(rattled.sharpness.b).toBeLessThan(steady.sharpness.b);
+  });
+
+  it("feeds sharpness back into point probability, disadvantaging the rattled side", () => {
+    const m = createMatch(ref("a", 500), ref("b", 500), "sharpness-feedback");
+    resumeMatch(m);
+    const rng = () => new Rng("sharpness-feedback-probe");
+
+    const neutral = pointWinProbability(m, rng());
+
+    m.sharpness.b = 20; // b is rattled, a is unaffected
+    const favoringA = pointWinProbability(m, rng());
+    expect(favoringA).toBeGreaterThan(neutral);
+
+    m.sharpness.a = 20;
+    m.sharpness.b = 100; // now the other way around
+    const favoringB = pointWinProbability(m, rng());
+    expect(favoringB).toBeLessThan(neutral);
+
+    // symmetric around the neutral 0.5 baseline for two equal-skill players
+    expect(favoringA - neutral).toBeCloseTo(neutral - favoringB, 10);
+  });
+
+  it("starts feltSoreness at each side's entering-match baseline", () => {
+    const m = createMatch(ref("a", 500, { soreness: 60 }), ref("b", 500, { soreness: 0 }), "soreness-fresh");
+    expect(m.feltSoreness).toEqual({ a: 60, b: 0 });
+  });
+
+  it("eases feltSoreness toward a warmed-up floor while playing", () => {
+    const m = createMatch(ref("a", 500, { soreness: 80 }), ref("b", 500, { soreness: 80 }), "soreness-warmup");
+    resumeMatch(m);
+    playPoint(m);
+    const floor = 80 * BALANCE.match.sorenessWarmupFloor;
+    expect(m.feltSoreness.a).toBeLessThan(80);
+    expect(m.feltSoreness.a).toBeGreaterThanOrEqual(floor);
+  });
+
+  it("bumps feltSoreness back up toward the baseline (never past it) the moment a break starts", () => {
+    // a heavy favorite for "a" so the next point reliably closes out to 11-0
+    // — search seeds for one where "a" actually wins this single point, same
+    // pattern as the "momentum-search" test above (skill 900 vs 100 alone
+    // isn't a 100% guarantee).
+    let m: MatchState | null = null;
+    for (let i = 0; i < 50; i++) {
+      const candidate = createMatch(
+        ref("a", 900, { soreness: 80 }),
+        ref("b", 100, { soreness: 80 }),
+        `soreness-cooldown-${i}`,
+      );
+      candidate.feltSoreness = { a: 60, b: 60 };
+      candidate.sets[0] = { a: 10, b: 0, done: false };
+      candidate.phase = "playing";
+      playPoint(candidate);
+      if (candidate.breakReason === "sideChange") {
+        m = candidate;
+        break;
+      }
+    }
+    expect(m).not.toBeNull();
+    expect(m!.feltSoreness.a).toBeGreaterThan(60);
+    expect(m!.feltSoreness.a).toBeLessThanOrEqual(80);
+  });
+
+  it("feeds feltSoreness back into point probability, disadvantaging the sorer side", () => {
+    const m = createMatch(ref("a", 500), ref("b", 500), "soreness-feedback");
+    resumeMatch(m);
+    const rng = () => new Rng("soreness-feedback-probe");
+
+    const neutral = pointWinProbability(m, rng());
+
+    m.feltSoreness.b = 80; // b is sore, a isn't
+    const favoringA = pointWinProbability(m, rng());
+    expect(favoringA).toBeGreaterThan(neutral);
+
+    m.feltSoreness.a = 80;
+    m.feltSoreness.b = 0; // now the other way around
+    const favoringB = pointWinProbability(m, rng());
+    expect(favoringB).toBeLessThan(neutral);
+
+    // symmetric around the neutral 0.5 baseline for two equal-skill players
+    expect(favoringA - neutral).toBeCloseTo(neutral - favoringB, 10);
+  });
+
+  describe("clutchMoment", () => {
+    it("returns null on an ordinary early point", () => {
+      const m = createMatch(ref("a", 500), ref("b", 500), "clutch-none");
+      expect(clutchMoment(m)).toBeNull();
+    });
+
+    it("flags a set point in an early set that can't yet decide the match", () => {
+      const m = createMatch(ref("a", 500), ref("b", 500), "clutch-set-only");
+      m.sets[0] = { a: 20, b: 15, done: false };
+      expect(clutchMoment(m)).toBe("set");
+    });
+
+    it("flags a match point that isn't a set point (a big lead carried into a fresh tennis set)", () => {
+      const m = createMatch(ref("a", 500), ref("b", 500), "clutch-match-only");
+      m.sets = [
+        { a: 21, b: 0, done: true },
+        { a: 21, b: 0, done: true },
+        { a: 0, b: 21, done: true },
+        { a: 0, b: 0, done: false },
+      ];
+      m.setIndex = 3;
+      m.phase = "playing";
+      expect(pointsToWin(m)).toEqual({ side: "a", points: 1 });
+      expect(clutchMoment(m)).toBe("match");
+    });
+
+    it("is always decisive during the gummiarm", () => {
+      const m = createMatch(ref("a", 500), ref("b", 500), "clutch-gummi");
+      m.gummiarm = true;
+      expect(clutchMoment(m)).toBe("gummiarm");
+    });
+  });
+
+  it("tilts a decisive point toward the more clutch player, but leaves an ordinary point alone", () => {
+    const m = createMatch(ref("a", 500, { clutch: 1 }), ref("b", 500, { clutch: 0 }), "clutch-tilt");
+    resumeMatch(m);
+    const rng = () => new Rng("clutch-tilt-probe");
+
+    // ordinary point (0-0) — clutch shouldn't move the needle for two
+    // otherwise-equal players
+    const ordinary = pointWinProbability(m, rng());
+    expect(ordinary).toBeCloseTo(0.5, 10);
+
+    // now force a set point, everything else unchanged — a's superior
+    // clutch should swing the odds in a's favor
+    m.sets[0] = { a: 20, b: 15, done: false };
+    expect(clutchMoment(m)).toBe("set");
+    const decisive = pointWinProbability(m, rng());
+    expect(decisive).toBeGreaterThan(0.5);
   });
 
   it("feeds momentum back into point probability, favoring whichever side is hot", () => {

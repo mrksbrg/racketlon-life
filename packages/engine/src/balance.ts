@@ -211,7 +211,46 @@ export const BALANCE = {
      * skill instead — see BALANCE.form.matchFloor/matchSpan) */
     fatigueWeight: 0.5, // 100 pre-match fatigue → −50 eff
     sorenessWeight: 0.3, // 100 soreness → −30 eff
+    /** Fraction of the entering-match soreness baseline that live
+     * `MatchState.feltSoreness` eases down to once warmed up by continuous
+     * play — never fully disappears, just feels less stiff mid-rally. */
+    sorenessWarmupFloor: 0.7,
+    /** Per-point pull rate toward that warmed-up floor while play continues. */
+    sorenessWarmupPull: 0.06,
+    /** Fraction of the way back toward the entering baseline that
+     * `feltSoreness` jumps at every break (side change, set change,
+     * gummiarm) — the body cools and stiffens the moment play stops. Never
+     * pulls soreness past the baseline itself; a real *increase* to that
+     * baseline only happens overnight/after the match, via
+     * `sorenessGainForMatch` (tournament/engine.ts). First-pass value. */
+    sorenessCooldownBump: 0.35,
     energyWeight: 0.35, // fully drained in-match energy → −35 eff
+    /** softer than energyWeight — mental sharpness bottoming out at 0 costs
+     * less than being fully physically drained, but it's still a real bite. */
+    sharpnessWeight: 0.25, // sharpness at 0 → −25 eff
+    /**
+     * Per-point pull rate toward `MatchState.sharpness`'s momentum-derived
+     * target: `pull = sharpnessPull × (1 − composure)`. At composure 1, pull
+     * is 0 — sharpness never moves off its starting 100 all match (perfectly
+     * steady). At composure 0, pull is the full `sharpnessPull` each point —
+     * sharpness chases every momentum swing almost immediately (rattled). At
+     * composure 0.5 (an "average" player, same centering convention as
+     * `staminaCostFloor/Span`), pull ≈ half that — a moderate, visible drift
+     * over the course of a set, not a single-point snap.
+     */
+    sharpnessPull: 0.4,
+    /**
+     * Eff swing on a decisive point (a set point, match point, or the
+     * gummiarm — see `clutchMoment`), from the Clutch attribute: `bonus =
+     * (clutch − 0.5) × 2 × clutchWeight`, centered at clutch 0.5 (no effect,
+     * same convention as Stamina/Composure). A clutch-1 player gets the full
+     * +clutchWeight eff on that single point; a clutch-0 player gets the
+     * full penalty. Deliberately smaller than a tactic choice (±14-65 eff,
+     * see `tactics` below) — clutch tilts a coin-flip, it doesn't decide it
+     * outright — and, unlike sharpness/momentum, only ever applies on that
+     * one instant, not continuously.
+     */
+    clutchWeight: 12,
     /**
      * Baseline in-match energy burned per point, per sport — relative stamina
      * need TT=1, BA=4, SQ=5, TE=3 (table tennis rallies are short and cheap;
