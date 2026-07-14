@@ -274,13 +274,13 @@ export const BALANCE = {
       safe: { eff: -8, chaos: 0 },
       normal: { eff: 0, chaos: 0 },
       aggressive: { eff: 8, chaos: 25 },
-      allOut: { eff: 14, chaos: 15 },
+      allOut: { eff: 65, chaos: 0 },
     },
     tacticEnergyMult: {
-      tt: { conserve: 0.9, safe: 1.05, normal: 1, aggressive: 0.97, allOut: 1.1 },
-      bd: { conserve: 0.5, safe: 1.4, normal: 1, aggressive: 0.75, allOut: 1.6 },
-      sq: { conserve: 0.45, safe: 1.5, normal: 1, aggressive: 0.7, allOut: 1.7 },
-      tn: { conserve: 0.55, safe: 1.3, normal: 1, aggressive: 0.8, allOut: 1.55 },
+      tt: { conserve: 0.9, safe: 1.05, normal: 1, aggressive: 0.97, allOut: 1.15 },
+      bd: { conserve: 0.5, safe: 1.4, normal: 1, aggressive: 0.75, allOut: 2.25 },
+      sq: { conserve: 0.45, safe: 1.5, normal: 1, aggressive: 0.7, allOut: 2.5 },
+      tn: { conserve: 0.55, safe: 1.3, normal: 1, aggressive: 0.8, allOut: 2.1 },
     },
     /** AI tactic heuristic thresholds (total-point lead / in-match energy) */
     ai: {
