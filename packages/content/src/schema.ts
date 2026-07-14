@@ -62,8 +62,12 @@ const tournamentSchema = z
      * "hamburg-open-2026" — `id` itself is per-division-unique */
     eventId: z.string().min(1),
     /** skill-tier bracket within the event — how many divisions a tier gets
-     * is BALANCE.division.byTier, not enforced here */
-    division: z.enum(["A", "B", "C", "D"]),
+     * (per gender) is BALANCE.division.byTier, not enforced here */
+    division: z.enum(["A", "B", "C", "D", "E"]),
+    /** which gender's draw this row is — men's and women's fields for the
+     * same tier can now differ in both division count and fieldSize (real
+     * FIR draws are gender-specific), so every row belongs to exactly one */
+    gender: z.enum(["m", "f"]),
     name: z.string().min(1),
     /** host city, for display and TravelSystem distance */
     city: z.string().min(1),
@@ -79,8 +83,9 @@ const tournamentSchema = z
     /** trip length for TravelSystem's hotel/food cost */
     nights: z.number().int().positive(),
     entryFee: z.number().min(0),
-    /** per-gender draw size — men's and women's fields are always this same
-     * size, seeded and played as separate brackets (never mixed) */
+    /** this row's own draw size — men's and women's brackets for the same
+     * tier/division letter can now differ (real FIR draws are gender-specific
+     * in size), always seeded and played as separate brackets (never mixed) */
     fieldSize: z.union([z.literal(8), z.literal(16), z.literal(32), z.literal(64)]),
     prizeByRoundsWon: z.array(z.number().min(0)),
   })

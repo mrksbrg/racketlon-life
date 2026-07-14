@@ -70,7 +70,7 @@ const MAX_RECENT_RESULTS = 5;
 
 export type FieldSize = 8 | 16 | 32 | 64;
 
-export type DivisionCode = "A" | "B" | "C" | "D";
+export type DivisionCode = "A" | "B" | "C" | "D" | "E";
 
 export interface TournamentDef {
   /** per-division-unique, e.g. "hamburg-open-2026-a" */
@@ -79,8 +79,12 @@ export interface TournamentDef {
    * "hamburg-open-2026" — see `tournamentCalendar`, `humanDivisionDef` */
   eventId: string;
   /** skill-tier bracket within the event — how many divisions a tier gets
-   * is BALANCE.division.byTier */
+   * (per gender) is BALANCE.division.byTier */
   division: DivisionCode;
+  /** which gender's draw this def is — men's and women's brackets are always
+   * seeded and played separately, and can now differ in both division count
+   * and fieldSize per tier (see BALANCE.division.byTier) */
+  gender: "m" | "f";
   name: string;
   /** host city, for display and TravelSystem distance */
   city: string;
@@ -102,6 +106,15 @@ export interface TournamentDef {
   fieldSize: FieldSize;
   /** prize money indexed by rounds won: 0 = lost round 1 … last = won it all */
   prizeByRoundsWon: number[];
+}
+
+/** this def's own division array (own tier, own gender) — the single lookup
+ * point every division-aware function below shares. */
+function tierDivisionsFor(tier: string, gender: "m" | "f"): readonly string[] {
+  const byGender = BALANCE.division.byTier[tier];
+  const tierDivisions = byGender?.[gender];
+  if (!tierDivisions) throw new Error(`No BALANCE.division.byTier entry for tier "${tier}" gender "${gender}"`);
+  return tierDivisions;
 }
 
 /**
@@ -300,15 +313,19 @@ export function isTournamentWeek(content: ContentBundle, weekIndex: number): boo
  */
 export function humanEligibleDivisions(state: GameState, defs: TournamentDef[]): TournamentDef[] {
   const human = getPlayer(state, state.career.playerId);
-  const tier = defs[0]!.tier;
-  const tierDivisions = BALANCE.division.byTier[tier];
-  if (!tierDivisions) throw new Error(`No BALANCE.division.byTier entry for tier "${tier}"`);
+  // defs holds every division of the event for BOTH genders — narrow to the
+  // human's own gender's defs before doing anything division-shaped with them
+  const genderDefs = defs.filter((d) => d.gender === human.identity.gender);
+  if (genderDefs.length === 0) {
+    throw new Error(`No "${human.identity.gender}" division found for event ${defs[0]?.eventId} (content-authoring gap)`);
+  }
+  const tierDivisions = tierDivisionsFor(genderDefs[0]!.tier, human.identity.gender);
 
   const samePool = state.players
     .filter((p) => p.identity.gender === human.identity.gender)
     .map((p) => ({ id: p.identity.id, firPoints: p.firPoints, skill: combinedRating(p), nationality: p.identity.nationality }));
   const assignments = divisionAssignments(samePool, tierDivisions, {
-    hostCountry: defs[0]!.country,
+    hostCountry: genderDefs[0]!.country,
     count: BALANCE.tournament.hostWildcardsToTopDivision,
   });
   const ownDivision = divisionOf(assignments, human.identity.id);
@@ -318,8 +335,8 @@ export function humanEligibleDivisions(state: GameState, defs: TournamentDef[]):
   // human's own band and everything tougher, own division first
   const playableDivisions = tierDivisions.slice(0, ownIndex + 1).reverse();
   return playableDivisions.map((division) => {
-    const def = defs.find((d) => d.division === division);
-    if (!def) throw new Error(`No "${division}" division found for event ${defs[0]!.eventId} (content-authoring gap)`);
+    const def = genderDefs.find((d) => d.division === division);
+    if (!def) throw new Error(`No "${division}" division found for event ${genderDefs[0]!.eventId} (content-authoring gap)`);
     return def;
   });
 }
@@ -447,10 +464,8 @@ function sampleDivisionField(
   needed: number,
 ): Player[] {
   const rng = new Rng(childSeed(state.seed, "tournament", weekIndex, def.id));
-  const human = getPlayer(state, state.career.playerId);
-  const tierDivisions = BALANCE.division.byTier[def.tier];
-  if (!tierDivisions) throw new Error(`No BALANCE.division.byTier entry for tier "${def.tier}"`);
-  const sameGender = state.players.filter((p) => p.identity.gender === human.identity.gender);
+  const tierDivisions = tierDivisionsFor(def.tier, def.gender);
+  const sameGender = state.players.filter((p) => p.identity.gender === def.gender);
   const assignments = divisionAssignments(
     sameGender.map((p) => ({
       id: p.identity.id,
@@ -464,7 +479,7 @@ function sampleDivisionField(
   const pool = sameGender.filter((p) => p.simTier === 1 && divisionOf(assignments, p.identity.id) === def.division);
   if (pool.length < needed) {
     throw new Error(
-      `Not enough tier-1 ${human.identity.gender} players in division ${def.division} ` +
+      `Not enough tier-1 ${def.gender} players in division ${def.division} ` +
         `(${pool.length}) for a ${needed}-player draw`,
     );
   }

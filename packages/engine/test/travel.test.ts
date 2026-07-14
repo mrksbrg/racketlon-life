@@ -20,10 +20,10 @@ describe("distanceKm", () => {
 
 describe("travelCost", () => {
   const home = testContent.countries.SE!;
-  const def = testContent.tournaments["intl-open-1"]!;
+  const def = testContent.tournaments["intl-open-1-m"]!;
 
   it("is zero for a domestic tournament (same country as home)", () => {
-    const domesticDef = testContent.tournaments["monthly-open-1"]!;
+    const domesticDef = testContent.tournaments["monthly-open-1-m"]!;
     const cost = travelCost("SE", domesticDef, testContent);
     expect(cost).toEqual({ flight: 0, stay: 0, total: 0 });
   });
@@ -62,8 +62,8 @@ describe("travelCost", () => {
 
 describe("travelDays", () => {
   it("blocks no days for a nearby drive, one day for regional travel, and two days for intercontinental travel", () => {
-    const domesticDef = testContent.tournaments["monthly-open-1"]!;
-    const regionalDef = testContent.tournaments["intl-open-1"]!;
+    const domesticDef = testContent.tournaments["monthly-open-1-m"]!;
+    const regionalDef = testContent.tournaments["intl-open-1-m"]!;
     const longHaulContent = {
       ...testContent,
       countries: {

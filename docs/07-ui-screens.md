@@ -57,24 +57,36 @@ Key relationships:
   `firPoints` answers "how good are they, per the real world," Layer 3 will
   answer "how many points has this career earned."
 
-### Tournament divisions (A/B/C/D)
+### Tournament divisions (A/B/C/D/E, gender-specific)
 
 Each real-world tournament event now runs several simultaneous skill
 divisions, mirroring how FIR actually runs events (confirmed in the
 scraper's raw match data — "Men A - Elite" / "B - Advanced" / "C - Amateur"
-/ "D - Beginner" all appear at real events). SAT/CHA get A/B, IWT gets
-A/B/C, SWT/World Championships/World Tour Finals get A/B/C/D. A player's
-division is **automatic** — percentile rank on `firPoints` among same-gender
-players, nulls (no FIR-counted result) always landing in the tier's lowest
-division — no player choice (`systems/division.ts`, `BALANCE.division.byTier`).
+/ "D - Beginner" all appear at real events). Division *count* and each
+division's draw size are both gender-specific now (real FIR draws are —
+see `BALANCE.division.byTier`, keyed by tier then `"m" | "f"`):
+
+|                     | Men                  | Women          |
+| ------------------- | -------------------- | -------------- |
+| SAT / CHA           | A(8) / B(8)          | A(8) / B(8)    |
+| IWT                 | A(32) B(64) C(64) D(32) | A(16) B(16) C(8) |
+| SWT                 | A(64) B(64) C(64) D(32) | A(16) B(16) C(16) |
+| World Championships | A(64) B(64) C(64) D(64) E(32) | A(32) B(32) C(16) |
+| World Tour Finals   | A(16) B(16) C(16) D(16) | A(16) B(16) C(16) D(16) |
+
+A player's division is **automatic** — percentile rank on `firPoints` among
+same-gender players in that tier's gender-specific band list, nulls (no
+FIR-counted result) always landing in the tier's lowest division — no player
+choice (`systems/division.ts`, `BALANCE.division.byTier`).
 
 The human has no real `firPoints` (no Layer 3 yet — see above), so they
 always land in the lowest division of every tier. This is a deliberate,
 temporary simplification, not an oversight: revisit once Layer 3 exists.
-Content-wise, one `TournamentDef` per division (sharing an `eventId`,
-`packages/content/data/tournaments.json`); the facade always resolves down
-to the human's own single division (`humanDivisionDef`), so the rest of the
-UI never needs to know multiple brackets exist for one event.
+Content-wise, one `TournamentDef` per division *and* gender (sharing an
+`eventId`, `packages/content/data/tournaments.json`); the facade always
+resolves down to the human's own single (gender-matched) division
+(`humanDivisionDef`), so the rest of the UI never needs to know multiple
+brackets — across divisions or genders — exist for one event.
 
 ### What you may show, per player
 
@@ -125,8 +137,9 @@ Source: `you`, `weekLabel`, `previewPlan`, `submitWeek`.
 
 ### Tour — the annual world tour — ✅ built (real calendar, divisions, travel cost)
 Full-season calendar of ~16 real-style named tournaments (New Zealand Open,
-Hong Kong Open, World Championships, …), each split into skill divisions
-(A/B/C/D — `systems/division.ts`) and shown with city, tier, and a
+Hong Kong Open, World Championships, …), each split into skill divisions,
+gender-specific in both count and draw size (see the table above —
+`systems/division.ts`) and shown with city, tier, and a
 flights/hotel-and-food travel cost breakdown (`systems/travel.ts`). Tap a
 tournament to expand entry fee/field/prize/travel detail inline (a
 lightweight drill-in, not a separate route yet — see below), including

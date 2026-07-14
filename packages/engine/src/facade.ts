@@ -1084,7 +1084,7 @@ export class Game {
 
     const weekIndex = this.state.calendar.weekIndex;
     const siblingDefs = (tournamentForWeek(this.content, weekIndex) ?? []).filter(
-      (d) => d.eventId === def.eventId && d.division !== def.division,
+      (d) => d.eventId === def.eventId && d.gender === def.gender && d.division !== def.division,
     );
     this.siblingSessions = new Map(
       siblingDefs.map((d) => [d.division, startSiblingSession(this.state, d, weekIndex, this.content)]),

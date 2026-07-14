@@ -455,22 +455,27 @@ export const BALANCE = {
     rdSampleK: 1,
   },
   /**
-   * Tournament skill divisions (A/B/C/D), gated by real FIR ranking points —
-   * see systems/division.ts. Keyed by the exact `tier` strings in content;
-   * a tier missing here is a content-authoring bug (division.ts throws
-   * rather than guessing). World Tour Finals mirroring World Championships
-   * (4 divisions) is an unconfirmed assumption, same pattern as that tier's
-   * existing fieldSize assumption.
+   * Tournament skill divisions (A/B/C/D/E), gated by real FIR ranking points
+   * — see systems/division.ts. Keyed by the exact `tier` strings in content,
+   * then by gender — men's and women's fields at IWT/SWT/World Championships
+   * now differ in both division *count* and size (real FIR draws are
+   * gender-specific), so the division list itself is gender-specific, not
+   * just the fieldSize on each division's content row. A tier (or a tier's
+   * gender) missing here is a content-authoring bug (division.ts throws
+   * rather than guessing). SAT/CHA/World Tour Finals currently give both
+   * genders the same division set — World Tour Finals mirroring World
+   * Championships' pre-expansion 4-division shape is an unconfirmed
+   * assumption, same pattern as that tier's existing fieldSize assumption.
    */
   division: {
     byTier: {
-      SAT: ["A", "B"],
-      CHA: ["A", "B"],
-      IWT: ["A", "B", "C"],
-      SWT: ["A", "B", "C", "D"],
-      "World Championships": ["A", "B", "C", "D"],
-      "World Tour Finals": ["A", "B", "C", "D"],
-    } as Record<string, readonly string[]>,
+      SAT: { m: ["A", "B"], f: ["A", "B"] },
+      CHA: { m: ["A", "B"], f: ["A", "B"] },
+      IWT: { m: ["A", "B", "C", "D"], f: ["A", "B", "C"] },
+      SWT: { m: ["A", "B", "C", "D"], f: ["A", "B", "C"] },
+      "World Championships": { m: ["A", "B", "C", "D", "E"], f: ["A", "B", "C"] },
+      "World Tour Finals": { m: ["A", "B", "C", "D"], f: ["A", "B", "C", "D"] },
+    } as Record<string, Record<"m" | "f", readonly string[]>>,
   },
   /** How much of an opponent's true skill leaks through to the human — see
    * docs/07's "three information layers" and model/sport.ts's

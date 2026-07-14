@@ -149,7 +149,7 @@ describe("Game facade", () => {
   it("recentMatches lists every individual match played, newest first, with opponent + set score", () => {
     const game = Game.newGame({ content: testContent, seed: "f9-matches" });
     playTournamentAt(game, 3);
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
 
     // an 8-draw's 3-game cap never bites (see tournament.test.ts's monrad
     // suite) — every entrant, including the human, plays exactly

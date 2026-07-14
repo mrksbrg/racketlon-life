@@ -181,6 +181,9 @@ function satEvent(eventId: string, fieldSizeA: TournamentDef["fieldSize"]): Reco
     date: "2026-01-26",
     nights: 1,
     entryFee: 100,
+    // the fallback human (both call sites below use Game.newGame without a
+    // character) is always "m" — see world/factory.ts's placeholder human
+    gender: "m",
   } as const;
   return {
     [`${eventId}-a`]: { ...base, id: `${eventId}-a`, division: "A", fieldSize: fieldSizeA, prizeByRoundsWon: Array(Math.log2(fieldSizeA) + 1).fill(0) },

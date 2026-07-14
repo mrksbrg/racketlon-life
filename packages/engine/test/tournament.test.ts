@@ -106,9 +106,9 @@ describe("isTournamentWeek", () => {
   it("places each tournament on the week its real date falls into, no recurrence", () => {
     const calendar = tournamentCalendar(testContent);
     expect(calendar.size).toBe(5); // 3 domestic + 1 foreign (travel-cost) + 1 16-draw (banding test)
-    expect(calendar.get(3)?.[0]?.id).toBe("monthly-open-1");
-    expect(calendar.get(7)?.[0]?.id).toBe("monthly-open-2");
-    expect(calendar.get(11)?.[0]?.id).toBe("monthly-open-3");
+    expect(calendar.get(3)?.[0]?.id).toBe("monthly-open-1-m");
+    expect(calendar.get(7)?.[0]?.id).toBe("monthly-open-2-m");
+    expect(calendar.get(11)?.[0]?.id).toBe("monthly-open-3-m");
   });
 });
 
@@ -264,7 +264,7 @@ describe("tournament registration", () => {
     advanceUntil(game, () => game.weekIndex === 3 - DEADLINE + 1); // one week into the deadline window
     const before = game.you.money;
     game.withdrawRegistration(3);
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
     expect(game.you.money).toBe(before - def.entryFee);
   });
 
@@ -274,7 +274,7 @@ describe("tournament registration", () => {
     advanceUntil(game, () => game.weekIndex === 3); // arrive at the tournament week...
     const before = game.you.money;
     game.submitWeek(WORK_PLAN); // ...and let it pass without calling enterTournament()
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
     const workDelta = 5 * 800 - BALANCE.economy.weeklyExpenses;
     expect(game.you.money).toBe(before - def.entryFee + workDelta);
   });
@@ -284,7 +284,7 @@ describe("tournament registration", () => {
     registerAndAdvanceTo(game, 3);
     const before = game.you.money;
     const { result } = playTournamentToWeekEnd(game, WORK_PLAN);
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
     const workDelta = 5 * 800 - BALANCE.economy.weeklyExpenses;
     // exactly one fee deduction (the normal entry fee), not two
     expect(game.you.money).toBe(before - def.entryFee + result.prizeMoney + workDelta);
@@ -311,7 +311,7 @@ describe("tournament registration", () => {
       const entry = game.tournamentSchedule(1)[0]!;
       expect(entry.status).toBe("registered");
       expect(entry.tournament.division).toBe("A");
-      expect(entry.tournament.id).toBe("monthly-open-1-a");
+      expect(entry.tournament.id).toBe("monthly-open-1-a-m");
     });
 
     it("registeredTournamentThisWeek reflects the actually-chosen class, not the default", () => {
@@ -353,7 +353,7 @@ describe("tournament facade flow", () => {
     const game = Game.newGame({ content: testContent, seed: "tour-1" });
     expect(game.tournamentThisWeek()).toBeNull();
     advanceUntil(game, () => game.weekIndex === 3);
-    expect(game.tournamentThisWeek()?.id).toBe("monthly-open-1");
+    expect(game.tournamentThisWeek()?.id).toBe("monthly-open-1-m");
   });
 
   it("enterTournament fails without registering, even during tournament week", () => {
@@ -413,8 +413,8 @@ describe("tournament facade flow", () => {
       ...testContent,
       tournaments: {
         ...testContent.tournaments,
-        "monthly-open-1": { ...testContent.tournaments["monthly-open-1"]!, date: "2026-01-30", nights: 2 },
-        "monthly-open-1-a": { ...testContent.tournaments["monthly-open-1-a"]!, date: "2026-01-30", nights: 2 },
+        "monthly-open-1-m": { ...testContent.tournaments["monthly-open-1-m"]!, date: "2026-01-30", nights: 2 },
+        "monthly-open-1-a-m": { ...testContent.tournaments["monthly-open-1-a-m"]!, date: "2026-01-30", nights: 2 },
       },
     };
     const game = Game.newGame({ content, seed: "tour-weekend-blocks" });
@@ -478,7 +478,7 @@ describe("tournament facade flow", () => {
     const game = Game.newGame({ content: testContent, seed: "tour-2b" });
     registerAndAdvanceTo(game, 20); // intl-open-1 — NO, foreign to the SE default human
     const before = game.you.money;
-    const def = testContent.tournaments["intl-open-1"]!;
+    const def = testContent.tournaments["intl-open-1-m"]!;
     const expected = travelCost("SE", def, testContent);
     game.enterTournament();
     expect(game.you.money).toBe(before - def.entryFee - expected.total);
@@ -604,7 +604,7 @@ describe("tournament facade flow", () => {
     // Every field size is a power of two, so round 1 has no byes — the
     // human's round-2 opponent necessarily just played (and won) a real,
     // energy-costing round-1 match of their own elsewhere in the bracket.
-    const game = Game.newGame({ content: testContent, seed: "tour-opp-energy-1" });
+    const game = Game.newGame({ content: testContent, seed: "tour-opp-energy-2" });
     registerAndAdvanceTo(game, 3);
     const round1 = game.enterTournament();
     simulateMatchAuto(round1);
@@ -740,7 +740,7 @@ describe("monrad placement bracket", () => {
     const game = Game.newGame({ content: testContent, seed: "monrad-full-field" });
     advanceUntil(game, () => game.weekIndex === 3);
     const state: GameState = game.serialize().state;
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
     const log: EventLog = [];
     const session = startTournament(state, def, testContent, log);
 
@@ -784,7 +784,7 @@ describe("monrad placement bracket", () => {
     const game = Game.newGame({ content: testContent, seed: "monrad-16-full-field" });
     advanceUntil(game, () => game.weekIndex === 30, planWith({ work: 5 }), 35);
     const state: GameState = game.serialize().state;
-    const def = testContent.tournaments["intl-open-2"]!;
+    const def = testContent.tournaments["intl-open-2-m"]!;
     expect(def.fieldSize).toBe(16);
     const log: EventLog = [];
     const session = startTournament(state, def, testContent, log);
@@ -814,7 +814,7 @@ describe("monrad placement bracket", () => {
     const game = Game.newGame({ content: testContent, seed: "monrad-fir-points" });
     advanceUntil(game, () => game.weekIndex === 3);
     const state: GameState = game.serialize().state;
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
     const log: EventLog = [];
     const session = startTournament(state, def, testContent, log);
 
@@ -922,7 +922,7 @@ describe("drawRounds (draw tree view)", () => {
     const game = Game.newGame({ content: testContent, seed });
     advanceUntil(game, () => game.weekIndex === 3);
     const state: GameState = game.serialize().state;
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
     const log: EventLog = [];
     const session = startTournament(state, def, testContent, log);
     for (;;) {
@@ -1012,6 +1012,8 @@ describe("projectedField geographic entry bias", () => {
         id: "geo-open",
         eventId: "geo-open",
         division: "A",
+        // fallback human (Game.newGame below has no character override) is "m"
+        gender: "m",
         name: "Geo Open",
         city: "Hometown",
         country: "HOME",
@@ -1028,6 +1030,7 @@ describe("projectedField geographic entry bias", () => {
         id: "geo-open-b",
         eventId: "geo-open",
         division: "B",
+        gender: "m",
         name: "Geo Open",
         city: "Hometown",
         country: "HOME",
@@ -1078,7 +1081,7 @@ describe("projectedField geographic entry bias", () => {
 });
 
 describe("sibling division sessions", () => {
-  const defA = testContent.tournaments["monthly-open-1-a"]!;
+  const defA = testContent.tournaments["monthly-open-1-a-m"]!;
 
   it("resolves round 0 immediately and advances one round at a time", () => {
     const game = Game.newGame({ content: testContent, seed: "sib-1" });

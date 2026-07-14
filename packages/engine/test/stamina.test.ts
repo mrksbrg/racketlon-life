@@ -87,7 +87,7 @@ describe("stamina wired into between-round tournament recovery", () => {
     while (game.weekIndex < 3) game.submitWeek(work);
     const state: GameState = game.serialize().state;
     state.players.find((p) => p.identity.id === "you")!.attributes.stamina = stamina;
-    const def = testContent.tournaments["monthly-open-1"]!;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
     const log: EventLog = [];
     const session = startTournament(state, def, testContent, log);
     return { state, session };

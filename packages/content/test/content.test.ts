@@ -105,6 +105,17 @@ describe("default content bundle", () => {
 
   describe("tournament divisions", () => {
     const tournaments = Object.values(defaultContent.tournaments);
+    // every division row belongs to exactly one gender now (IWT/SWT/World
+    // Championships have different division *counts* per gender, not just
+    // different fieldSizes) — group by event *and* gender so "every division
+    // for a tier, no more no fewer" is checked against the right one-gender set
+    const byEventGender = new Map<string, typeof tournaments>();
+    for (const t of tournaments) {
+      const key = `${t.eventId}:${t.gender}`;
+      const group = byEventGender.get(key);
+      if (group) group.push(t);
+      else byEventGender.set(key, [t]);
+    }
     const byEvent = new Map<string, typeof tournaments>();
     for (const t of tournaments) {
       const group = byEvent.get(t.eventId);
@@ -112,24 +123,27 @@ describe("default content bundle", () => {
       else byEvent.set(t.eventId, [t]);
     }
 
-    it("gives every row a division valid for its tier", () => {
+    it("gives every row a division valid for its tier and gender", () => {
       for (const t of tournaments) {
-        const tierDivisions = BALANCE.division.byTier[t.tier];
-        expect(tierDivisions, `no BALANCE.division.byTier entry for tier "${t.tier}"`).toBeDefined();
-        expect(tierDivisions, `${t.id}: division "${t.division}" not in tier "${t.tier}"`).toContain(t.division);
+        const tierDivisions = BALANCE.division.byTier[t.tier]?.[t.gender];
+        expect(tierDivisions, `no BALANCE.division.byTier entry for tier "${t.tier}" gender "${t.gender}"`).toBeDefined();
+        expect(tierDivisions, `${t.id}: division "${t.division}" not in tier "${t.tier}" gender "${t.gender}"`).toContain(
+          t.division,
+        );
       }
     });
 
-    it("publishes every division for a tier — no more, no fewer — per event", () => {
-      for (const [eventId, rows] of byEvent) {
+    it("publishes every division for a tier/gender — no more, no fewer — per event", () => {
+      for (const [key, rows] of byEventGender) {
         const tier = rows[0]!.tier;
-        const expected = [...BALANCE.division.byTier[tier]!].sort();
+        const gender = rows[0]!.gender;
+        const expected = [...BALANCE.division.byTier[tier]![gender]].sort();
         const actual = rows.map((r) => r.division).sort();
-        expect(actual, `${eventId} (${tier})`).toEqual(expected);
+        expect(actual, `${key} (${tier})`).toEqual(expected);
       }
     });
 
-    it("keeps shared fields identical across one event's division rows", () => {
+    it("keeps shared fields identical across one event's division rows (both genders)", () => {
       for (const [eventId, rows] of byEvent) {
         for (const field of ["name", "city", "country", "lat", "lon", "date", "nights", "tier"] as const) {
           const values = new Set(rows.map((r) => r[field]));
@@ -156,13 +170,14 @@ describe("default content bundle", () => {
 
         const byTier = new Map<string, typeof tournaments>();
         for (const t of tournaments) {
+          if (t.gender !== gender) continue;
           const group = byTier.get(t.tier);
           if (group) group.push(t);
           else byTier.set(t.tier, [t]);
         }
 
         for (const [tier, rows] of byTier) {
-          const tierDivisions = BALANCE.division.byTier[tier]!;
+          const tierDivisions = BALANCE.division.byTier[tier]![gender];
           const assignments = divisionAssignments(pool, tierDivisions);
           const populationByDivision = new Map<string, number>();
           for (const division of assignments.values()) {

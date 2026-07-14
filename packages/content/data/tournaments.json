@@ -1,6 +1,6 @@
 {
-  "nz-open-2026-a": {
-    "id": "nz-open-2026-a",
+  "nz-open-2026-a-m": {
+    "id": "nz-open-2026-a-m",
     "eventId": "nz-open-2026",
     "division": "A",
     "name": "New Zealand Open",
@@ -13,10 +13,38 @@
     "nights": 2,
     "entryFee": 40,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "nz-open-2026-b": {
-    "id": "nz-open-2026-b",
+  "nz-open-2026-a-f": {
+    "id": "nz-open-2026-a-f",
+    "eventId": "nz-open-2026",
+    "division": "A",
+    "name": "New Zealand Open",
+    "city": "Palmerston North",
+    "country": "NZ",
+    "lat": -40.36,
+    "lon": 175.61,
+    "tier": "SAT",
+    "date": "2026-02-06",
+    "nights": 2,
+    "entryFee": 40,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "nz-open-2026-b-m": {
+    "id": "nz-open-2026-b-m",
     "eventId": "nz-open-2026",
     "division": "B",
     "name": "New Zealand Open",
@@ -29,10 +57,38 @@
     "nights": 2,
     "entryFee": 40,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "hk-open-2026-a": {
-    "id": "hk-open-2026-a",
+  "nz-open-2026-b-f": {
+    "id": "nz-open-2026-b-f",
+    "eventId": "nz-open-2026",
+    "division": "B",
+    "name": "New Zealand Open",
+    "city": "Palmerston North",
+    "country": "NZ",
+    "lat": -40.36,
+    "lon": 175.61,
+    "tier": "SAT",
+    "date": "2026-02-06",
+    "nights": 2,
+    "entryFee": 40,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "hk-open-2026-a-m": {
+    "id": "hk-open-2026-a-m",
     "eventId": "hk-open-2026",
     "division": "A",
     "name": "Hong Kong Open",
@@ -44,11 +100,20 @@
     "date": "2026-02-20",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 150, 225, 375]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
   },
-  "hk-open-2026-b": {
-    "id": "hk-open-2026-b",
+  "hk-open-2026-b-m": {
+    "id": "hk-open-2026-b-m",
     "eventId": "hk-open-2026",
     "division": "B",
     "name": "Hong Kong Open",
@@ -60,11 +125,20 @@
     "date": "2026-02-20",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "hk-open-2026-c": {
-    "id": "hk-open-2026-c",
+  "hk-open-2026-c-m": {
+    "id": "hk-open-2026-c-m",
     "eventId": "hk-open-2026",
     "division": "C",
     "name": "Hong Kong Open",
@@ -76,11 +150,20 @@
     "date": "2026-02-20",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "hk-open-2026-d": {
-    "id": "hk-open-2026-d",
+  "hk-open-2026-d-m": {
+    "id": "hk-open-2026-d-m",
     "eventId": "hk-open-2026",
     "division": "D",
     "name": "Hong Kong Open",
@@ -92,11 +175,186 @@
     "date": "2026-02-20",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "polish-open-2026-a": {
-    "id": "polish-open-2026-a",
+  "hk-open-2026-a-f": {
+    "id": "hk-open-2026-a-f",
+    "eventId": "hk-open-2026",
+    "division": "A",
+    "name": "Hong Kong Open",
+    "city": "Hong Kong",
+    "country": "HK",
+    "lat": 22.32,
+    "lon": 114.17,
+    "tier": "SWT",
+    "date": "2026-02-20",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
+  },
+  "hk-open-2026-b-f": {
+    "id": "hk-open-2026-b-f",
+    "eventId": "hk-open-2026",
+    "division": "B",
+    "name": "Hong Kong Open",
+    "city": "Hong Kong",
+    "country": "HK",
+    "lat": 22.32,
+    "lon": 114.17,
+    "tier": "SWT",
+    "date": "2026-02-20",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "hk-open-2026-c-f": {
+    "id": "hk-open-2026-c-f",
+    "eventId": "hk-open-2026",
+    "division": "C",
+    "name": "Hong Kong Open",
+    "city": "Hong Kong",
+    "country": "HK",
+    "lat": 22.32,
+    "lon": 114.17,
+    "tier": "SWT",
+    "date": "2026-02-20",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "polish-open-2026-a-m": {
+    "id": "polish-open-2026-a-m",
+    "eventId": "polish-open-2026",
+    "division": "A",
+    "name": "Polish Open",
+    "city": "Książenice n. Warsaw",
+    "country": "PL",
+    "lat": 52.15,
+    "lon": 20.85,
+    "tier": "IWT",
+    "date": "2026-03-13",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
+  },
+  "polish-open-2026-b-m": {
+    "id": "polish-open-2026-b-m",
+    "eventId": "polish-open-2026",
+    "division": "B",
+    "name": "Polish Open",
+    "city": "Książenice n. Warsaw",
+    "country": "PL",
+    "lat": 52.15,
+    "lon": 20.85,
+    "tier": "IWT",
+    "date": "2026-03-13",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "polish-open-2026-c-m": {
+    "id": "polish-open-2026-c-m",
+    "eventId": "polish-open-2026",
+    "division": "C",
+    "name": "Polish Open",
+    "city": "Książenice n. Warsaw",
+    "country": "PL",
+    "lat": 52.15,
+    "lon": 20.85,
+    "tier": "IWT",
+    "date": "2026-03-13",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "polish-open-2026-d-m": {
+    "id": "polish-open-2026-d-m",
+    "eventId": "polish-open-2026",
+    "division": "D",
+    "name": "Polish Open",
+    "city": "Książenice n. Warsaw",
+    "country": "PL",
+    "lat": 52.15,
+    "lon": 20.85,
+    "tier": "IWT",
+    "date": "2026-03-13",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "polish-open-2026-a-f": {
+    "id": "polish-open-2026-a-f",
     "eventId": "polish-open-2026",
     "division": "A",
     "name": "Polish Open",
@@ -109,10 +367,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 50, 75, 125]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
   },
-  "polish-open-2026-b": {
-    "id": "polish-open-2026-b",
+  "polish-open-2026-b-f": {
+    "id": "polish-open-2026-b-f",
     "eventId": "polish-open-2026",
     "division": "B",
     "name": "Polish Open",
@@ -125,10 +390,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "polish-open-2026-c": {
-    "id": "polish-open-2026-c",
+  "polish-open-2026-c-f": {
+    "id": "polish-open-2026-c-f",
     "eventId": "polish-open-2026",
     "division": "C",
     "name": "Polish Open",
@@ -140,11 +412,17 @@
     "date": "2026-03-13",
     "nights": 2,
     "entryFee": 60,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "mass-racket-masters-2026-a": {
-    "id": "mass-racket-masters-2026-a",
+  "mass-racket-masters-2026-a-m": {
+    "id": "mass-racket-masters-2026-a-m",
     "eventId": "mass-racket-masters-2026",
     "division": "A",
     "name": "Massachusetts Racket Masters",
@@ -157,10 +435,38 @@
     "nights": 1,
     "entryFee": 50,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "mass-racket-masters-2026-b": {
-    "id": "mass-racket-masters-2026-b",
+  "mass-racket-masters-2026-a-f": {
+    "id": "mass-racket-masters-2026-a-f",
+    "eventId": "mass-racket-masters-2026",
+    "division": "A",
+    "name": "Massachusetts Racket Masters",
+    "city": "Northampton",
+    "country": "US",
+    "lat": 42.32,
+    "lon": -72.64,
+    "tier": "CHA",
+    "date": "2026-04-11",
+    "nights": 1,
+    "entryFee": 50,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "mass-racket-masters-2026-b-m": {
+    "id": "mass-racket-masters-2026-b-m",
     "eventId": "mass-racket-masters-2026",
     "division": "B",
     "name": "Massachusetts Racket Masters",
@@ -173,10 +479,136 @@
     "nights": 1,
     "entryFee": 50,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "swiss-open-2026-a": {
-    "id": "swiss-open-2026-a",
+  "mass-racket-masters-2026-b-f": {
+    "id": "mass-racket-masters-2026-b-f",
+    "eventId": "mass-racket-masters-2026",
+    "division": "B",
+    "name": "Massachusetts Racket Masters",
+    "city": "Northampton",
+    "country": "US",
+    "lat": 42.32,
+    "lon": -72.64,
+    "tier": "CHA",
+    "date": "2026-04-11",
+    "nights": 1,
+    "entryFee": 50,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "swiss-open-2026-a-m": {
+    "id": "swiss-open-2026-a-m",
+    "eventId": "swiss-open-2026",
+    "division": "A",
+    "name": "Swiss Open",
+    "city": "Zurich",
+    "country": "CH",
+    "lat": 47.37,
+    "lon": 8.55,
+    "tier": "IWT",
+    "date": "2026-04-17",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
+  },
+  "swiss-open-2026-b-m": {
+    "id": "swiss-open-2026-b-m",
+    "eventId": "swiss-open-2026",
+    "division": "B",
+    "name": "Swiss Open",
+    "city": "Zurich",
+    "country": "CH",
+    "lat": 47.37,
+    "lon": 8.55,
+    "tier": "IWT",
+    "date": "2026-04-17",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "swiss-open-2026-c-m": {
+    "id": "swiss-open-2026-c-m",
+    "eventId": "swiss-open-2026",
+    "division": "C",
+    "name": "Swiss Open",
+    "city": "Zurich",
+    "country": "CH",
+    "lat": 47.37,
+    "lon": 8.55,
+    "tier": "IWT",
+    "date": "2026-04-17",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "swiss-open-2026-d-m": {
+    "id": "swiss-open-2026-d-m",
+    "eventId": "swiss-open-2026",
+    "division": "D",
+    "name": "Swiss Open",
+    "city": "Zurich",
+    "country": "CH",
+    "lat": 47.37,
+    "lon": 8.55,
+    "tier": "IWT",
+    "date": "2026-04-17",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "swiss-open-2026-a-f": {
+    "id": "swiss-open-2026-a-f",
     "eventId": "swiss-open-2026",
     "division": "A",
     "name": "Swiss Open",
@@ -189,10 +621,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 50, 75, 125]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
   },
-  "swiss-open-2026-b": {
-    "id": "swiss-open-2026-b",
+  "swiss-open-2026-b-f": {
+    "id": "swiss-open-2026-b-f",
     "eventId": "swiss-open-2026",
     "division": "B",
     "name": "Swiss Open",
@@ -205,10 +644,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "swiss-open-2026-c": {
-    "id": "swiss-open-2026-c",
+  "swiss-open-2026-c-f": {
+    "id": "swiss-open-2026-c-f",
     "eventId": "swiss-open-2026",
     "division": "C",
     "name": "Swiss Open",
@@ -220,11 +666,17 @@
     "date": "2026-04-17",
     "nights": 2,
     "entryFee": 60,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "nordic-racket-games-2026-a": {
-    "id": "nordic-racket-games-2026-a",
+  "nordic-racket-games-2026-a-m": {
+    "id": "nordic-racket-games-2026-a-m",
     "eventId": "nordic-racket-games-2026",
     "division": "A",
     "name": "Nordic Racket Games",
@@ -236,11 +688,20 @@
     "date": "2026-05-16",
     "nights": 1,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 150, 225, 375]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
   },
-  "nordic-racket-games-2026-b": {
-    "id": "nordic-racket-games-2026-b",
+  "nordic-racket-games-2026-b-m": {
+    "id": "nordic-racket-games-2026-b-m",
     "eventId": "nordic-racket-games-2026",
     "division": "B",
     "name": "Nordic Racket Games",
@@ -252,11 +713,20 @@
     "date": "2026-05-16",
     "nights": 1,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "nordic-racket-games-2026-c": {
-    "id": "nordic-racket-games-2026-c",
+  "nordic-racket-games-2026-c-m": {
+    "id": "nordic-racket-games-2026-c-m",
     "eventId": "nordic-racket-games-2026",
     "division": "C",
     "name": "Nordic Racket Games",
@@ -268,11 +738,20 @@
     "date": "2026-05-16",
     "nights": 1,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "nordic-racket-games-2026-d": {
-    "id": "nordic-racket-games-2026-d",
+  "nordic-racket-games-2026-d-m": {
+    "id": "nordic-racket-games-2026-d-m",
     "eventId": "nordic-racket-games-2026",
     "division": "D",
     "name": "Nordic Racket Games",
@@ -284,11 +763,187 @@
     "date": "2026-05-16",
     "nights": 1,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "inventist-open-2026-a": {
-    "id": "inventist-open-2026-a",
+  "nordic-racket-games-2026-a-f": {
+    "id": "nordic-racket-games-2026-a-f",
+    "eventId": "nordic-racket-games-2026",
+    "division": "A",
+    "name": "Nordic Racket Games",
+    "city": "Holbæk",
+    "country": "DK",
+    "lat": 55.72,
+    "lon": 11.71,
+    "tier": "SWT",
+    "date": "2026-05-16",
+    "nights": 1,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
+  },
+  "nordic-racket-games-2026-b-f": {
+    "id": "nordic-racket-games-2026-b-f",
+    "eventId": "nordic-racket-games-2026",
+    "division": "B",
+    "name": "Nordic Racket Games",
+    "city": "Holbæk",
+    "country": "DK",
+    "lat": 55.72,
+    "lon": 11.71,
+    "tier": "SWT",
+    "date": "2026-05-16",
+    "nights": 1,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "nordic-racket-games-2026-c-f": {
+    "id": "nordic-racket-games-2026-c-f",
+    "eventId": "nordic-racket-games-2026",
+    "division": "C",
+    "name": "Nordic Racket Games",
+    "city": "Holbæk",
+    "country": "DK",
+    "lat": 55.72,
+    "lon": 11.71,
+    "tier": "SWT",
+    "date": "2026-05-16",
+    "nights": 1,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "inventist-open-2026-a-m": {
+    "id": "inventist-open-2026-a-m",
+    "eventId": "inventist-open-2026",
+    "division": "A",
+    "name": "Inventist Racketlon Open",
+    "city": "Istanbul",
+    "country": "TR",
+    "lat": 41.01,
+    "lon": 28.98,
+    "tier": "SWT",
+    "date": "2026-05-29",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
+  },
+  "inventist-open-2026-b-m": {
+    "id": "inventist-open-2026-b-m",
+    "eventId": "inventist-open-2026",
+    "division": "B",
+    "name": "Inventist Racketlon Open",
+    "city": "Istanbul",
+    "country": "TR",
+    "lat": 41.01,
+    "lon": 28.98,
+    "tier": "SWT",
+    "date": "2026-05-29",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "inventist-open-2026-c-m": {
+    "id": "inventist-open-2026-c-m",
+    "eventId": "inventist-open-2026",
+    "division": "C",
+    "name": "Inventist Racketlon Open",
+    "city": "Istanbul",
+    "country": "TR",
+    "lat": 41.01,
+    "lon": 28.98,
+    "tier": "SWT",
+    "date": "2026-05-29",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "inventist-open-2026-d-m": {
+    "id": "inventist-open-2026-d-m",
+    "eventId": "inventist-open-2026",
+    "division": "D",
+    "name": "Inventist Racketlon Open",
+    "city": "Istanbul",
+    "country": "TR",
+    "lat": 41.01,
+    "lon": 28.98,
+    "tier": "SWT",
+    "date": "2026-05-29",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "inventist-open-2026-a-f": {
+    "id": "inventist-open-2026-a-f",
     "eventId": "inventist-open-2026",
     "division": "A",
     "name": "Inventist Racketlon Open",
@@ -301,10 +956,17 @@
     "nights": 2,
     "entryFee": 70,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 150, 225, 375]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
   },
-  "inventist-open-2026-b": {
-    "id": "inventist-open-2026-b",
+  "inventist-open-2026-b-f": {
+    "id": "inventist-open-2026-b-f",
     "eventId": "inventist-open-2026",
     "division": "B",
     "name": "Inventist Racketlon Open",
@@ -317,10 +979,17 @@
     "nights": 2,
     "entryFee": 70,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "inventist-open-2026-c": {
-    "id": "inventist-open-2026-c",
+  "inventist-open-2026-c-f": {
+    "id": "inventist-open-2026-c-f",
     "eventId": "inventist-open-2026",
     "division": "C",
     "name": "Inventist Racketlon Open",
@@ -333,26 +1002,17 @@
     "nights": 2,
     "entryFee": 70,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "inventist-open-2026-d": {
-    "id": "inventist-open-2026-d",
-    "eventId": "inventist-open-2026",
-    "division": "D",
-    "name": "Inventist Racketlon Open",
-    "city": "Istanbul",
-    "country": "TR",
-    "lat": 41.01,
-    "lon": 28.98,
-    "tier": "SWT",
-    "date": "2026-05-29",
-    "nights": 2,
-    "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
-  },
-  "hamburg-open-2026-a": {
-    "id": "hamburg-open-2026-a",
+  "hamburg-open-2026-a-m": {
+    "id": "hamburg-open-2026-a-m",
     "eventId": "hamburg-open-2026",
     "division": "A",
     "name": "Hamburg Open",
@@ -365,10 +1025,38 @@
     "nights": 1,
     "entryFee": 40,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "hamburg-open-2026-b": {
-    "id": "hamburg-open-2026-b",
+  "hamburg-open-2026-a-f": {
+    "id": "hamburg-open-2026-a-f",
+    "eventId": "hamburg-open-2026",
+    "division": "A",
+    "name": "Hamburg Open",
+    "city": "Hamburg",
+    "country": "DE",
+    "lat": 53.55,
+    "lon": 9.99,
+    "tier": "SAT",
+    "date": "2026-06-13",
+    "nights": 1,
+    "entryFee": 40,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "hamburg-open-2026-b-m": {
+    "id": "hamburg-open-2026-b-m",
     "eventId": "hamburg-open-2026",
     "division": "B",
     "name": "Hamburg Open",
@@ -381,10 +1069,136 @@
     "nights": 1,
     "entryFee": 40,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "finnish-midnight-sun-2026-a": {
-    "id": "finnish-midnight-sun-2026-a",
+  "hamburg-open-2026-b-f": {
+    "id": "hamburg-open-2026-b-f",
+    "eventId": "hamburg-open-2026",
+    "division": "B",
+    "name": "Hamburg Open",
+    "city": "Hamburg",
+    "country": "DE",
+    "lat": 53.55,
+    "lon": 9.99,
+    "tier": "SAT",
+    "date": "2026-06-13",
+    "nights": 1,
+    "entryFee": 40,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "finnish-midnight-sun-2026-a-m": {
+    "id": "finnish-midnight-sun-2026-a-m",
+    "eventId": "finnish-midnight-sun-2026",
+    "division": "A",
+    "name": "Finnish Midnight Sun",
+    "city": "Helsinki",
+    "country": "FI",
+    "lat": 60.17,
+    "lon": 24.94,
+    "tier": "IWT",
+    "date": "2026-06-26",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
+  },
+  "finnish-midnight-sun-2026-b-m": {
+    "id": "finnish-midnight-sun-2026-b-m",
+    "eventId": "finnish-midnight-sun-2026",
+    "division": "B",
+    "name": "Finnish Midnight Sun",
+    "city": "Helsinki",
+    "country": "FI",
+    "lat": 60.17,
+    "lon": 24.94,
+    "tier": "IWT",
+    "date": "2026-06-26",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "finnish-midnight-sun-2026-c-m": {
+    "id": "finnish-midnight-sun-2026-c-m",
+    "eventId": "finnish-midnight-sun-2026",
+    "division": "C",
+    "name": "Finnish Midnight Sun",
+    "city": "Helsinki",
+    "country": "FI",
+    "lat": 60.17,
+    "lon": 24.94,
+    "tier": "IWT",
+    "date": "2026-06-26",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "finnish-midnight-sun-2026-d-m": {
+    "id": "finnish-midnight-sun-2026-d-m",
+    "eventId": "finnish-midnight-sun-2026",
+    "division": "D",
+    "name": "Finnish Midnight Sun",
+    "city": "Helsinki",
+    "country": "FI",
+    "lat": 60.17,
+    "lon": 24.94,
+    "tier": "IWT",
+    "date": "2026-06-26",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "finnish-midnight-sun-2026-a-f": {
+    "id": "finnish-midnight-sun-2026-a-f",
     "eventId": "finnish-midnight-sun-2026",
     "division": "A",
     "name": "Finnish Midnight Sun",
@@ -397,10 +1211,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 50, 75, 125]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
   },
-  "finnish-midnight-sun-2026-b": {
-    "id": "finnish-midnight-sun-2026-b",
+  "finnish-midnight-sun-2026-b-f": {
+    "id": "finnish-midnight-sun-2026-b-f",
     "eventId": "finnish-midnight-sun-2026",
     "division": "B",
     "name": "Finnish Midnight Sun",
@@ -413,10 +1234,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "finnish-midnight-sun-2026-c": {
-    "id": "finnish-midnight-sun-2026-c",
+  "finnish-midnight-sun-2026-c-f": {
+    "id": "finnish-midnight-sun-2026-c-f",
     "eventId": "finnish-midnight-sun-2026",
     "division": "C",
     "name": "Finnish Midnight Sun",
@@ -428,11 +1256,115 @@
     "date": "2026-06-26",
     "nights": 2,
     "entryFee": 60,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "berlin-open-2026-a": {
-    "id": "berlin-open-2026-a",
+  "berlin-open-2026-a-m": {
+    "id": "berlin-open-2026-a-m",
+    "eventId": "berlin-open-2026",
+    "division": "A",
+    "name": "Berlin Open",
+    "city": "Berlin",
+    "country": "DE",
+    "lat": 52.52,
+    "lon": 13.4,
+    "tier": "IWT",
+    "date": "2026-07-10",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
+  },
+  "berlin-open-2026-b-m": {
+    "id": "berlin-open-2026-b-m",
+    "eventId": "berlin-open-2026",
+    "division": "B",
+    "name": "Berlin Open",
+    "city": "Berlin",
+    "country": "DE",
+    "lat": 52.52,
+    "lon": 13.4,
+    "tier": "IWT",
+    "date": "2026-07-10",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "berlin-open-2026-c-m": {
+    "id": "berlin-open-2026-c-m",
+    "eventId": "berlin-open-2026",
+    "division": "C",
+    "name": "Berlin Open",
+    "city": "Berlin",
+    "country": "DE",
+    "lat": 52.52,
+    "lon": 13.4,
+    "tier": "IWT",
+    "date": "2026-07-10",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "berlin-open-2026-d-m": {
+    "id": "berlin-open-2026-d-m",
+    "eventId": "berlin-open-2026",
+    "division": "D",
+    "name": "Berlin Open",
+    "city": "Berlin",
+    "country": "DE",
+    "lat": 52.52,
+    "lon": 13.4,
+    "tier": "IWT",
+    "date": "2026-07-10",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "berlin-open-2026-a-f": {
+    "id": "berlin-open-2026-a-f",
     "eventId": "berlin-open-2026",
     "division": "A",
     "name": "Berlin Open",
@@ -445,10 +1377,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 50, 75, 125]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
   },
-  "berlin-open-2026-b": {
-    "id": "berlin-open-2026-b",
+  "berlin-open-2026-b-f": {
+    "id": "berlin-open-2026-b-f",
     "eventId": "berlin-open-2026",
     "division": "B",
     "name": "Berlin Open",
@@ -461,10 +1400,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "berlin-open-2026-c": {
-    "id": "berlin-open-2026-c",
+  "berlin-open-2026-c-f": {
+    "id": "berlin-open-2026-c-f",
     "eventId": "berlin-open-2026",
     "division": "C",
     "name": "Berlin Open",
@@ -476,11 +1422,17 @@
     "date": "2026-07-10",
     "nights": 2,
     "entryFee": 60,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "world-champs-2026-a": {
-    "id": "world-champs-2026-a",
+  "world-champs-2026-a-m": {
+    "id": "world-champs-2026-a-m",
     "eventId": "world-champs-2026",
     "division": "A",
     "name": "World Championships",
@@ -492,11 +1444,20 @@
     "date": "2026-08-05",
     "nights": 4,
     "entryFee": 80,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 156, 375, 563]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      156,
+      375,
+      563
+    ]
   },
-  "world-champs-2026-b": {
-    "id": "world-champs-2026-b",
+  "world-champs-2026-b-m": {
+    "id": "world-champs-2026-b-m",
     "eventId": "world-champs-2026",
     "division": "B",
     "name": "World Championships",
@@ -508,11 +1469,20 @@
     "date": "2026-08-05",
     "nights": 4,
     "entryFee": 80,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "world-champs-2026-c": {
-    "id": "world-champs-2026-c",
+  "world-champs-2026-c-m": {
+    "id": "world-champs-2026-c-m",
     "eventId": "world-champs-2026",
     "division": "C",
     "name": "World Championships",
@@ -524,11 +1494,20 @@
     "date": "2026-08-05",
     "nights": 4,
     "entryFee": 80,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "world-champs-2026-d": {
-    "id": "world-champs-2026-d",
+  "world-champs-2026-d-m": {
+    "id": "world-champs-2026-d-m",
     "eventId": "world-champs-2026",
     "division": "D",
     "name": "World Championships",
@@ -540,11 +1519,213 @@
     "date": "2026-08-05",
     "nights": 4,
     "entryFee": 80,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "german-open-2026-a": {
-    "id": "german-open-2026-a",
+  "world-champs-2026-e-m": {
+    "id": "world-champs-2026-e-m",
+    "eventId": "world-champs-2026",
+    "division": "E",
+    "name": "World Championships",
+    "city": "Rotterdam",
+    "country": "NL",
+    "lat": 51.92,
+    "lon": 4.48,
+    "tier": "World Championships",
+    "date": "2026-08-05",
+    "nights": 4,
+    "entryFee": 80,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "world-champs-2026-a-f": {
+    "id": "world-champs-2026-a-f",
+    "eventId": "world-champs-2026",
+    "division": "A",
+    "name": "World Championships",
+    "city": "Rotterdam",
+    "country": "NL",
+    "lat": 51.92,
+    "lon": 4.48,
+    "tier": "World Championships",
+    "date": "2026-08-05",
+    "nights": 4,
+    "entryFee": 80,
+    "fieldSize": 32,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      156,
+      375,
+      563
+    ]
+  },
+  "world-champs-2026-b-f": {
+    "id": "world-champs-2026-b-f",
+    "eventId": "world-champs-2026",
+    "division": "B",
+    "name": "World Championships",
+    "city": "Rotterdam",
+    "country": "NL",
+    "lat": 51.92,
+    "lon": 4.48,
+    "tier": "World Championships",
+    "date": "2026-08-05",
+    "nights": 4,
+    "entryFee": 80,
+    "fieldSize": 32,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "world-champs-2026-c-f": {
+    "id": "world-champs-2026-c-f",
+    "eventId": "world-champs-2026",
+    "division": "C",
+    "name": "World Championships",
+    "city": "Rotterdam",
+    "country": "NL",
+    "lat": 51.92,
+    "lon": 4.48,
+    "tier": "World Championships",
+    "date": "2026-08-05",
+    "nights": 4,
+    "entryFee": 80,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "german-open-2026-a-m": {
+    "id": "german-open-2026-a-m",
+    "eventId": "german-open-2026",
+    "division": "A",
+    "name": "German Open",
+    "city": "Nussloch",
+    "country": "DE",
+    "lat": 49.31,
+    "lon": 8.71,
+    "tier": "IWT",
+    "date": "2026-08-28",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
+  },
+  "german-open-2026-b-m": {
+    "id": "german-open-2026-b-m",
+    "eventId": "german-open-2026",
+    "division": "B",
+    "name": "German Open",
+    "city": "Nussloch",
+    "country": "DE",
+    "lat": 49.31,
+    "lon": 8.71,
+    "tier": "IWT",
+    "date": "2026-08-28",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "german-open-2026-c-m": {
+    "id": "german-open-2026-c-m",
+    "eventId": "german-open-2026",
+    "division": "C",
+    "name": "German Open",
+    "city": "Nussloch",
+    "country": "DE",
+    "lat": 49.31,
+    "lon": 8.71,
+    "tier": "IWT",
+    "date": "2026-08-28",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "german-open-2026-d-m": {
+    "id": "german-open-2026-d-m",
+    "eventId": "german-open-2026",
+    "division": "D",
+    "name": "German Open",
+    "city": "Nussloch",
+    "country": "DE",
+    "lat": 49.31,
+    "lon": 8.71,
+    "tier": "IWT",
+    "date": "2026-08-28",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "german-open-2026-a-f": {
+    "id": "german-open-2026-a-f",
     "eventId": "german-open-2026",
     "division": "A",
     "name": "German Open",
@@ -557,10 +1738,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 50, 75, 125]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
   },
-  "german-open-2026-b": {
-    "id": "german-open-2026-b",
+  "german-open-2026-b-f": {
+    "id": "german-open-2026-b-f",
     "eventId": "german-open-2026",
     "division": "B",
     "name": "German Open",
@@ -573,10 +1761,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "german-open-2026-c": {
-    "id": "german-open-2026-c",
+  "german-open-2026-c-f": {
+    "id": "german-open-2026-c-f",
     "eventId": "german-open-2026",
     "division": "C",
     "name": "German Open",
@@ -588,11 +1783,17 @@
     "date": "2026-08-28",
     "nights": 2,
     "entryFee": 60,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "austrian-open-2026-a": {
-    "id": "austrian-open-2026-a",
+  "austrian-open-2026-a-m": {
+    "id": "austrian-open-2026-a-m",
     "eventId": "austrian-open-2026",
     "division": "A",
     "name": "Austrian Open",
@@ -604,11 +1805,20 @@
     "date": "2026-09-11",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 150, 225, 375]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
   },
-  "austrian-open-2026-b": {
-    "id": "austrian-open-2026-b",
+  "austrian-open-2026-b-m": {
+    "id": "austrian-open-2026-b-m",
     "eventId": "austrian-open-2026",
     "division": "B",
     "name": "Austrian Open",
@@ -620,11 +1830,20 @@
     "date": "2026-09-11",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "austrian-open-2026-c": {
-    "id": "austrian-open-2026-c",
+  "austrian-open-2026-c-m": {
+    "id": "austrian-open-2026-c-m",
     "eventId": "austrian-open-2026",
     "division": "C",
     "name": "Austrian Open",
@@ -636,11 +1855,20 @@
     "date": "2026-09-11",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "austrian-open-2026-d": {
-    "id": "austrian-open-2026-d",
+  "austrian-open-2026-d-m": {
+    "id": "austrian-open-2026-d-m",
     "eventId": "austrian-open-2026",
     "division": "D",
     "name": "Austrian Open",
@@ -652,11 +1880,88 @@
     "date": "2026-09-11",
     "nights": 2,
     "entryFee": 70,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "norwegian-open-2026-a": {
-    "id": "norwegian-open-2026-a",
+  "austrian-open-2026-a-f": {
+    "id": "austrian-open-2026-a-f",
+    "eventId": "austrian-open-2026",
+    "division": "A",
+    "name": "Austrian Open",
+    "city": "Vienna",
+    "country": "AT",
+    "lat": 48.21,
+    "lon": 16.37,
+    "tier": "SWT",
+    "date": "2026-09-11",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      150,
+      225,
+      375
+    ]
+  },
+  "austrian-open-2026-b-f": {
+    "id": "austrian-open-2026-b-f",
+    "eventId": "austrian-open-2026",
+    "division": "B",
+    "name": "Austrian Open",
+    "city": "Vienna",
+    "country": "AT",
+    "lat": 48.21,
+    "lon": 16.37,
+    "tier": "SWT",
+    "date": "2026-09-11",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "austrian-open-2026-c-f": {
+    "id": "austrian-open-2026-c-f",
+    "eventId": "austrian-open-2026",
+    "division": "C",
+    "name": "Austrian Open",
+    "city": "Vienna",
+    "country": "AT",
+    "lat": 48.21,
+    "lon": 16.37,
+    "tier": "SWT",
+    "date": "2026-09-11",
+    "nights": 2,
+    "entryFee": 70,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "norwegian-open-2026-a-m": {
+    "id": "norwegian-open-2026-a-m",
     "eventId": "norwegian-open-2026",
     "division": "A",
     "name": "Norwegian Open",
@@ -669,10 +1974,38 @@
     "nights": 1,
     "entryFee": 50,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "norwegian-open-2026-b": {
-    "id": "norwegian-open-2026-b",
+  "norwegian-open-2026-a-f": {
+    "id": "norwegian-open-2026-a-f",
+    "eventId": "norwegian-open-2026",
+    "division": "A",
+    "name": "Norwegian Open",
+    "city": "Mysen",
+    "country": "NO",
+    "lat": 59.55,
+    "lon": 11.33,
+    "tier": "CHA",
+    "date": "2026-09-26",
+    "nights": 1,
+    "entryFee": 50,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "norwegian-open-2026-b-m": {
+    "id": "norwegian-open-2026-b-m",
     "eventId": "norwegian-open-2026",
     "division": "B",
     "name": "Norwegian Open",
@@ -685,10 +2018,136 @@
     "nights": 1,
     "entryFee": 50,
     "fieldSize": 8,
-    "prizeByRoundsWon": [0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "czech-open-2026-a": {
-    "id": "czech-open-2026-a",
+  "norwegian-open-2026-b-f": {
+    "id": "norwegian-open-2026-b-f",
+    "eventId": "norwegian-open-2026",
+    "division": "B",
+    "name": "Norwegian Open",
+    "city": "Mysen",
+    "country": "NO",
+    "lat": 59.55,
+    "lon": 11.33,
+    "tier": "CHA",
+    "date": "2026-09-26",
+    "nights": 1,
+    "entryFee": 50,
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "czech-open-2026-a-m": {
+    "id": "czech-open-2026-a-m",
+    "eventId": "czech-open-2026",
+    "division": "A",
+    "name": "Czech Open",
+    "city": "Prague",
+    "country": "CZ",
+    "lat": 50.08,
+    "lon": 14.44,
+    "tier": "IWT",
+    "date": "2026-10-30",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
+  },
+  "czech-open-2026-b-m": {
+    "id": "czech-open-2026-b-m",
+    "eventId": "czech-open-2026",
+    "division": "B",
+    "name": "Czech Open",
+    "city": "Prague",
+    "country": "CZ",
+    "lat": 50.08,
+    "lon": 14.44,
+    "tier": "IWT",
+    "date": "2026-10-30",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "czech-open-2026-c-m": {
+    "id": "czech-open-2026-c-m",
+    "eventId": "czech-open-2026",
+    "division": "C",
+    "name": "Czech Open",
+    "city": "Prague",
+    "country": "CZ",
+    "lat": 50.08,
+    "lon": 14.44,
+    "tier": "IWT",
+    "date": "2026-10-30",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 64,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "czech-open-2026-d-m": {
+    "id": "czech-open-2026-d-m",
+    "eventId": "czech-open-2026",
+    "division": "D",
+    "name": "Czech Open",
+    "city": "Prague",
+    "country": "CZ",
+    "lat": 50.08,
+    "lon": 14.44,
+    "tier": "IWT",
+    "date": "2026-10-30",
+    "nights": 2,
+    "entryFee": 60,
+    "fieldSize": 32,
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "czech-open-2026-a-f": {
+    "id": "czech-open-2026-a-f",
     "eventId": "czech-open-2026",
     "division": "A",
     "name": "Czech Open",
@@ -701,10 +2160,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 50, 75, 125]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      50,
+      75,
+      125
+    ]
   },
-  "czech-open-2026-b": {
-    "id": "czech-open-2026-b",
+  "czech-open-2026-b-f": {
+    "id": "czech-open-2026-b-f",
     "eventId": "czech-open-2026",
     "division": "B",
     "name": "Czech Open",
@@ -717,10 +2183,17 @@
     "nights": 2,
     "entryFee": 60,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "czech-open-2026-c": {
-    "id": "czech-open-2026-c",
+  "czech-open-2026-c-f": {
+    "id": "czech-open-2026-c-f",
     "eventId": "czech-open-2026",
     "division": "C",
     "name": "Czech Open",
@@ -732,11 +2205,17 @@
     "date": "2026-10-30",
     "nights": 2,
     "entryFee": 60,
-    "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "fieldSize": 8,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "world-tour-finals-2026-a": {
-    "id": "world-tour-finals-2026-a",
+  "world-tour-finals-2026-a-m": {
+    "id": "world-tour-finals-2026-a-m",
     "eventId": "world-tour-finals-2026",
     "division": "A",
     "name": "World Tour Finals",
@@ -749,10 +2228,40 @@
     "nights": 2,
     "entryFee": 80,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 313, 750, 1125]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      313,
+      750,
+      1125
+    ]
   },
-  "world-tour-finals-2026-b": {
-    "id": "world-tour-finals-2026-b",
+  "world-tour-finals-2026-a-f": {
+    "id": "world-tour-finals-2026-a-f",
+    "eventId": "world-tour-finals-2026",
+    "division": "A",
+    "name": "World Tour Finals",
+    "city": "Mumbai",
+    "country": "IN",
+    "lat": 19.08,
+    "lon": 72.88,
+    "tier": "World Tour Finals",
+    "date": "2026-11-27",
+    "nights": 2,
+    "entryFee": 80,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      313,
+      750,
+      1125
+    ]
+  },
+  "world-tour-finals-2026-b-m": {
+    "id": "world-tour-finals-2026-b-m",
     "eventId": "world-tour-finals-2026",
     "division": "B",
     "name": "World Tour Finals",
@@ -765,10 +2274,40 @@
     "nights": 2,
     "entryFee": 80,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "world-tour-finals-2026-c": {
-    "id": "world-tour-finals-2026-c",
+  "world-tour-finals-2026-b-f": {
+    "id": "world-tour-finals-2026-b-f",
+    "eventId": "world-tour-finals-2026",
+    "division": "B",
+    "name": "World Tour Finals",
+    "city": "Mumbai",
+    "country": "IN",
+    "lat": 19.08,
+    "lon": 72.88,
+    "tier": "World Tour Finals",
+    "date": "2026-11-27",
+    "nights": 2,
+    "entryFee": 80,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "world-tour-finals-2026-c-m": {
+    "id": "world-tour-finals-2026-c-m",
     "eventId": "world-tour-finals-2026",
     "division": "C",
     "name": "World Tour Finals",
@@ -781,10 +2320,40 @@
     "nights": 2,
     "entryFee": 80,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   },
-  "world-tour-finals-2026-d": {
-    "id": "world-tour-finals-2026-d",
+  "world-tour-finals-2026-c-f": {
+    "id": "world-tour-finals-2026-c-f",
+    "eventId": "world-tour-finals-2026",
+    "division": "C",
+    "name": "World Tour Finals",
+    "city": "Mumbai",
+    "country": "IN",
+    "lat": 19.08,
+    "lon": 72.88,
+    "tier": "World Tour Finals",
+    "date": "2026-11-27",
+    "nights": 2,
+    "entryFee": 80,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "world-tour-finals-2026-d-m": {
+    "id": "world-tour-finals-2026-d-m",
     "eventId": "world-tour-finals-2026",
     "division": "D",
     "name": "World Tour Finals",
@@ -797,6 +2366,36 @@
     "nights": 2,
     "entryFee": 80,
     "fieldSize": 16,
-    "prizeByRoundsWon": [0, 0, 0, 0, 0]
+    "gender": "m",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "world-tour-finals-2026-d-f": {
+    "id": "world-tour-finals-2026-d-f",
+    "eventId": "world-tour-finals-2026",
+    "division": "D",
+    "name": "World Tour Finals",
+    "city": "Mumbai",
+    "country": "IN",
+    "lat": 19.08,
+    "lon": 72.88,
+    "tier": "World Tour Finals",
+    "date": "2026-11-27",
+    "nights": 2,
+    "entryFee": 80,
+    "fieldSize": 16,
+    "gender": "f",
+    "prizeByRoundsWon": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
   }
 }
