@@ -155,8 +155,9 @@
 <style>
   main {
     flex: 1;
+    min-height: 0;
     overflow-y: auto;
-    padding: 16px;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -173,6 +174,7 @@
   }
 
   .card {
+    flex-shrink: 0;
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 14px;
