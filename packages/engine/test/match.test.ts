@@ -401,6 +401,28 @@ describe("match engine", () => {
     expect(conserving).toBeLessThan(0.45);
   });
 
+  it("makes all-out a costly coin-flip tilter for even players", () => {
+    const m = createMatch(ref("a", 500), ref("b", 500), "all-out-impact");
+    m.setIndex = 2; // squash — the high-effort physical dial applies outside table tennis
+    resumeMatch(m);
+
+    setTactic(m, "a", "normal");
+    setTactic(m, "b", "normal");
+    const neutral = pointWinProbability(m, new Rng("all-out-probability"));
+
+    setTactic(m, "a", "allOut");
+    const allOut = pointWinProbability(m, new Rng("all-out-probability"));
+
+    const before = { ...m.energy };
+    playPoint(m);
+    const allOutCost = before.a - m.energy.a;
+    const normalCost = before.b - m.energy.b;
+
+    expect(neutral).toBeCloseTo(0.5, 10);
+    expect(allOut).toBeGreaterThan(0.54);
+    expect(allOutCost).toBeGreaterThan(normalCost * 2);
+  });
+
   describe("pointsToWin (magic number)", () => {
     /** A match with the first three sets pre-filled and the tennis set open. */
     function atTennis(a: [number, number], b: [number, number], c: [number, number]): MatchState {

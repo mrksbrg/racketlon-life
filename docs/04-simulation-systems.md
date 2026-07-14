@@ -82,9 +82,11 @@ exhibition sandbox: no fatigue/rating/money effects until TournamentSystem lands
   penalty, biggest energy savings — bank energy for later sets by giving up some
   points now). *Safe* grinds out longer rallies (−eff, **costs more energy**).
   *Aggressive* ends the point on a winner (+eff, chaos, **saves energy**). *All-out*
-  is conserve's opposite: contest every ball at full effort (biggest eff boost,
-  biggest energy burn) — a "money time" button for a big point. This matches the
-  real sport: safe/consistent play extends rallies, going for winners shortens them.
+  is conserve's opposite: contest every ball at full effort (major eff boost,
+  no extra chaos, biggest energy burn) — a "money time" button that can
+  noticeably tilt coin-flip rallies if the player is willing to empty the tank.
+  This matches the real sport: safe/consistent play extends rallies, going for
+  winners shortens them.
   Baseline energy cost per point is also per-sport (relative stamina need TT=1,
   BA=4, SQ=5, TE=3), and the dial's energy swing scales with that — table tennis
   stays cheap regardless of tactic (there the dial reads as a mental/consistency
