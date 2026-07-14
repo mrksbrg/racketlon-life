@@ -29,27 +29,7 @@
     const rows = store.rankings;
     const dir = sortDir === "desc" ? -1 : 1;
     const rankedRows = [...rows].sort((a, b) => {
-      const aValue =
-        view === "ratings" && sortKey === "rating"
-          ? a.sportRatings[ratingSport]
-          : view === "ratings" && sortKey === "rd"
-            ? a.sportRatingRds[ratingSport]
-            : sortKey === "points"
-              ? a.points
-              : sortKey === "racePoints"
-                ? a.racePoints
-                : a.rating;
-      const bValue =
-        view === "ratings" && sortKey === "rating"
-          ? b.sportRatings[ratingSport]
-          : view === "ratings" && sortKey === "rd"
-            ? b.sportRatingRds[ratingSport]
-            : sortKey === "points"
-              ? b.points
-              : sortKey === "racePoints"
-                ? b.racePoints
-                : b.rating;
-      return dir * (aValue - bValue) || a.rank - b.rank;
+      return dir * (sortValue(a) - sortValue(b)) || a.rank - b.rank;
     });
     const pageCount = Math.max(1, Math.ceil(rankedRows.length / PAGE_SIZE));
     const safePage = Math.min(page, pageCount - 1);
@@ -62,6 +42,14 @@
   });
 
   const youId = $derived(store.you?.id);
+
+  function sortValue(row: (typeof store.rankings)[number]): number {
+    if (view === "ratings" && sortKey === "rating") return row.sportRatings[ratingSport];
+    if (view === "ratings" && sortKey === "rd") return row.sportRatingRds[ratingSport];
+    if (sortKey === "points") return row.points;
+    if (sortKey === "racePoints") return row.racePoints;
+    return row.rating;
+  }
 
   function defaultSort(next: RankingView): SortKey {
     if (next === "race") return "racePoints";
@@ -280,10 +268,6 @@
     overflow: hidden;
   }
 
-  .table.wide {
-    overflow-x: auto;
-  }
-
   .row {
     display: flex;
     align-items: center;
@@ -292,10 +276,6 @@
     width: 100%;
     text-align: left;
     font-size: 13.5px;
-  }
-
-  .table.wide .row {
-    min-width: 560px;
   }
 
   .row + .row {
