@@ -405,3 +405,32 @@ export function luckTell(m: MatchState, side: Side): LuckTell {
   if (signed < -0.12) return "unlucky";
   return "neutral";
 }
+
+/**
+ * A live, observable 0..100 composure read for a side. Unlike soreness, this
+ * is match-body-language information both players can see: recent momentum,
+ * scoreboard pressure, and whether tired legs are starting to test the head.
+ * It deliberately does not feed back into point odds; `momentum` already does
+ * that. This is a halftime/changeover planning signal for the UI.
+ */
+export function mentalStrength(m: MatchState, side: Side): number {
+  const other: Side = side === "a" ? "b" : "a";
+  const set = m.sets[m.setIndex];
+  const signedMomentum = side === "a" ? m.momentum : -m.momentum;
+  const totalLead = totalPoints(m, side) - totalPoints(m, other);
+  const setLead = set ? set[side] - set[other] : 0;
+  const energy = m.energy[side];
+  const energyPenalty = Math.max(0, 35 - energy) * 0.35;
+  const raw = 50 + signedMomentum * 80 + totalLead * 0.8 + setLead * 0.6 - energyPenalty;
+  return Math.round(Math.max(0, Math.min(100, raw)));
+}
+
+export type MentalTell = "fragile" | "shaky" | "steady" | "confident" | "lockedIn";
+
+export function mentalTell(strength: number): MentalTell {
+  if (strength >= 80) return "lockedIn";
+  if (strength >= 65) return "confident";
+  if (strength >= 40) return "steady";
+  if (strength >= 25) return "shaky";
+  return "fragile";
+}

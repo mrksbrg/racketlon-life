@@ -6,6 +6,8 @@
     currentSport,
     fatigueTell,
     luckTell,
+    mentalStrength,
+    mentalTell,
     playPoint,
     tacticsForSport,
     totalPoints,
@@ -16,6 +18,8 @@
     FATIGUE_LABEL,
     FATIGUE_READ,
     LUCK_READ,
+    MENTAL_LABEL,
+    mentalColor,
     momentumBarPosition,
     SPORT_COLORS,
     SPORT_SHORT,
@@ -107,6 +111,10 @@
   {@const totalB = totalPoints(m, "b")}
   {@const oppFatigue = fatigueTell(m.energy.b)}
   {@const oppLuck = luckTell(m, "b")}
+  {@const mentalA = mentalStrength(m, "a")}
+  {@const mentalB = mentalStrength(m, "b")}
+  {@const mentalTellA = mentalTell(mentalA)}
+  {@const mentalTellB = mentalTell(mentalB)}
   {@const momentumPos = momentumBarPosition(m.momentum)}
   <div class="match">
     <div class="top">
@@ -158,6 +166,7 @@
     </p>
 
     <div class="energy-group">
+      <div class="meter-section-title">Physical</div>
       <div class="energy-row">
         <span class="energy-label">You</span>
         <div class="bar energy-bar">
@@ -180,6 +189,22 @@
           <div class="fill" style:width="{m.energy.b}%" style:background={energyColor(m.energy.b)}></div>
         </div>
         <span class="energy-val opp">{FATIGUE_LABEL[oppFatigue]}</span>
+      </div>
+
+      <div class="meter-section-title mental-title">Mental strength</div>
+      <div class="energy-row mental-row">
+        <span class="energy-label">You</span>
+        <div class="bar mental-bar">
+          <div class="fill" style:width="{mentalA}%" style:background={mentalColor(mentalA)}></div>
+        </div>
+        <span class="energy-val">{MENTAL_LABEL[mentalTellA]}</span>
+      </div>
+      <div class="energy-row mental-row">
+        <span class="energy-label">{m.players.b.name}</span>
+        <div class="bar mental-bar">
+          <div class="fill" style:width="{mentalB}%" style:background={mentalColor(mentalB)}></div>
+        </div>
+        <span class="energy-val opp">{MENTAL_LABEL[mentalTellB]}</span>
       </div>
     </div>
 
@@ -445,6 +470,19 @@
     margin: -6px 0 0;
   }
 
+  .meter-section-title {
+    margin-top: 2px;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .mental-title {
+    margin-top: 6px;
+  }
+
   .energy-row {
     display: flex;
     align-items: center;
@@ -498,6 +536,10 @@
 
   .soreness-bar {
     background: color-mix(in srgb, var(--warn) 18%, var(--card-2));
+  }
+
+  .mental-bar {
+    background: color-mix(in srgb, var(--accent) 14%, var(--card-2));
   }
 
   .sets {
