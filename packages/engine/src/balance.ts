@@ -45,6 +45,13 @@ export const BALANCE = {
      * Cut from 15 in M1: activity rest now carries the full-recovery tuning,
      * while this stays as the baseline recovery every week. */
     weeklyBase: 10,
+    /** Core strength at or above this fully absorbs training fatigue for a
+     * balanced handful of physical training sessions. Below it, the protection
+     * scales linearly so weak-core players still feel the load. */
+    coreStrengthGraceAt: 0.5,
+    /** Maximum weekly physical training sessions that core strength can make
+     * fatigue-neutral. Training beyond this still adds fatigue normally. */
+    coreStrengthGraceSessions: 5,
     /** emit condition.warning at or above this fatigue */
     warnAt: 75,
   },

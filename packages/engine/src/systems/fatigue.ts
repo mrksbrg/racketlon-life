@@ -9,7 +9,7 @@ export const FatigueSystem: GameSystem = {
     for (const player of ctx.state.players) {
       const counts = ctx.plans.get(player.identity.id);
       if (!counts) continue;
-      const delta = fatigueDeltaFromCounts(counts, ctx.content);
+      const delta = fatigueDeltaFromCounts(counts, ctx.content, player.attributes.coreStrength);
       player.condition.fatigue = clamp(player.condition.fatigue + delta, 0, 100);
     }
   },
