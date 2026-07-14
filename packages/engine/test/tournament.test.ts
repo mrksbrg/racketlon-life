@@ -407,6 +407,26 @@ describe("tournament facade flow", () => {
     expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBe(before);
   });
 
+
+  it("blocks every tournament day for a weekend event", () => {
+    const content: ContentBundle = {
+      ...testContent,
+      tournaments: {
+        ...testContent.tournaments,
+        "monthly-open-1": { ...testContent.tournaments["monthly-open-1"]!, date: "2026-01-30", nights: 2 },
+        "monthly-open-1-a": { ...testContent.tournaments["monthly-open-1-a"]!, date: "2026-01-30", nights: 2 },
+      },
+    };
+    const game = Game.newGame({ content, seed: "tour-weekend-blocks" });
+    registerAndAdvanceTo(game, 3);
+
+    expect(game.tournamentBlocksThisWeek()[0]?.slotIndices).toEqual([
+      slotIndex(4, 0), slotIndex(4, 1), slotIndex(4, 2),
+      slotIndex(5, 0), slotIndex(5, 1), slotIndex(5, 2),
+      slotIndex(6, 0), slotIndex(6, 1), slotIndex(6, 2),
+    ]);
+  });
+
   it("blocks two outbound and return travel days for an intercontinental tournament", () => {
     const content: ContentBundle = {
       ...testContent,

@@ -14,6 +14,7 @@
   const tournamentEntry = $derived(store.tourEntries.find((e) => e.isThisWeek) ?? null);
   const travelSlots = $derived(new Set(store.travelBlocksThisWeek.flatMap((block) => block.slotIndices)));
   const tournamentSlots = $derived(new Set(store.tournamentBlocksThisWeek.flatMap((block) => block.slotIndices)));
+  const activeTournamentThisWeek = $derived(store.registeredTournamentThisWeek ?? (tournamentSlots.size > 0 ? tournamentEntry?.tournament : null));
 
   function openPicker(index: number) {
     if (travelSlots.has(index) || tournamentSlots.has(index)) return;
@@ -29,8 +30,8 @@
 <StatusBar />
 
 <main>
-  {#if store.registeredTournamentThisWeek && tournamentEntry}
-    {@const t = store.registeredTournamentThisWeek}
+  {#if activeTournamentThisWeek && tournamentEntry}
+    {@const t = activeTournamentThisWeek}
     <div class="tournament-missed tournament-ready">
       <strong>🏆 {t.name} week:</strong> plan any last sessions before you press Play. Training can sharpen form, but fatigue and injury risk still count.
       <span class="travel-note">Tournament days are blocked for match play and cannot be used for training.</span>
@@ -95,7 +96,7 @@
 <footer>
   <ForecastBar />
   <div class="actions">
-    {#if store.registeredTournamentThisWeek}
+    {#if activeTournamentThisWeek}
       <button class="simulate" onclick={() => store.enterTournament()}>Play tournament ▸</button>
     {:else}
       <button class="simulate" onclick={() => void store.simulateWeek()}>Simulate week ▸</button>

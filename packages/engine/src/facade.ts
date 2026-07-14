@@ -862,7 +862,8 @@ export class Game {
 
   tournamentBlocksThisWeek(): TravelBlock[] {
     const week = this.state.calendar.weekIndex;
-    const def = this.registeredTournamentThisWeek();
+    const entry = this.state.career.tournamentEntries.find((e) => e.weekIndex === week);
+    const def = entry ? this.content.tournaments[entry.tournamentId] : null;
     if (!def) return [];
     const slotIndices = tournamentDaySlots(this.state.calendar, def);
     return slotIndices.length > 0 ? [{ weekIndex: week, slotIndices }] : [];
