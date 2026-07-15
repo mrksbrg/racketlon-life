@@ -298,9 +298,9 @@ describe("tournament registration", () => {
     it("lists the human's own division first, then tougher ones", () => {
       const game = Game.newGame({ content: testContent, seed: "class-1" });
       const entry = game.tournamentSchedule(1)[0]!;
-      // SAT bands are ["A","B"]; a fresh (null-firPoints) human's own
-      // division is the lowest, "B", with "A" (tougher) also offered
-      expect(entry.eligibleDivisions.map((c) => c.def.division)).toEqual(["B", "A"]);
+      // men's SAT bands are ["A","B","C"]; a fresh (null-firPoints) human's
+      // own division is the lowest, "C", with "B" and "A" (tougher) also offered
+      expect(entry.eligibleDivisions.map((c) => c.def.division)).toEqual(["C", "B", "A"]);
     });
 
     it("defaults tournamentSchedule's own-division fields to the first eligible class", () => {
@@ -334,20 +334,20 @@ describe("tournament registration", () => {
       // tournamentThisWeek stays the informational own-division default,
       // deliberately ignoring registration (see its own doc comment) — only
       // registeredTournamentThisWeek (checked above) reflects the real choice
-      expect(game.tournamentThisWeek()?.division).toBe("B");
+      expect(game.tournamentThisWeek()?.division).toBe("C");
     });
 
     it("switches an existing registration to a different eligible class instead of erroring", () => {
       const game = Game.newGame({ content: contentWithRankedField, seed: "class-6" });
-      game.registerForTournament(3); // default (own) class, "B"
+      game.registerForTournament(3); // default (own) class, "C"
       expect(() => game.registerForTournament(3, "A")).not.toThrow();
       expect(game.tournamentSchedule(1)[0]!.tournament.division).toBe("A");
     });
 
     it("throws for a division the human isn't eligible for", () => {
       const game = Game.newGame({ content: testContent, seed: "class-7" });
-      // SAT only offers "A" and "B" — "C" doesn't exist for this tier at all
-      expect(() => game.registerForTournament(3, "C" as never)).toThrow(/not open to you/i);
+      // men's SAT only offers "A", "B", and "C" — "D" doesn't exist for this tier at all
+      expect(() => game.registerForTournament(3, "D" as never)).toThrow(/not open to you/i);
     });
   });
 });
@@ -357,7 +357,7 @@ describe("tournament facade flow", () => {
     const game = Game.newGame({ content: testContent, seed: "tour-1" });
     expect(game.tournamentThisWeek()).toBeNull();
     advanceUntil(game, () => game.weekIndex === 3);
-    expect(game.tournamentThisWeek()?.id).toBe("monthly-open-1-m");
+    expect(game.tournamentThisWeek()?.id).toBe("monthly-open-1-c-m");
   });
 
   it("enterTournament fails without registering, even during tournament week", () => {
@@ -419,6 +419,7 @@ describe("tournament facade flow", () => {
         ...testContent.tournaments,
         "monthly-open-1-m": { ...testContent.tournaments["monthly-open-1-m"]!, date: "2026-01-30", nights: 2 },
         "monthly-open-1-a-m": { ...testContent.tournaments["monthly-open-1-a-m"]!, date: "2026-01-30", nights: 2 },
+        "monthly-open-1-c-m": { ...testContent.tournaments["monthly-open-1-c-m"]!, date: "2026-01-30", nights: 2 },
       },
     };
     const game = Game.newGame({ content, seed: "tour-weekend-blocks" });
@@ -608,7 +609,12 @@ describe("tournament facade flow", () => {
     // Every field size is a power of two, so round 1 has no byes — the
     // human's round-2 opponent necessarily just played (and won) a real,
     // energy-costing round-1 match of their own elsewhere in the bracket.
-    const game = Game.newGame({ content: testContent, seed: "tour-opp-energy-2" });
+    // (Reseeded after SAT.m grew a 3rd ("C") band: the human's own division
+    // — and so the tournament id embedded in the RNG seed — shifted from
+    // "monthly-open-1-m" to "monthly-open-1-c-m", changing which NPCs land
+    // in the round-1 opponent's own match; this seed keeps a comfortable
+    // margin under the energy-recovery cap rather than landing right on it.)
+    const game = Game.newGame({ content: testContent, seed: "tour-opp-energy-6" });
     registerAndAdvanceTo(game, 3);
     const round1 = game.enterTournament();
     simulateMatchAuto(round1);
@@ -954,12 +960,12 @@ describe("drawRounds (draw tree view)", () => {
     expect(yours).toHaveLength(1);
   });
 
-  it("names round 1 Semifinal (main) and Plate Semifinal (plate) once the field has split", () => {
+  it("names round 1 Semifinal (main) and a 5th-8th playoff (plate) once the field has split", () => {
     const { rounds } = playToDraw("draw-1");
     expect(rounds.length).toBeGreaterThanOrEqual(2);
     const r1 = rounds[1]!;
     const names = r1.sections.map((s) => s.roundName).sort();
-    expect(names).toEqual(["Plate Semifinal", "Semifinal"]);
+    expect(names).toEqual(["Playoff for 5th–8th", "Semifinal"]);
     // positions partition 1-8 with no gaps or overlaps
     const main = r1.sections.find((s) => s.isMainDraw)!;
     const plate = r1.sections.find((s) => !s.isMainDraw)!;
@@ -967,6 +973,18 @@ describe("drawRounds (draw tree view)", () => {
     expect(main.positionTo).toBe(4);
     expect(plate.positionFrom).toBe(5);
     expect(plate.positionTo).toBe(8);
+  });
+
+  it("names the final round's plate matches by the exact positions at stake — bronze, 5th, 7th", () => {
+    const { rounds } = playToDraw("draw-1");
+    const last = rounds[rounds.length - 1]!;
+    const names = last.sections.map((s) => `${s.positionFrom}-${s.positionTo}: ${s.roundName}`).sort();
+    expect(names).toEqual([
+      "1-2: Final",
+      "3-4: Bronze Medal Match",
+      "5-6: 5th Place Match",
+      "7-8: 7th Place Match",
+    ]);
   });
 
   it("every prior round's matchups are fully decided (a real winnerId), only the latest round can be pending", () => {
@@ -981,6 +999,66 @@ describe("drawRounds (draw tree view)", () => {
   it("stops recording once the human's own tournament concludes — never more than totalRounds rounds", () => {
     const { rounds } = playToDraw("draw-3");
     expect(rounds.length).toBeLessThanOrEqual(3); // log2(8)
+  });
+
+  it("carries the four set scores on every decided matchup (AI and human alike)", () => {
+    const { rounds } = playToDraw("draw-scores");
+    const decided = rounds
+      .flatMap((r) => r.sections)
+      .flatMap((s) => s.matchups)
+      .filter((m) => m.winnerId !== null);
+    expect(decided.length).toBeGreaterThan(0);
+    for (const m of decided) {
+      expect(m.sets).toBeDefined();
+      expect(m.sets).toHaveLength(4); // TT, BD, SQ, TN
+      // racketlon is decided on total points, not sets won (a 2-2 set tie goes
+      // to a gummiarm) — sanity-link the surfaced scores to the surfaced
+      // winner: the winner never trails on aggregate points across the four.
+      const pointsA = m.sets!.reduce((sum, s) => sum + s.a, 0);
+      const pointsB = m.sets!.reduce((sum, s) => sum + s.b, 0);
+      if (m.winnerId === m.a.id) expect(pointsA).toBeGreaterThanOrEqual(pointsB);
+      else expect(pointsB).toBeGreaterThanOrEqual(pointsA);
+    }
+  });
+
+  it("leaves the human's own matchup score-less until it's played, then fills it in", () => {
+    const game = Game.newGame({ content: testContent, seed: "draw-human-scores" });
+    advanceUntil(game, () => game.weekIndex === 3);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+
+    // at entry: AI round-0 matches carry scores, the human's does not yet
+    const r0 = drawRounds(state, session)[0]!.sections[0]!;
+    const yours = r0.matchups.find((m) => m.isYouA || m.isYouB)!;
+    const theirs = r0.matchups.filter((m) => !m.isYouA && !m.isYouB);
+    expect(yours.sets).toBeUndefined();
+    expect(yours.winnerId).toBeNull();
+    for (const m of theirs) expect(m.sets).toHaveLength(4);
+
+    // after the human plays, their matchup gains the scores
+    simulateMatchAuto(session.pendingMatch!);
+    advanceTournament(state, session, session.pendingMatch!, log);
+    const playedYours = drawRounds(state, session)[0]!.sections[0]!.matchups.find(
+      (m) => m.isYouA || m.isYouB,
+    )!;
+    expect(playedYours.winnerId).not.toBeNull();
+    expect(playedYours.sets).toHaveLength(4);
+  });
+
+  it("badges only the top-seeded players (top quarter, min 2) and no one else", () => {
+    const { rounds } = playToDraw("draw-seeds");
+    const players = rounds
+      .flatMap((r) => r.sections)
+      .flatMap((s) => s.matchups)
+      .flatMap((m) => [m.a, m.b]);
+    const seeds = players.map((p) => p.seed).filter((s): s is number => s !== undefined);
+    expect(seeds.length).toBeGreaterThan(0);
+    // an 8-draw seeds its top 2 only — every surfaced seed is 1 or 2
+    for (const s of seeds) expect(s).toBeLessThanOrEqual(2);
+    // and the top seed appears somewhere in the draw
+    expect(seeds).toContain(1);
   });
 });
 
@@ -1038,6 +1116,26 @@ describe("projectedField geographic entry bias", () => {
         id: "geo-open-b",
         eventId: "geo-open",
         division: "B",
+        gender: "m",
+        name: "Geo Open",
+        city: "Hometown",
+        country: "HOME",
+        lat: 0,
+        lon: 0,
+        tier: "SAT",
+        date: "2026-01-26",
+        nights: 1,
+        entryFee: 0,
+        fieldSize: 8,
+        prizeByRoundsWon: [0, 0, 0, 0],
+      },
+      // men-only: BALANCE.division.byTier.SAT.m has a 3rd ("C") band that
+      // .f doesn't — humanEligibleDivisions requires every band's row to
+      // exist even though these tests only ever read the "geo-open" (A) def
+      "geo-open-c": {
+        id: "geo-open-c",
+        eventId: "geo-open",
+        division: "C",
         gender: "m",
         name: "Geo Open",
         city: "Hometown",
@@ -1197,7 +1295,8 @@ describe("Game.otherDivisionDraws", () => {
     game.enterTournament();
 
     const others = game.otherDivisionDraws();
-    expect(others.map((o) => o.division)).toEqual(["A"]); // testContent's SAT event is A/B only, human's own is B
+    // men's SAT event is A/B/C, human's own (fresh, unranked) is the lowest, C
+    expect(others.map((o) => o.division)).toEqual(["B", "A"]);
     expect(others[0]!.concluded).toBe(false);
     expect(others[0]!.rounds).toHaveLength(1);
   });
@@ -1246,7 +1345,9 @@ describe("Game.otherDivisionDraws", () => {
     const profile = game.opponentProfile(entrantId)!;
     expect(profile.recentResults).toHaveLength(1);
     const r = profile.recentResults[0]!;
-    expect(r.division).toBe("A");
+    // otherDivisionDraws()[0] is the first sibling division ("B" — see the
+    // "exposes every other division" test above for why B comes before A)
+    expect(r.division).toBe("B");
     expect(r.finishingPosition).toBeGreaterThanOrEqual(1);
     expect(r.matchesPlayed).toBeGreaterThanOrEqual(1);
   });

@@ -7,17 +7,22 @@ import { iocToIso2 } from "./countryMap.js";
  * internal 0–1000 skill scale, and the derived world-bundle entry shape.
  *
  * These anchors are build-time only (they never move once a bundle ships) and
- * are tuned to the observed dataset spread (ratings ≈ 1150–1815): R_MIN/R_MAX
- * are chosen so the world top lands ≈950 (≈ level 20) and the weakest rated
- * players ≈120 (≈ level 3). First-pass tuning — easy to retune and rebuild.
- * The RD *sampling* multiplier that adds per-world variation lives on the
- * engine side (BALANCE.import.rdSampleK), since that's a world-creation step.
+ * are tuned to the observed dataset spread (ratings ≈ 1150–2270 as of the
+ * three-tournament squash update — Henrik Mustonen's 2266 squash rating is
+ * the current outright max across every sport): R_MIN/R_MAX are chosen so
+ * the world top lands ≈950 (≈ level 20) with headroom above the tallest
+ * outlier (so a standout player clamps alone, not tied with the rest of the
+ * pack sampling up to the ceiling — see world/factory.ts's
+ * `specFromRealPlayer`), and the weakest rated players ≈120 (≈ level 3).
+ * First-pass tuning — easy to retune and rebuild. The RD *sampling*
+ * multiplier that adds per-world variation lives on the engine side
+ * (BALANCE.import.rdSampleK), since that's a world-creation step.
  */
 export const MAP = {
   /** rating that maps to internal skill 0 */
   R_MIN: 1050,
   /** rating that maps to internal skill 1000 */
-  R_MAX: 1850,
+  R_MAX: 2300,
   /** internal skill assigned to a sport the scraper had no rating for */
   MISSING_SPORT_SKILL: 200,
   /** scraper endurance score that maps to the engine's attribute floor (0) —

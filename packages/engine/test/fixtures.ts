@@ -73,10 +73,10 @@ export const testContent: ContentBundle = {
   // testRoster() never sets firPoints, so divisionAssignments bands every
   // NPC by skill alone (systems/division.ts), spreading them across every
   // band of a tier rather than dumping them all in the lowest one. The
-  // default fallback human (a deliberate beginner, see world/factory.ts) is
-  // still weak enough to land in the tier's lowest band regardless — SAT
-  // (["A","B"]) -> "B", IWT (["A","B","C"]) -> "C" — matching real content's
-  // default for a fresh career. humanEligibleDivisions (playing up — see
+  // default fallback human (a deliberate beginner, male, see world/factory.ts)
+  // is still weak enough to land in the tier's lowest band regardless — men's
+  // SAT (["A","B","C"]) -> "C", men's IWT (["A","B","C","D"]) -> "D" —
+  // matching real content's default for a fresh career. humanEligibleDivisions (playing up — see
   // tournament/engine.ts) also needs every *tougher* division's row to exist
   // for these events, same as a real content author publishes every division
   // per event (enforced by packages/content/test/content.test.ts) — so each
@@ -138,6 +138,25 @@ export const testContent: ContentBundle = {
       eventId: "monthly-open-1",
       division: "A",
       gender: "f",
+      name: "Monthly Open",
+      city: "Testville",
+      country: "SE",
+      lat: 60,
+      lon: 15,
+      tier: "SAT",
+      date: "2026-01-26",
+      nights: 1,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
+    // men-only: BALANCE.division.byTier.SAT.m has a 3rd ("C") band that
+    // .f doesn't — mirrors real content's asymmetric SAT division counts
+    "monthly-open-1-c-m": {
+      id: "monthly-open-1-c-m",
+      eventId: "monthly-open-1",
+      division: "C",
+      gender: "m",
       name: "Monthly Open",
       city: "Testville",
       country: "SE",
@@ -218,6 +237,24 @@ export const testContent: ContentBundle = {
       fieldSize: 8,
       prizeByRoundsWon: [0, 200, 500, 1500],
     },
+    // men-only, same reason as monthly-open-1-c-m above
+    "monthly-open-2-c-m": {
+      id: "monthly-open-2-c-m",
+      eventId: "monthly-open-2",
+      division: "C",
+      gender: "m",
+      name: "Monthly Open",
+      city: "Testville",
+      country: "SE",
+      lat: 60,
+      lon: 15,
+      tier: "SAT",
+      date: "2026-02-23",
+      nights: 1,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
     "monthly-open-3-m": {
       id: "monthly-open-3-m",
       eventId: "monthly-open-3",
@@ -274,6 +311,24 @@ export const testContent: ContentBundle = {
       eventId: "monthly-open-3",
       division: "A",
       gender: "f",
+      name: "Monthly Open",
+      city: "Testville",
+      country: "SE",
+      lat: 60,
+      lon: 15,
+      tier: "SAT",
+      date: "2026-03-23",
+      nights: 1,
+      entryFee: 300,
+      fieldSize: 8,
+      prizeByRoundsWon: [0, 200, 500, 1500],
+    },
+    // men-only, same reason as monthly-open-1-c-m above
+    "monthly-open-3-c-m": {
+      id: "monthly-open-3-c-m",
+      eventId: "monthly-open-3",
+      division: "C",
+      gender: "m",
       name: "Monthly Open",
       city: "Testville",
       country: "SE",

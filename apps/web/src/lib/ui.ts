@@ -132,6 +132,18 @@ export function formatFieldStanding(opp: { firStanding: FirStandingView | null; 
   return `${rank} · ${opp.rating}`;
 }
 
+/** A player's seed as it appears on a draw sheet, e.g. "[1]" — empty string
+ * for an unseeded player, so it can be dropped straight into markup. */
+export function seedBadge(seed: number | undefined): string {
+  return seed === undefined ? "" : `[${seed}]`;
+}
+
+/** A played match's set scores as a single draw-sheet line, e.g.
+ * "21-15 18-21 21-9 7-11" — empty for a not-yet-played match. */
+export function setScoreLine(sets: { a: number; b: number }[] | undefined): string {
+  return sets && sets.length > 0 ? sets.map((s) => `${s.a}-${s.b}`).join(" ") : "";
+}
+
 /** ISO 3166-1 alpha-2 → regional-indicator flag emoji (e.g. "SE" → 🇸🇪). */
 export function flagEmoji(code: string): string {
   return code

@@ -188,6 +188,12 @@ class GameStore {
   match = $state<MatchState | null>(null);
   matchSpeed = $state<MatchSpeed>(2);
   tournamentContext = $state<TournamentContext | null>(null);
+  /** true while the player is studying the draw before their next match has
+   * been entered (the "draw-first" tournament flow) — drives whether the Draw
+   * screen shows a "Play match ▸" kickoff button or a "‹ Back to match" peek
+   * affordance. Set when entering a tournament and between rounds; cleared once
+   * the match is actually entered. */
+  awaitingKickoff = $state(false);
   /** id of the player whose profile is open, and the screen to return to —
    * set together by `viewOpponent`, so the profile can be reached from any
    * tab/draw/field-list context and hand back to exactly where it opened. */
@@ -544,7 +550,9 @@ class GameStore {
     return section ? { roundName: section.roundName, isMainDraw: section.isMainDraw } : { roundName: `Round ${round}`, isMainDraw: true };
   }
 
-  /** Plays out this week's tournament — only valid once registered for it. */
+  /** Enters this week's tournament — only valid once registered for it. Opens
+   * the full-screen draw first (the "study the draw" moment); the player kicks
+   * off their match from there via `playPendingMatch`. */
   enterTournament(): void {
     if (!this.game) return;
     const def = this.game.registeredTournamentThisWeek();
@@ -556,7 +564,15 @@ class GameStore {
       totalRounds: Math.log2(def.fieldSize),
       ...this.sectionInfo(1),
     };
+    this.awaitingKickoff = true;
     this.version++;
+    this.screen = "draw";
+  }
+
+  /** Kicks off the human's pending match from the draw screen. */
+  playPendingMatch(): void {
+    if (!this.match) return;
+    this.awaitingKickoff = false;
     this.screen = "match";
   }
 
@@ -597,6 +613,7 @@ class GameStore {
   exitMatch(): void {
     this.match = null;
     this.tournamentContext = null;
+    this.awaitingKickoff = false;
     this.screen = "planner";
   }
 
@@ -616,10 +633,15 @@ class GameStore {
       this.match = outcome.match;
       const round = outcome.round + 1;
       this.tournamentContext = { ...this.tournamentContext, round, ...this.sectionInfo(round) };
+      // Back to the draw to study the updated bracket and the next-round
+      // pairing before kicking off — the draw-first loop, every round.
+      this.awaitingKickoff = true;
+      this.screen = "draw";
       return;
     }
     this.tournamentContext = null;
     this.match = null;
+    this.awaitingKickoff = false;
     // simulateWeek() only runs from "planner" (guards against double-fires
     // from its own button) — pass through it before handing off to it
     this.screen = "planner";
@@ -634,6 +656,7 @@ class GameStore {
     this.summary = null;
     this.match = null;
     this.tournamentContext = null;
+    this.awaitingKickoff = false;
     this.draft = randomDraft();
     this.version++;
     this.screen = "create";

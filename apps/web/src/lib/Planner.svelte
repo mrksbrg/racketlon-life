@@ -76,17 +76,17 @@
       {#each PERIODS as period, p (period)}
         {@const i = slotIndex(d, p)}
         {@const isTournament = tournamentSlots.has(i)}
-        {@const activity = travelSlots.has(i) ? "travel" : (store.slots[i] ?? "rest")}
+        {@const isTravel = travelSlots.has(i)}
+        {@const activity = isTravel ? "travel" : (store.slots[i] ?? "rest")}
         <button
           class="slot"
-          class:is-rest={activity === "rest"}
-          class:is-travel={activity === "travel"}
-          class:is-tournament={isTournament}
-          disabled={travelSlots.has(i) || isTournament}
+          class:is-rest={activity === "rest" && !isTravel && !isTournament}
+          class:is-blocked={isTravel || isTournament}
+          disabled={isTravel || isTournament}
           style:--slot-color={ACTIVITY_COLORS[activity]}
           onclick={() => openPicker(i)}
         >
-          {isTournament ? "Match" : defaultContent.activities[activity].short}
+          {isTournament ? "Tournament" : defaultContent.activities[activity].short}
         </button>
       {/each}
     {/each}
@@ -227,17 +227,11 @@
     font-size: 13px;
   }
 
-  .slot.is-tournament {
+  .slot.is-blocked {
     background: rgba(250, 204, 21, 0.16);
     border-color: rgba(250, 204, 21, 0.42);
     color: #fde68a;
     cursor: not-allowed;
-  }
-
-  .slot.is-travel {
-    background: color-mix(in srgb, var(--muted) 28%, var(--card));
-    border: 1px solid color-mix(in srgb, var(--muted) 55%, var(--border));
-    color: var(--text);
   }
 
   .slot.is-rest {

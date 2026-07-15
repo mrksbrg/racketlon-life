@@ -112,7 +112,7 @@ describe("Game facade", () => {
     // results are most-recent-first
     expect(stats.results[0]!.week).toBe(7);
     expect(stats.results[1]!.week).toBe(3);
-    expect(stats.results[1]!.division).toBe("B");
+    expect(stats.results[1]!.division).toBe("C"); // men's SAT: fresh human's own division is the lowest, "C"
     // won + finalsReached never exceed played
     expect(stats.lifetime.tournamentsWon).toBeLessThanOrEqual(2);
     expect(stats.lifetime.finalsReached).toBeGreaterThanOrEqual(stats.lifetime.tournamentsWon);
@@ -134,7 +134,7 @@ describe("Game facade", () => {
     if (played.finishingPosition <= 3) {
       expect(trophies).toHaveLength(1);
       expect(trophies[0]!.medal).toBe(played.finishingPosition);
-      expect(trophies[0]!.division).toBe("B");
+      expect(trophies[0]!.division).toBe("C"); // men's SAT: fresh human's own division is the lowest, "C"
       expect(trophies[0]!.name).toBe(played.name);
     } else {
       expect(trophies).toHaveLength(0);

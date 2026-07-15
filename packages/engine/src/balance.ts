@@ -451,8 +451,17 @@ export const BALANCE = {
   import: {
     /** exact per-world skill sampled from N(mappedSkill, rdSampleK · rdSkill)
      * — well-measured players (low RD) land close to their rating every
-     * career; rarely-seen players (high RD) vary more between worlds */
-    rdSampleK: 1,
+     * career; rarely-seen players (high RD) vary more between worlds.
+     * Tuned down from 1: at full rdSkill magnitude, this dataset's very wide
+     * real-world RDs (median ~250 in skill-space) let plenty of mediocre,
+     * high-RD players roll all the way up to a strong player's territory,
+     * washing out genuine standouts — e.g. Henrik Mustonen's squash rating
+     * (2266, the outright highest of any player in any sport) topped the
+     * in-game ladder only 34% of careers at rdSampleK=1, vs 100% at 0.4 and
+     * ~99% at 0.6. 0.5 keeps noticeable career-to-career variation for the
+     * rest of the field while letting real outliers reliably show up as
+     * outliers. */
+    rdSampleK: 0.5,
     /** per-world endurance sampled from N(mappedEndurance, enduranceJitter) —
      * there's no per-player RD for the endurance score (it's a modelled
      * profile value, not a measured rating), so this is one small fixed
@@ -476,15 +485,17 @@ export const BALANCE = {
    * gender-specific), so the division list itself is gender-specific, not
    * just the fieldSize on each division's content row. A tier (or a tier's
    * gender) missing here is a content-authoring bug (division.ts throws
-   * rather than guessing). SAT/CHA/World Tour Finals currently give both
-   * genders the same division set — World Tour Finals mirroring World
-   * Championships' pre-expansion 4-division shape is an unconfirmed
-   * assumption, same pattern as that tier's existing fieldSize assumption.
+   * rather than guessing). SAT/CHA now give men a third (C) division that
+   * women's draws don't have, matching the men's-field-expansion pass across
+   * every tier. World Tour Finals currently gives both genders the same
+   * division set — mirroring World Championships' pre-expansion 4-division
+   * shape is an unconfirmed assumption, same pattern as that tier's existing
+   * fieldSize assumption.
    */
   division: {
     byTier: {
-      SAT: { m: ["A", "B"], f: ["A", "B"] },
-      CHA: { m: ["A", "B"], f: ["A", "B"] },
+      SAT: { m: ["A", "B", "C"], f: ["A", "B"] },
+      CHA: { m: ["A", "B", "C"], f: ["A", "B"] },
       IWT: { m: ["A", "B", "C", "D"], f: ["A", "B", "C"] },
       SWT: { m: ["A", "B", "C", "D"], f: ["A", "B", "C"] },
       "World Championships": { m: ["A", "B", "C", "D", "E"], f: ["A", "B", "C"] },

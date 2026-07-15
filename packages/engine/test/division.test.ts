@@ -169,10 +169,10 @@ describe("divisionOf", () => {
   });
 });
 
-/** A minimal SAT event (2 divisions — real content always publishes a
- * tier's full division set, and `Game.newGame`'s week-0 inbox seeding
- * resolves the human's own division at world-creation time, so a
- * single-division test event would throw before the test even runs). */
+/** A minimal SAT event (all 3 of men's SAT bands — real content always
+ * publishes a tier's full division set, and `Game.newGame`'s week-0 inbox
+ * seeding resolves the human's own division at world-creation time, so a
+ * short-division-set test event would throw before the test even runs). */
 function satEvent(eventId: string, fieldSizeA: TournamentDef["fieldSize"]): Record<string, TournamentDef> {
   const base = {
     eventId,
@@ -192,6 +192,8 @@ function satEvent(eventId: string, fieldSizeA: TournamentDef["fieldSize"]): Reco
   return {
     [`${eventId}-a`]: { ...base, id: `${eventId}-a`, division: "A", fieldSize: fieldSizeA, prizeByRoundsWon: Array(Math.log2(fieldSizeA) + 1).fill(0) },
     [`${eventId}-b`]: { ...base, id: `${eventId}-b`, division: "B", fieldSize: 8, prizeByRoundsWon: [0, 50, 100, 200] },
+    // men's SAT has a 3rd ("C") band — see BALANCE.division.byTier
+    [`${eventId}-c`]: { ...base, id: `${eventId}-c`, division: "C", fieldSize: 8, prizeByRoundsWon: [0, 50, 100, 200] },
   };
 }
 
@@ -199,7 +201,7 @@ describe("projectedField division filtering", () => {
   it("only draws opponents assigned to the def's own division", () => {
     // the fallback human's skill is deliberately weak (see fixtures.ts),
     // near the bottom of testRoster's 300-900 skill spread, so they still
-    // resolve to SAT's lowest division ("B") even under skill-based
+    // resolve to men's SAT's lowest division ("C") even under skill-based
     // unranked banding. Division A's field is now a mix of the strongest
     // testRoster NPCs (skill-banded) and the top half of the 10 added
     // ranked NPCs (points-banded) — either population alone is already
@@ -225,7 +227,7 @@ describe("projectedField division filtering", () => {
   });
 
   it("throws a clear error rather than a silent short field when the division's pool is too small", () => {
-    // testRoster()'s strongest ~half (skill-banded) reaches division A, but
+    // testRoster()'s strongest ~third (skill-banded) reaches division A, but
     // that's still only a handful of players — nowhere near a 64-player draw.
     const tournaments = satEvent("too-big", 64);
     const content: ContentBundle = { ...testContent, tournaments };

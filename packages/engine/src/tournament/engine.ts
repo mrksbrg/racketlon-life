@@ -140,6 +140,9 @@ interface RoundPair {
   a: string;
   b: string;
   winner: string | null;
+  /** the four set scores (TT→BD→SQ→TN order), captured from the resolved
+   * match — undefined only for the human's own pair until they've played it */
+  sets?: { a: number; b: number }[];
 }
 
 /**
@@ -185,6 +188,9 @@ export interface TournamentSession {
   humanId: string;
   /** entrant ids in fixed bracket-position order, seeded once at entry */
   bracketBySeed: string[];
+  /** each entrant's seed rank (1 = top-rated), computed once at entry from the
+   * same Glicko sort as `bracketBySeed` — lets the draw view badge seeds */
+  seedByPlayerId: ReadonlyMap<string, number>;
   currentRound: number; // 0-indexed
   /**
    * This round's groups, in bracket-position order — see {@link Group} and
@@ -501,6 +507,13 @@ export function seedBracket(entrants: Player[], fieldSize: FieldSize): string[] 
   return order.map((seed) => bySeed.get(seed)!);
 }
 
+/** Each entrant's seed rank (1 = top-rated), by the same Glicko sort as
+ * `seedBracket` — the number a seeding committee would print next to a name. */
+function seedRanks(entrants: Player[]): Map<string, number> {
+  const sorted = [...entrants].sort((a, b) => combinedRating(b) - combinedRating(a));
+  return new Map(sorted.map((p, i) => [p.identity.id, i + 1]));
+}
+
 function roundPairs(participants: string[]): Array<[string, string]> {
   const pairs: Array<[string, string]> = [];
   for (let i = 0; i < participants.length; i += 2) {
@@ -568,7 +581,7 @@ function resolveRound(state: GameState, session: TournamentSession): void {
       recordMatchResults(session.resultsBook, m);
       session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.endurance));
       session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.endurance));
-      return { a, b, winner: m.winner === "a" ? a : b };
+      return { a, b, winner: m.winner === "a" ? a : b, sets: m.sets.map((s) => ({ a: s.a, b: s.b })) };
     });
   });
 
@@ -601,7 +614,7 @@ function resolveRoundAuto(state: GameState, session: TournamentSession, round: n
       recordMatchResults(session.resultsBook, m);
       session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.endurance));
       session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.endurance));
-      return { a, b, winner: m.winner === "a" ? a : b };
+      return { a, b, winner: m.winner === "a" ? a : b, sets: m.sets.map((s) => ({ a: s.a, b: s.b })) };
     });
   });
 }
@@ -753,6 +766,7 @@ export function startTournament(
   const rngSeed = childSeed(state.seed, "tournament", week, def.id);
   const entrants = pickEntrants(state, def, week, content);
   const bracketBySeed = seedBracket(entrants, def.fieldSize);
+  const seedByPlayerId = seedRanks(entrants);
   const totalRounds = Math.log2(def.fieldSize);
 
   log.push({
@@ -768,6 +782,7 @@ export function startTournament(
     seed: rngSeed,
     humanId: state.career.playerId,
     bracketBySeed,
+    seedByPlayerId,
     currentRound: 0,
     groups: [{ participants: bracketBySeed, undefeated: true, gamesPlayed: 0, frozen: false }],
     roundPairs: null,
@@ -817,6 +832,7 @@ export function startSiblingSession(
 ): TournamentSession {
   const entrants = fullDivisionField(state, def, weekIndex, content);
   const bracketBySeed = seedBracket(entrants, def.fieldSize);
+  const seedByPlayerId = seedRanks(entrants);
   const totalRounds = Math.log2(def.fieldSize);
   const rngSeed = childSeed(state.seed, "tournament", weekIndex, def.id);
 
@@ -826,6 +842,7 @@ export function startSiblingSession(
     seed: rngSeed,
     humanId: NO_HUMAN_ID,
     bracketBySeed,
+    seedByPlayerId,
     currentRound: 0,
     groups: [{ participants: bracketBySeed, undefeated: true, gamesPlayed: 0, frozen: false }],
     roundPairs: null,
@@ -1039,6 +1056,13 @@ export function advanceTournament(
 
   const pair = session.roundPairs![session.pendingGroupIndex!]![session.pendingPairIndexInGroup!]!;
   pair.winner = humanWon ? session.humanId : finishedMatch.players.b.id;
+  // The human always plays as match side "a", but `pair` keeps its players in
+  // bracket order — so flip the set scores into pair.a/pair.b orientation when
+  // the human is actually the second-listed bracket participant.
+  const humanIsPairA = pair.a === finishedMatch.players.a.id;
+  pair.sets = finishedMatch.sets.map((s) =>
+    humanIsPairA ? { a: s.a, b: s.b } : { a: s.b, b: s.a },
+  );
   session.pendingMatch = null;
   session.pendingGroupIndex = null;
   session.pendingPairIndexInGroup = null;
@@ -1078,6 +1102,9 @@ export interface DrawPlayerView {
   id: string;
   name: string;
   nationality: string;
+  /** seed rank (1 = top seed), present only for players high enough to be
+   * seeded in this field (roughly the top quarter) — undefined otherwise */
+  seed?: number;
 }
 
 /** One pairing in a draw round. `winnerId` is null only for the human's own
@@ -1088,6 +1115,9 @@ export interface DrawMatchup {
   winnerId: string | null;
   isYouA: boolean;
   isYouB: boolean;
+  /** the four set scores (TT→BD→SQ→TN order) — undefined for the human's own
+   * match until they've played it */
+  sets?: { a: number; b: number }[];
 }
 
 /**
@@ -1114,21 +1144,59 @@ export interface DrawRound {
   sections: DrawSection[];
 }
 
-function drawRoundName(groupSizeEnteringRound: number, isMainDraw: boolean): string {
-  const base =
-    groupSizeEnteringRound === 2
+/** "1st"/"2nd"/"3rd"/"4th"/… — English ordinal suffix, with the 11-13 teens
+ * exception (11th, 12th, 13th, not "11st" etc). */
+function ordinal(n: number): string {
+  const teens = n % 100;
+  if (teens >= 11 && teens <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
+/**
+ * A draw section's display name. The main draw always plays for real places
+ * 1st/2nd, so it keeps the classic stage names (Final/Semifinal/…) regardless
+ * of the overall field size. A plate section instead names itself after the
+ * positions it's actually contesting: once it's down to a single decisive
+ * pair (`groupSizeEnteringRound === 2`) that's "{Nth} Place Match" (3rd is the
+ * Bronze Medal Match); while it's still multiple pairs away from that, it's a
+ * "Playoff for {from}th–{to}th" — the position range already shown alongside
+ * it as a badge, spelled out as a name.
+ */
+function drawRoundName(groupSizeEnteringRound: number, isMainDraw: boolean, positionFrom: number, positionTo: number): string {
+  if (isMainDraw) {
+    return groupSizeEnteringRound === 2
       ? "Final"
       : groupSizeEnteringRound === 4
         ? "Semifinal"
         : groupSizeEnteringRound === 8
           ? "Quarterfinal"
           : `Round of ${groupSizeEnteringRound}`;
-  return isMainDraw ? base : `Plate ${base}`;
+  }
+  if (groupSizeEnteringRound === 2) {
+    return positionFrom === 3 ? "Bronze Medal Match" : `${ordinal(positionFrom)} Place Match`;
+  }
+  return `Playoff for ${ordinal(positionFrom)}–${ordinal(positionTo)}`;
 }
 
-function drawPlayerView(state: GameState, playerId: string): DrawPlayerView {
+function drawPlayerView(state: GameState, playerId: string, seed: number | undefined): DrawPlayerView {
   const p = getPlayer(state, playerId);
-  return { id: playerId, name: fullName(p), nationality: p.identity.nationality };
+  return { id: playerId, name: fullName(p), nationality: p.identity.nationality, seed };
+}
+
+/** How many top entrants carry a printed seed in a field of this size — the
+ * top quarter, floor of 2, mirroring how a real draw seeds only its strongest
+ * names rather than every entrant. */
+function seededCount(fieldSize: FieldSize): number {
+  return Math.max(2, Math.floor(fieldSize / 4));
 }
 
 /**
@@ -1138,6 +1206,11 @@ function drawPlayerView(state: GameState, playerId: string): DrawPlayerView {
  * plate, which position range) rather than just "your next match".
  */
 export function drawRounds(state: GameState, session: TournamentSession): DrawRound[] {
+  const maxSeed = seededCount(session.def.fieldSize);
+  const seedOf = (id: string): number | undefined => {
+    const rank = session.seedByPlayerId.get(id);
+    return rank !== undefined && rank <= maxSeed ? rank : undefined;
+  };
   return session.history.map(({ round, groups, pairs }) => {
     const sections: DrawSection[] = [];
     let offset = 0;
@@ -1150,15 +1223,16 @@ export function drawRounds(state: GameState, session: TournamentSession): DrawRo
       if (!groupPairs) return; // already decided before this round — nothing played
       sections.push({
         isMainDraw: group.undefeated,
-        roundName: drawRoundName(groupSize, group.undefeated),
+        roundName: drawRoundName(groupSize, group.undefeated, positionFrom, positionTo),
         positionFrom,
         positionTo,
         matchups: groupPairs.map((p) => ({
-          a: drawPlayerView(state, p.a),
-          b: drawPlayerView(state, p.b),
+          a: drawPlayerView(state, p.a, seedOf(p.a)),
+          b: drawPlayerView(state, p.b, seedOf(p.b)),
           winnerId: p.winner,
           isYouA: p.a === session.humanId,
           isYouB: p.b === session.humanId,
+          sets: p.sets,
         })),
       });
     });
