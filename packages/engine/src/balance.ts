@@ -28,14 +28,14 @@ export const BALANCE = {
     /** attribute gain per gym session, on the 0..1 internal attribute scale */
     gymCoreStrengthGain: 0.015,
     /** attribute gain per cardio session, on the 0..1 internal attribute scale */
-    cardioStaminaGain: 0.015,
-    /** sessions/week of squash/badminton needed to maintain stamina */
-    sportStaminaMaintainSessions: 2,
-    /** stamina gain per session above the maintenance threshold */
-    sportStaminaBonus: { tt: 0, bd: 0.001, sq: 0.002, tn: 0 },
+    cardioEnduranceGain: 0.015,
+    /** sessions/week of squash/badminton needed to maintain endurance */
+    sportEnduranceMaintainSessions: 2,
+    /** endurance gain per session above the maintenance threshold */
+    sportEnduranceBonus: { tt: 0, bd: 0.001, sq: 0.002, tn: 0 },
     /** weekly fade for trainable body attributes that were not trained */
     attributeDecayUntrained: 0.003,
-    /** core strength fades more slowly than stamina: one check per this many weeks */
+    /** core strength fades more slowly than endurance: one check per this many weeks */
     coreStrengthDecayIntervalWeeks: 4,
     /** weekly fade for trainable body attributes above age declineFromAge */
     attributeAgeDeclineRate: 0.0008,
@@ -235,7 +235,7 @@ export const BALANCE = {
      * steady). At composure 0, pull is the full `sharpnessPull` each point —
      * sharpness chases every momentum swing almost immediately (rattled). At
      * composure 0.5 (an "average" player, same centering convention as
-     * `staminaCostFloor/Span`), pull ≈ half that — a moderate, visible drift
+     * `enduranceCostFloor/Span`), pull ≈ half that — a moderate, visible drift
      * over the course of a set, not a single-point snap.
      */
     sharpnessPull: 0.4,
@@ -243,7 +243,7 @@ export const BALANCE = {
      * Eff swing on a decisive point (a set point, match point, or the
      * gummiarm — see `clutchMoment`), from the Clutch attribute: `bonus =
      * (clutch − 0.5) × 2 × clutchWeight`, centered at clutch 0.5 (no effect,
-     * same convention as Stamina/Composure). A clutch-1 player gets the full
+     * same convention as Endurance/Composure). A clutch-1 player gets the full
      * +clutchWeight eff on that single point; a clutch-0 player gets the
      * full penalty. Deliberately smaller than a tactic choice (±14-65 eff,
      * see `tactics` below) — clutch tilts a coin-flip, it doesn't decide it
@@ -252,7 +252,7 @@ export const BALANCE = {
      */
     clutchWeight: 12,
     /**
-     * Baseline in-match energy burned per point, per sport — relative stamina
+     * Baseline in-match energy burned per point, per sport — relative endurance
      * need TT=1, BA=4, SQ=5, TE=3 (table tennis rallies are short and cheap;
      * squash is the grind).
      */
@@ -271,21 +271,21 @@ export const BALANCE = {
       sq: { winnerDiscount: 0.18, loserTax: 0.45 },
       tn: { winnerDiscount: 0.05, loserTax: 0.12 },
     },
-    /** energy-cost multiplier from the Stamina attribute (0..1) —
-     * staminaCostFloor + (1−stamina) × staminaCostSpan, so a stamina-1 player
-     * burns energy at 0.8× the baseline rate per point and a stamina-0 player
-     * at 1.2×. Centered so stamina 0.5 (an "average" player) reproduces
+    /** energy-cost multiplier from the Endurance attribute (0..1) —
+     * enduranceCostFloor + (1−endurance) × enduranceCostSpan, so a endurance-1 player
+     * burns energy at 0.8× the baseline rate per point and a endurance-0 player
+     * at 1.2×. Centered so endurance 0.5 (an "average" player) reproduces
      * exactly today's flat rate — existing balance is unchanged at the
      * midpoint, only spread out around it. */
-    staminaCostFloor: 0.8,
-    staminaCostSpan: 0.4,
+    enduranceCostFloor: 0.8,
+    enduranceCostSpan: 0.4,
     /**
      * Flat energy recovered at a changeover break, on top of whatever's left
      * — real rest, distinct from the tournament's between-ROUND recovery
      * (BALANCE.tournament.energyRecoveryBetweenRounds, a much longer break).
      * A side change (11-point mark within a set) is a brief pause; a set
      * change (moving on to a whole different sport) is longer, so it
-     * recovers more. Flat, not stamina-scaled, unlike the tournament's
+     * recovers more. Flat, not endurance-scaled, unlike the tournament's
      * between-round recovery — first-pass values, easy to retune.
      */
     sideChangeEnergyRecovery: 5,
@@ -360,17 +360,17 @@ export const BALANCE = {
     entryDeadlineWeeks: 2,
     /** flat energy recovery between rounds (changeover/rest), on top of
      * whatever energy the player has left — scaled per-player by
-     * staminaRecoveryFloor/Span below */
+     * enduranceRecoveryFloor/Span below */
     energyRecoveryBetweenRounds: 20,
-    /** between-round recovery multiplier from Stamina (0..1) —
-     * staminaRecoveryFloor + stamina × staminaRecoverySpan, so a stamina-0
+    /** between-round recovery multiplier from Endurance (0..1) —
+     * enduranceRecoveryFloor + endurance × enduranceRecoverySpan, so a endurance-0
      * player only recovers 0.7× the base 20 (14) between rounds while a
-     * stamina-1 player recovers 1.3× (26) — the "not enough time to fully
-     * recover" toll hits low-stamina players harder as a tournament goes on.
-     * Centered the same way as staminaCostFloor/Span: stamina 0.5 reproduces
+     * endurance-1 player recovers 1.3× (26) — the "not enough time to fully
+     * recover" toll hits low-endurance players harder as a tournament goes on.
+     * Centered the same way as enduranceCostFloor/Span: endurance 0.5 reproduces
      * exactly today's flat 20. */
-    staminaRecoveryFloor: 0.7,
-    staminaRecoverySpan: 0.6,
+    enduranceRecoveryFloor: 0.7,
+    enduranceRecoverySpan: 0.6,
     /** cumulative in-tournament energy spent × this = fatigue added to the
      * player's condition once the event concludes */
     fatigueConversionFactor: 0.5,
@@ -453,7 +453,7 @@ export const BALANCE = {
      * — well-measured players (low RD) land close to their rating every
      * career; rarely-seen players (high RD) vary more between worlds */
     rdSampleK: 1,
-    /** per-world stamina sampled from N(mappedEndurance, enduranceJitter) —
+    /** per-world endurance sampled from N(mappedEndurance, enduranceJitter) —
      * there's no per-player RD for the endurance score (it's a modelled
      * profile value, not a measured rating), so this is one small fixed
      * spread rather than a per-player-scaled one like rdSampleK */

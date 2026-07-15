@@ -41,41 +41,41 @@ describe("training", () => {
     expect(summary.sports.sq.skillDelta).toBe(0);
     expect(summary.sports.tn.skillDelta).toBe(0);
     expect(after.coreStrength).toBeGreaterThan(before.coreStrength);
-    expect(after.stamina).toBeGreaterThan(before.stamina);
+    expect(after.endurance).toBeGreaterThan(before.endurance);
     expect(summary.notes).toContain("Gym work built your core strength.");
-    expect(summary.notes).toContain("Cardio built your stamina.");
+    expect(summary.notes).toContain("Cardio built your endurance.");
   });
 
 
 
-  it("squash and badminton maintain stamina at twice a week, then bonus at higher volume", () => {
-    const twiceSquash = Game.newGame({ content: testContent, seed: "sport-stamina" });
-    const heavySquash = Game.newGame({ content: testContent, seed: "sport-stamina" });
-    const heavyBadminton = Game.newGame({ content: testContent, seed: "sport-stamina" });
-    const rest = Game.newGame({ content: testContent, seed: "sport-stamina" });
-    const before = twiceSquash.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.stamina;
+  it("squash and badminton maintain endurance at twice a week, then bonus at higher volume", () => {
+    const twiceSquash = Game.newGame({ content: testContent, seed: "sport-endurance" });
+    const heavySquash = Game.newGame({ content: testContent, seed: "sport-endurance" });
+    const heavyBadminton = Game.newGame({ content: testContent, seed: "sport-endurance" });
+    const rest = Game.newGame({ content: testContent, seed: "sport-endurance" });
+    const before = twiceSquash.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.endurance;
 
     twiceSquash.submitWeek(planWith({ trainSQ: 2 }));
     heavySquash.submitWeek(planWith({ trainSQ: 4 }));
     heavyBadminton.submitWeek(planWith({ trainBD: 4 }));
     rest.submitWeek(planWith({ work: 5 }));
 
-    const maintained = twiceSquash.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.stamina;
-    const sqStamina = heavySquash.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.stamina;
-    const bdStamina = heavyBadminton.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.stamina;
-    const restStamina = rest.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.stamina;
+    const maintained = twiceSquash.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.endurance;
+    const sqEndurance = heavySquash.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.endurance;
+    const bdEndurance = heavyBadminton.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.endurance;
+    const restEndurance = rest.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.endurance;
     expect(maintained).toBeCloseTo(before, 10);
-    expect(sqStamina).toBeGreaterThan(maintained);
-    expect(sqStamina).toBeGreaterThan(bdStamina);
-    expect(bdStamina).toBeGreaterThan(restStamina);
+    expect(sqEndurance).toBeGreaterThan(maintained);
+    expect(sqEndurance).toBeGreaterThan(bdEndurance);
+    expect(bdEndurance).toBeGreaterThan(restEndurance);
   });
 
-  it("untrained stamina drifts weekly, while core strength waits for the monthly decay tick", () => {
+  it("untrained endurance drifts weekly, while core strength waits for the monthly decay tick", () => {
     const game = Game.newGame({ content: testContent, seed: "pt-decay" });
     const before = game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
     game.submitWeek(planWith({ work: 5 }));
     const afterOne = game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
-    expect(afterOne.stamina).toBeLessThan(before.stamina);
+    expect(afterOne.endurance).toBeLessThan(before.endurance);
     expect(afterOne.coreStrength).toBeCloseTo(before.coreStrength, 10);
 
     for (let i = 0; i < 3; i++) game.submitWeek(planWith({ work: 5 }));

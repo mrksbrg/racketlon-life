@@ -5,7 +5,7 @@
   import { store } from "./store.svelte";
   import { SPORT_COLORS, SPORT_SHORT, formColor, formatSignedMoney } from "./ui";
 
-  const TRAINABLE_ATTRS = ["stamina", "coreStrength"] as const satisfies readonly CharAttr[];
+  const TRAINABLE_ATTRS = ["endurance", "coreStrength"] as const satisfies readonly CharAttr[];
 
   // bars render at their "before" width on first paint, then flip to
   // "after" a tick later — the CSS transition on .fill is what actually

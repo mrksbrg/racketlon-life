@@ -100,7 +100,7 @@ interface PlayerSpec {
   potential: Record<Sport, number>;
   durability: number;
   professionalism: number;
-  stamina: number;
+  endurance: number;
   coreStrength: number;
   intelligence: number;
   clutch: number;
@@ -128,7 +128,7 @@ function makePlayer(spec: PlayerSpec): Player {
       potential: { ...spec.potential },
       durability: spec.durability,
       professionalism: spec.professionalism,
-      stamina: spec.stamina,
+      endurance: spec.endurance,
       coreStrength: spec.coreStrength,
       intelligence: spec.intelligence,
       clutch: spec.clutch,
@@ -168,7 +168,7 @@ export interface CharacterDraft {
   /** 1–20 per sport */
   sports: Skills;
   /** 1–20 each */
-  stamina: number;
+  endurance: number;
   coreStrength: number;
   intelligence: number;
   clutch: number;
@@ -204,7 +204,7 @@ function specFromDraft(draft: CharacterDraft, rng: Rng): PlayerSpec {
     durability: unitFromLevel(draft.resilience),
     // the human plans manually, so professionalism (an AI-planning input) is neutral
     professionalism: 0.7,
-    stamina: unitFromLevel(draft.stamina),
+    endurance: unitFromLevel(draft.endurance),
     coreStrength: unitFromLevel(draft.coreStrength),
     intelligence: unitFromLevel(draft.intelligence),
     clutch: unitFromLevel(draft.clutch),
@@ -249,7 +249,7 @@ function specFromRealPlayer(def: RealPlayerDef, worldSeed: string): PlayerSpec {
     professionalism: rng.range(0.2, 0.9),
     // real data: sampled around the imported endurance score rather than
     // fully random — see content.ts's RealPlayerDef.endurance
-    stamina: Math.max(0, Math.min(1, rng.normal(def.endurance, BALANCE.import.enduranceJitter))),
+    endurance: Math.max(0, Math.min(1, rng.normal(def.endurance, BALANCE.import.enduranceJitter))),
     coreStrength: rng.range(0.3, 0.9),
     intelligence: rng.range(0.2, 0.9),
     clutch: rng.range(0.2, 0.9),
@@ -287,7 +287,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
         potential: allSports(0.6),
         durability: 0.6,
         professionalism: 0.7,
-        stamina: 0.55,
+        endurance: 0.55,
         coreStrength: 0.55,
         intelligence: 0.5,
         clutch: 0.5,

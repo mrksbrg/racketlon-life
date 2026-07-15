@@ -27,7 +27,7 @@ function ref(id: string, skill: number, overrides: Partial<MatchPlayerRef> = {})
     skills: { tt: skill, bd: skill, sq: skill, tn: skill },
     formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
     fatigue: 20,
-    stamina: 0.5,
+    endurance: 0.5,
     composure: 0.5,
     clutch: 0.5,
     age: 25, // neutral age-modifier window — these tests aren't about aging
@@ -95,7 +95,7 @@ describe("match engine", () => {
   });
 
   it("resets momentum and gives both sides a small energy top-up at the side-change break", () => {
-    const m = createMatch(ref("a", 500, { stamina: 0.5 }), ref("b", 480, { stamina: 0.5 }), "sidechange-reset");
+    const m = createMatch(ref("a", 500, { endurance: 0.5 }), ref("b", 480, { endurance: 0.5 }), "sidechange-reset");
     resumeMatch(m);
     while (m.phase === "playing" && m.breakReason !== "sideChange") {
       m.momentum = 0.25; // force a nonzero value so the reset is actually observable
@@ -105,7 +105,7 @@ describe("match engine", () => {
     }
     expect(m.breakReason).toBe("sideChange");
     expect(m.momentum).toBe(0);
-    // this point's own energy cost (table tennis, stamina 0.5 → 1x
+    // this point's own energy cost (table tennis, endurance 0.5 → 1x
     // multiplier) is deducted before the changeover recovery is added
     const cost = BALANCE.match.energyCostPerPoint.tt;
     expect(m.energy.a).toBeCloseTo(70 - cost + BALANCE.match.sideChangeEnergyRecovery, 5);
@@ -115,7 +115,7 @@ describe("match engine", () => {
   it("resets momentum and gives both sides a bigger energy top-up moving on to a new sport", () => {
     // one point from ending set 1 (table tennis) — 20-18, "a" a heavy
     // favorite so the very next point reliably closes it out at 21-18
-    const m = createMatch(ref("a", 900, { stamina: 0.5 }), ref("b", 100, { stamina: 0.5 }), "setend-reset");
+    const m = createMatch(ref("a", 900, { endurance: 0.5 }), ref("b", 100, { endurance: 0.5 }), "setend-reset");
     m.sets = [
       { a: 20, b: 18, done: false },
       { a: 0, b: 0, done: false },
@@ -252,7 +252,7 @@ describe("match engine", () => {
   });
 
   it("makes a dominant squash point cheap for the controller and expensive for the chaser", () => {
-    const m = createMatch(ref("a", 1000, { stamina: 0.5 }), ref("b", 1, { stamina: 0.5 }), "squash-control");
+    const m = createMatch(ref("a", 1000, { endurance: 0.5 }), ref("b", 1, { endurance: 0.5 }), "squash-control");
     m.setIndex = 2;
     m.phase = "playing";
 

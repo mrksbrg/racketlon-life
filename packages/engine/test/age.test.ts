@@ -97,9 +97,9 @@ describe("age wired into the actual systems (not just the pure curve functions)"
   it("an older player's match effective strength is lower at identical skill", () => {
     const skills = { tt: 500, bd: 500, sq: 500, tn: 500 };
     const formBySport = { tt: 20, bd: 20, sq: 20, tn: 20 };
-    const young = { id: "a", name: "a", skills, formBySport, fatigue: 0, stamina: 0.5, composure: 0.5, clutch: 0.5, age: 26 };
-    const old = { id: "a", name: "a", skills, formBySport, fatigue: 0, stamina: 0.5, composure: 0.5, clutch: 0.5, age: 70 };
-    const opponent = { id: "b", name: "b", skills, formBySport, fatigue: 0, stamina: 0.5, composure: 0.5, clutch: 0.5, age: 26 };
+    const young = { id: "a", name: "a", skills, formBySport, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 26 };
+    const old = { id: "a", name: "a", skills, formBySport, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 70 };
+    const opponent = { id: "b", name: "b", skills, formBySport, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 26 };
 
     // "normal" tactic has zero chaos, so this is fully deterministic
     const mYoung = createMatch(young, opponent, "age-match-young");

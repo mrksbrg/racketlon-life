@@ -39,7 +39,7 @@
 
   /**
    * BD/SQ/TN read as a straightforward physical trade-off across the full
-   * 5-step dial: conserve/safe extend rallies and bank/cost stamina,
+   * 5-step dial: conserve/safe extend rallies and bank/cost endurance,
    * aggressive/allOut end them on a winner (or empty the tank). Table tennis
    * has no physical conserve/all-out gear — its rallies are short and cheap
    * regardless of tactic (see BALANCE.match.tacticEnergyMult) — so it only

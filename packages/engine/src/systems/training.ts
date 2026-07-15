@@ -36,8 +36,8 @@ export const TrainingSystem: GameSystem = {
           }
           sessionsBySport[def.sport] += sessions;
           trainSport(ctx, player, def.sport, def.trainingBase, sessions);
-          if (sportMaintainsStamina(def.sport, sessions)) trainedAttributes.add("stamina");
-          applySportStaminaBonus(player, def.sport, sessions);
+          if (sportMaintainsEndurance(def.sport, sessions)) trainedAttributes.add("endurance");
+          applySportEnduranceBonus(player, def.sport, sessions);
         } else if (type === "gym") {
           player.attributes.coreStrength = clamp(
             player.attributes.coreStrength + BALANCE.training.gymCoreStrengthGain * sessions,
@@ -49,10 +49,10 @@ export const TrainingSystem: GameSystem = {
             ctx.log.emit("training.attribute", player.identity.id, { attribute: "coreStrength", sessions });
           }
         } else if (type === "cardio") {
-          applyStaminaGain(player, BALANCE.training.cardioStaminaGain * sessions);
-          trainedAttributes.add("stamina");
+          applyEnduranceGain(player, BALANCE.training.cardioEnduranceGain * sessions);
+          trainedAttributes.add("endurance");
           if (player.identity.id === ctx.state.career.playerId) {
-            ctx.log.emit("training.attribute", player.identity.id, { attribute: "stamina", sessions });
+            ctx.log.emit("training.attribute", player.identity.id, { attribute: "endurance", sessions });
           }
         }
       }
@@ -143,7 +143,7 @@ function applyGain(ctx: SystemContext, player: Player, sport: Sport, gain: numbe
 
 function decayUntrainedAttributes(ctx: SystemContext, player: Player, trainedAttributes: Set<TrainableAttribute>): void {
   const decay = BALANCE.training.attributeDecayUntrained;
-  if (!trainedAttributes.has("stamina")) player.attributes.stamina = clamp(player.attributes.stamina - decay, 0, 1);
+  if (!trainedAttributes.has("endurance")) player.attributes.endurance = clamp(player.attributes.endurance - decay, 0, 1);
 
   const isCoreDecayWeek = (ctx.state.calendar.weekIndex + 1) % BALANCE.training.coreStrengthDecayIntervalWeeks === 0;
   if (isCoreDecayWeek && !trainedAttributes.has("coreStrength")) {
@@ -151,26 +151,26 @@ function decayUntrainedAttributes(ctx: SystemContext, player: Player, trainedAtt
   }
 }
 
-function sportMaintainsStamina(sport: Sport, sessions: number): boolean {
-  return BALANCE.training.sportStaminaBonus[sport] > 0 && sessions >= BALANCE.training.sportStaminaMaintainSessions;
+function sportMaintainsEndurance(sport: Sport, sessions: number): boolean {
+  return BALANCE.training.sportEnduranceBonus[sport] > 0 && sessions >= BALANCE.training.sportEnduranceMaintainSessions;
 }
 
-function applySportStaminaBonus(player: Player, sport: Sport, sessions: number): number {
-  const bonusSessions = Math.max(0, sessions - BALANCE.training.sportStaminaMaintainSessions);
-  const base = BALANCE.training.sportStaminaBonus[sport] * bonusSessions;
+function applySportEnduranceBonus(player: Player, sport: Sport, sessions: number): number {
+  const bonusSessions = Math.max(0, sessions - BALANCE.training.sportEnduranceMaintainSessions);
+  const base = BALANCE.training.sportEnduranceBonus[sport] * bonusSessions;
   if (base <= 0) return 0;
-  return applyStaminaGain(player, taperedAttributeGain(player.attributes.stamina, base));
+  return applyEnduranceGain(player, taperedAttributeGain(player.attributes.endurance, base));
 }
 
-function applyStaminaGain(player: Player, gain: number): number {
-  const before = player.attributes.stamina;
-  player.attributes.stamina = clamp(before + gain, 0, 1);
-  return player.attributes.stamina - before;
+function applyEnduranceGain(player: Player, gain: number): number {
+  const before = player.attributes.endurance;
+  player.attributes.endurance = clamp(before + gain, 0, 1);
+  return player.attributes.endurance - before;
 }
 
 function taperedAttributeGain(current: number, base: number): number {
   // Body attributes have no separate visible form layer; taper near the hidden
-  // 0..1 ceiling so racket-sport cross-training helps most at lower stamina
+  // 0..1 ceiling so racket-sport cross-training helps most at lower endurance
   // and can't replace dedicated cardio forever.
   return base * Math.max(BALANCE.training.minTaper, 1 - current);
 }

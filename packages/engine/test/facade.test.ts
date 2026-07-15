@@ -79,8 +79,8 @@ describe("Game facade", () => {
     // the five creation attributes and rolled traits ARE shown to the player
     // themself now (banded 1-20, same as sport levels) — only opponents stay
     // fully hidden per docs/07 (OpponentView carries neither field)
-    expect(you.attrs.stamina).toBeGreaterThanOrEqual(1);
-    expect(you.attrs.stamina).toBeLessThanOrEqual(20);
+    expect(you.attrs.endurance).toBeGreaterThanOrEqual(1);
+    expect(you.attrs.endurance).toBeLessThanOrEqual(20);
     expect(you.attrs.coreStrength).toBeGreaterThanOrEqual(1);
     expect(you.attrs.coreStrength).toBeLessThanOrEqual(20);
     expect(you.traits.length).toBeGreaterThanOrEqual(3);

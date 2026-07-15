@@ -45,21 +45,21 @@ export function expectedSessionGain(
   return base * taper * potentialMult * fatigueMult * trainingAgeMultiplier(age);
 }
 
-/** Match-day energy-cost multiplier from the Stamina attribute (0..1) —
- * higher stamina burns in-match energy more slowly per point. See
- * `BALANCE.match.staminaCostFloor/Span`. */
-export function staminaEnergyMult(stamina: number): number {
+/** Match-day energy-cost multiplier from the Endurance attribute (0..1) —
+ * higher endurance burns in-match energy more slowly per point. See
+ * `BALANCE.match.enduranceCostFloor/Span`. */
+export function enduranceEnergyMult(endurance: number): number {
   const b = BALANCE.match;
-  return b.staminaCostFloor + (1 - stamina) * b.staminaCostSpan;
+  return b.enduranceCostFloor + (1 - endurance) * b.enduranceCostSpan;
 }
 
-/** Between-tournament-round energy recovery multiplier from Stamina (0..1) —
- * higher stamina recovers more of the flat changeover recovery between
- * rounds, so low-stamina players feel a long tournament's toll harder. See
- * `BALANCE.tournament.staminaRecoveryFloor/Span`. */
-export function staminaRecoveryMult(stamina: number): number {
+/** Between-tournament-round energy recovery multiplier from Endurance (0..1) —
+ * higher endurance recovers more of the flat changeover recovery between
+ * rounds, so low-endurance players feel a long tournament's toll harder. See
+ * `BALANCE.tournament.enduranceRecoveryFloor/Span`. */
+export function enduranceRecoveryMult(endurance: number): number {
   const b = BALANCE.tournament;
-  return b.staminaRecoveryFloor + stamina * b.staminaRecoverySpan;
+  return b.enduranceRecoveryFloor + endurance * b.enduranceRecoverySpan;
 }
 
 /** Weekly decay rate for a sport that's been neglected for `neglectWeeks`

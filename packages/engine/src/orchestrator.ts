@@ -75,7 +75,7 @@ function runSystems(
     money: state.career.money,
     formBySport: { ...human.condition.formBySport },
     trainableAttributes: {
-      stamina: human.attributes.stamina,
+      endurance: human.attributes.endurance,
       coreStrength: human.attributes.coreStrength,
     },
   };

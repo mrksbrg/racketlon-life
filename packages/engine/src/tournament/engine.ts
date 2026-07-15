@@ -19,7 +19,7 @@ import {
   setTactic,
 } from "../match/engine.js";
 import { divisionAssignments, divisionOf } from "../systems/division.js";
-import { staminaRecoveryMult } from "../systems/effects.js";
+import { enduranceRecoveryMult } from "../systems/effects.js";
 import { rankingPointsFor } from "../systems/ranking-points.js";
 import type { RatingResultsBook } from "../systems/ranking.js";
 import { applyTournamentRatings, cloneRatings, combinedRating, recordMatchResults } from "../systems/ranking.js";
@@ -51,7 +51,7 @@ import { distanceKm, travelCost } from "../systems/travel.js";
  * AI-vs-AI matches auto-resolve instantly; the human's own match each round
  * is handed back to the UI to play interactively (reusing the regular Match
  * screen), with energy carrying over between rounds — a tournament day is a
- * stamina arc, not isolated matches. Once the human's own lineage is decided,
+ * endurance arc, not isolated matches. Once the human's own lineage is decided,
  * any other still-live groups are silently fast-forwarded (no further UI
  * interaction) purely so NPC ratings stay realistic across the whole field.
  *
@@ -512,13 +512,13 @@ function roundPairs(participants: string[]): Array<[string, string]> {
 /**
  * One entrant's between-round energy carry: whatever they had left at the
  * end of their last match, plus a flat recovery scaled by their own
- * Stamina (`BALANCE.tournament.energyRecoveryBetweenRounds` ×
- * `staminaRecoveryMult`), capped at 100 — a partial top-up, never a full
+ * Endurance (`BALANCE.tournament.energyRecoveryBetweenRounds` ×
+ * `enduranceRecoveryMult`), capped at 100 — a partial top-up, never a full
  * reset. The single source of truth for both `session.humanEnergyCarry` and
  * `session.entrantEnergyCarry`, so every entrant recovers by the same rule.
  */
-function carryEnergy(leftover: number, stamina: number): number {
-  return Math.min(100, leftover + BALANCE.tournament.energyRecoveryBetweenRounds * staminaRecoveryMult(stamina));
+function carryEnergy(leftover: number, endurance: number): number {
+  return Math.min(100, leftover + BALANCE.tournament.energyRecoveryBetweenRounds * enduranceRecoveryMult(endurance));
 }
 
 /**
@@ -566,8 +566,8 @@ function resolveRound(state: GameState, session: TournamentSession): void {
       m.energy.b = session.entrantEnergyCarry.get(b) ?? 100;
       simulateMatchAuto(m);
       recordMatchResults(session.resultsBook, m);
-      session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.stamina));
-      session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.stamina));
+      session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.endurance));
+      session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.endurance));
       return { a, b, winner: m.winner === "a" ? a : b };
     });
   });
@@ -599,8 +599,8 @@ function resolveRoundAuto(state: GameState, session: TournamentSession, round: n
       m.energy.b = session.entrantEnergyCarry.get(b) ?? 100;
       simulateMatchAuto(m);
       recordMatchResults(session.resultsBook, m);
-      session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.stamina));
-      session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.stamina));
+      session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.endurance));
+      session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.endurance));
       return { a, b, winner: m.winner === "a" ? a : b };
     });
   });
@@ -1044,11 +1044,11 @@ export function advanceTournament(
   session.pendingPairIndexInGroup = null;
 
   if (humanWon) session.roundsWon += 1;
-  session.humanEnergyCarry = carryEnergy(finishedMatch.energy.a, human.attributes.stamina);
+  session.humanEnergyCarry = carryEnergy(finishedMatch.energy.a, human.attributes.endurance);
   const opponent = getPlayer(state, finishedMatch.players.b.id);
   session.entrantEnergyCarry.set(
     opponent.identity.id,
-    carryEnergy(finishedMatch.energy.b, opponent.attributes.stamina),
+    carryEnergy(finishedMatch.energy.b, opponent.attributes.endurance),
   );
 
   session.groups = buildNextGroups(session.groups, session.roundPairs!);

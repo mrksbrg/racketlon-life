@@ -68,7 +68,7 @@ export interface WorldBundlePlayer {
    * in-game Layer 3 accumulator, see docs/07); null if unranked. Carried
    * through unchanged — no scaling at build time. */
   firPoints: number | null;
-  /** 0–1, the engine's `stamina` attribute scale — see enduranceFromScore().
+  /** 0–1, the engine's `endurance` attribute scale — see enduranceFromScore().
    * Modelled build-time from the player's sport profile (squash-relative
    * strength up, table-tennis-relative strength down), not measured from
    * match data — see Racketlon_TS's endurance.py for the full rationale. */

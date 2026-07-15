@@ -51,7 +51,7 @@ function reduceSkillsByFraction(player: Player, fraction: number): void {
 }
 
 function reduceTrainableAttributesByFraction(player: Player, fraction: number): void {
-  player.attributes.stamina = Math.max(0, player.attributes.stamina * (1 - fraction));
+  player.attributes.endurance = Math.max(0, player.attributes.endurance * (1 - fraction));
   player.attributes.coreStrength = Math.max(0, player.attributes.coreStrength * (1 - fraction));
 }
 

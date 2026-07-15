@@ -46,7 +46,7 @@ describe("AgingSystem", () => {
     for (let i = 0; i < 10; i++) game.submitWeek(WORK);
 
     const after = game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
-    expect(after.stamina).toBeLessThan(before.stamina);
+    expect(after.endurance).toBeLessThan(before.endurance);
     expect(after.coreStrength).toBeLessThan(before.coreStrength);
   });
 

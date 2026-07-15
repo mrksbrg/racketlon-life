@@ -112,7 +112,7 @@ export interface InjuryView {
  * scale as sport levels — shown on the human's own Me screen, but never on
  * an `OpponentView` (docs/07's information-layer rule stays for opponents). */
 export interface AttrsView {
-  stamina: number;
+  endurance: number;
   coreStrength: number;
   intelligence: number;
   clutch: number;
@@ -561,7 +561,7 @@ export class Game {
       combinedRating: Math.round(combinedRating(human)),
       firStanding: firStandingFor(this.state, human.identity.id, human.identity.gender),
       attrs: {
-        stamina: levelFromUnit(human.attributes.stamina),
+        endurance: levelFromUnit(human.attributes.endurance),
         coreStrength: levelFromUnit(human.attributes.coreStrength),
         intelligence: levelFromUnit(human.attributes.intelligence),
         clutch: levelFromUnit(human.attributes.clutch),
@@ -1167,7 +1167,7 @@ export class Game {
         money: this.state.career.money,
         formBySport: { ...human.condition.formBySport },
         trainableAttributes: {
-          stamina: human.attributes.stamina,
+          endurance: human.attributes.endurance,
           coreStrength: human.attributes.coreStrength,
         },
       };

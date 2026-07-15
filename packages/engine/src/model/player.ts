@@ -1,8 +1,8 @@
 import type { Sport } from "./sport.js";
 
 export type Skills = Record<Sport, number>; // 0–1000 internal scale
-export type TrainableAttribute = "stamina" | "coreStrength";
-export const TRAINABLE_ATTRIBUTES: readonly TrainableAttribute[] = ["stamina", "coreStrength"];
+export type TrainableAttribute = "endurance" | "coreStrength";
+export const TRAINABLE_ATTRIBUTES: readonly TrainableAttribute[] = ["endurance", "coreStrength"];
 
 export interface PlayerIdentity {
   id: string;
@@ -29,8 +29,8 @@ export interface PlayerAttributes {
   durability: number;
   /** 0..1 — drives AI planning quality and consistency */
   professionalism: number;
-  /** 0..1 — in-match energy reserve; slows fatigue build-up (Stamina) */
-  stamina: number;
+  /** 0..1 — in-match energy reserve; slows fatigue build-up (Endurance) */
+  endurance: number;
   /** 0..1 — gym-built trunk strength; foundation for future injury/power hooks */
   coreStrength: number;
   /** 0..1 — gates the university-studies track; minor tactical-learning bonus */

@@ -55,13 +55,13 @@ function raiseCost(key: StatKey, currentLevel: number): number {
 }
 
 /** The character attributes, in display order. */
-export type CharAttr = "stamina" | "coreStrength" | "intelligence" | "clutch" | "composure" | "resilience";
+export type CharAttr = "endurance" | "coreStrength" | "intelligence" | "clutch" | "composure" | "resilience";
 
 /** Any stat the pool spends on — the four sports plus the character attributes. */
 export type StatKey = Sport | CharAttr;
 
 export const CHAR_ATTRS: readonly CharAttr[] = [
-  "stamina",
+  "endurance",
   "coreStrength",
   "intelligence",
   "clutch",
@@ -85,7 +85,7 @@ export const SPORT_META: Record<Sport, StatMeta> = {
 };
 
 export const ATTR_META: Record<CharAttr, StatMeta> = {
-  stamina: { label: "Endurance", hint: "Fuel for long matches", color: "var(--cardio)" },
+  endurance: { label: "Endurance", hint: "Fuel for long matches", color: "var(--cardio)" },
   coreStrength: { label: "Core strength", hint: "Built in the gym", color: "var(--gym)" },
   intelligence: { label: "Intelligence", hint: "Unlocks university studies", color: "var(--tn)" },
   clutch: { label: "Clutch", hint: "Wins the deciding gummiarm", color: "var(--tt)" },
@@ -314,7 +314,7 @@ export function randomDraft(): CharacterDraft {
     gender,
     birthDate: randomBirthDate(),
     sports: { tt: STAT_MIN, bd: STAT_MIN, sq: STAT_MIN, tn: STAT_MIN },
-    stamina: STAT_MIN,
+    endurance: STAT_MIN,
     coreStrength: STAT_MIN,
     intelligence: STAT_MIN,
     clutch: STAT_MIN,
