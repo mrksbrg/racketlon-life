@@ -85,7 +85,7 @@ export const SPORT_META: Record<Sport, StatMeta> = {
 };
 
 export const ATTR_META: Record<CharAttr, StatMeta> = {
-  stamina: { label: "Stamina", hint: "Fuel for long matches", color: "var(--cardio)" },
+  stamina: { label: "Endurance", hint: "Fuel for long matches", color: "var(--cardio)" },
   coreStrength: { label: "Core strength", hint: "Built in the gym", color: "var(--gym)" },
   intelligence: { label: "Intelligence", hint: "Unlocks university studies", color: "var(--tn)" },
   clutch: { label: "Clutch", hint: "Wins the deciding gummiarm", color: "var(--tt)" },

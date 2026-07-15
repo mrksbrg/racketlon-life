@@ -27,6 +27,7 @@ function testRoster(): RealPlayerDef[] {
         birthYear: 1990 + (i % 15),
         ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
         firPoints: null,
+        endurance: 0.5,
       });
     }
   }

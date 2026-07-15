@@ -453,6 +453,11 @@ export const BALANCE = {
      * — well-measured players (low RD) land close to their rating every
      * career; rarely-seen players (high RD) vary more between worlds */
     rdSampleK: 1,
+    /** per-world stamina sampled from N(mappedEndurance, enduranceJitter) —
+     * there's no per-player RD for the endurance score (it's a modelled
+     * profile value, not a measured rating), so this is one small fixed
+     * spread rather than a per-player-scaled one like rdSampleK */
+    enduranceJitter: 0.05,
   },
   /**
    * Tournament skill divisions (A/B/C/D/E), gated by real FIR ranking points

@@ -25,6 +25,7 @@ function rankedMalePlayers(count: number): RealPlayerDef[] {
     birthYear: 1995,
     ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
     firPoints: 1000 - i,
+    endurance: 0.5,
   }));
 }
 

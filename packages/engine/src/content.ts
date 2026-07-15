@@ -78,6 +78,12 @@ export interface RealPlayerDef {
    * skill instead (see systems/division.ts) rather than assuming unranked
    * means weakest. */
   firPoints: number | null;
+  /** 0–1, this player's build-time-mapped endurance score — the seed for
+   * {@link PlayerAttributes.stamina} at world creation (world/factory.ts
+   * samples around it, same spirit as the per-sport skill sampling). Modelled
+   * from sport profile at import time, not measured from match fatigue — see
+   * packages/content/src/import/mapRatings.ts. */
+  endurance: number;
 }
 
 /**

@@ -22,6 +22,7 @@ const menRow = (overrides: Partial<Record<string, string>> = {}) => ({
   te_rd: "",
   te_cons: "",
   te_games: "",
+  stamina: "0.12",
   ...overrides,
 });
 
@@ -74,5 +75,18 @@ describe("joinPlayers", () => {
     expect(unranked!.firPoints).toBeNull();
     const [noRankingArg] = joinPlayers([{ gender: "m", rows }], playerRows);
     expect(noRankingArg!.firPoints).toBeNull();
+  });
+
+  it("reads the stamina column as endurance", () => {
+    const [p] = joinPlayers([{ gender: "m", rows: [menRow({ stamina: "0.337" })] }], []);
+    expect(p!.endurance).toBe(0.337);
+  });
+
+  it("defaults endurance to 0 when the stamina column is missing or blank", () => {
+    const [blank] = joinPlayers([{ gender: "m", rows: [menRow({ stamina: "" })] }], []);
+    expect(blank!.endurance).toBe(0);
+    const { stamina: _omit, ...rowWithoutStamina } = menRow();
+    const [missing] = joinPlayers([{ gender: "m", rows: [rowWithoutStamina] }], []);
+    expect(missing!.endurance).toBe(0);
   });
 });

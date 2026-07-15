@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { JoinedPlayer } from "./join.js";
-import { MAP, averageSkill, skillFromRating, splitName, toBundlePlayer } from "./mapRatings.js";
+import { MAP, averageSkill, enduranceFromScore, skillFromRating, splitName, toBundlePlayer } from "./mapRatings.js";
 
 describe("skillFromRating", () => {
   it("clamps at the anchors", () => {
@@ -37,6 +37,7 @@ function joined(overrides: Partial<JoinedPlayer> = {}): JoinedPlayer {
     gender: "m",
     birthYear: 1990,
     firPoints: null,
+    endurance: 0,
     ...overrides,
     perSport: {
       tt: { rating: 1500, rd: 150, games: 10 },
@@ -78,5 +79,29 @@ describe("averageSkill", () => {
     const bp = toBundlePlayer(joined())!;
     const expected = (bp.ratings.tt.skill + bp.ratings.bd.skill + bp.ratings.sq.skill + bp.ratings.tn.skill) / 4;
     expect(averageSkill(bp)).toBeCloseTo(expected);
+  });
+});
+
+describe("enduranceFromScore", () => {
+  it("clamps at the anchors", () => {
+    expect(enduranceFromScore(MAP.ENDURANCE_MIN - 1)).toBe(0);
+    expect(enduranceFromScore(MAP.ENDURANCE_MAX + 1)).toBe(1);
+  });
+
+  it("maps a neutral score (0) to the midpoint (0.5)", () => {
+    expect(enduranceFromScore(0)).toBeCloseTo(0.5);
+  });
+
+  it("is monotonically increasing", () => {
+    const scores = [-0.4, -0.1, 0, 0.1, 0.4];
+    const mapped = scores.map(enduranceFromScore);
+    for (let i = 1; i < mapped.length; i++) expect(mapped[i]!).toBeGreaterThan(mapped[i - 1]!);
+  });
+});
+
+describe("toBundlePlayer endurance", () => {
+  it("carries the mapped endurance score through", () => {
+    const bp = toBundlePlayer(joined({ endurance: 0.3 }))!;
+    expect(bp.endurance).toBeCloseTo(enduranceFromScore(0.3));
   });
 });

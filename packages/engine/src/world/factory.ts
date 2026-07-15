@@ -247,7 +247,9 @@ function specFromRealPlayer(def: RealPlayerDef, worldSeed: string): PlayerSpec {
     potential: rollPotential(rng, 0.2, 0.9),
     durability: rng.range(0.3, 0.9),
     professionalism: rng.range(0.2, 0.9),
-    stamina: rng.range(0.3, 0.9),
+    // real data: sampled around the imported endurance score rather than
+    // fully random — see content.ts's RealPlayerDef.endurance
+    stamina: Math.max(0, Math.min(1, rng.normal(def.endurance, BALANCE.import.enduranceJitter))),
     coreStrength: rng.range(0.3, 0.9),
     intelligence: rng.range(0.2, 0.9),
     clutch: rng.range(0.2, 0.9),

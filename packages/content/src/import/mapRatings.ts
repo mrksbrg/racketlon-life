@@ -20,12 +20,26 @@ export const MAP = {
   R_MAX: 1850,
   /** internal skill assigned to a sport the scraper had no rating for */
   MISSING_SPORT_SKILL: 200,
+  /** scraper endurance score that maps to the engine's attribute floor (0) —
+   * the scraper's profile model clips at ±0.45 (see Racketlon_TS's
+   * endurance.py), so these anchors cover its full range */
+  ENDURANCE_MIN: -0.45,
+  /** scraper endurance score that maps to the engine's attribute ceiling (1) */
+  ENDURANCE_MAX: 0.45,
 } as const;
 
 /** Affine rating → 0–1000 skill, clamped. */
 export function skillFromRating(rating: number): number {
   const t = (rating - MAP.R_MIN) / (MAP.R_MAX - MAP.R_MIN);
   return Math.round(Math.max(0, Math.min(1, t)) * 1000);
+}
+
+/** Affine endurance score → the engine's 0–1 attribute scale, clamped. A
+ * score of 0 (no squash/table-tennis profile signal and no expert prior)
+ * lands at 0.5, matching the engine's other neutral-attribute defaults. */
+export function enduranceFromScore(score: number): number {
+  const t = (score - MAP.ENDURANCE_MIN) / (MAP.ENDURANCE_MAX - MAP.ENDURANCE_MIN);
+  return Math.max(0, Math.min(1, t));
 }
 
 /** RD expressed in skill-space (same affine slope, no offset) so world
@@ -54,6 +68,11 @@ export interface WorldBundlePlayer {
    * in-game Layer 3 accumulator, see docs/07); null if unranked. Carried
    * through unchanged — no scaling at build time. */
   firPoints: number | null;
+  /** 0–1, the engine's `stamina` attribute scale — see enduranceFromScore().
+   * Modelled build-time from the player's sport profile (squash-relative
+   * strength up, table-tennis-relative strength down), not measured from
+   * match data — see Racketlon_TS's endurance.py for the full rationale. */
+  endurance: number;
 }
 
 function mapSport(r: SportRating | null): BundleSportRating {
@@ -92,6 +111,7 @@ export function toBundlePlayer(p: JoinedPlayer): WorldBundlePlayer | null {
     birthYear: p.birthYear,
     ratings,
     firPoints: p.firPoints,
+    endurance: enduranceFromScore(p.endurance),
   };
 }
 

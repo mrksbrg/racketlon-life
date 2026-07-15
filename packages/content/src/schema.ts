@@ -128,6 +128,7 @@ const realPlayerSchema = z.object({
     tn: realPlayerRatingSchema,
   }),
   firPoints: z.number().nullable(),
+  endurance: z.number().min(0).max(1),
 });
 
 /**
