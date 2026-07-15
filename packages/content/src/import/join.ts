@@ -46,12 +46,11 @@ export interface JoinedPlayer {
   /** real FIR ranking points (the `points` column), via the guid bridge; null
    * if this player has no FIR-counted result yet */
   firPoints: number | null;
-  /** the scraper's `stamina` column — a sport-profile-derived endurance
-   * estimate (squash-strong-relative-to-own-ratings reads high, table-tennis
-   * strong reads low), roughly in [-0.45, 0.45]. Named `endurance` at this
-   * boundary per the game's own attribute name; the scraper's CSV header is
-   * still `stamina`. Defaults to 0 (neutral) if the column is missing or
-   * blank — additive field, older CSVs without it shouldn't fail the build. */
+  /** the scraper's `endurance` column — a sport-profile-derived estimate
+   * (squash-strong-relative-to-own-ratings reads high, table-tennis strong
+   * reads low), roughly in [-0.45, 0.45]. Defaults to 0 (neutral) if the
+   * column is missing or blank — additive field, older CSVs without it
+   * shouldn't fail the build. */
   endurance: number;
 }
 
@@ -61,10 +60,10 @@ function num(value: string, context: string): number {
   return n;
 }
 
-/** Soft parse for the additive `stamina` column — blank, missing, or
+/** Soft parse for the additive `endurance` column — blank, missing, or
  * malformed all default to 0 (neutral) rather than failing the build. */
 function readEndurance(row: Record<string, string>): number {
-  const n = Number(row.stamina ?? "");
+  const n = Number(row.endurance ?? "");
   return Number.isFinite(n) ? n : 0;
 }
 
