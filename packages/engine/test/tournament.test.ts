@@ -50,6 +50,9 @@ function rankedMalePlayers(count: number): RealPlayerDef[] {
     ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
     firPoints: 1000 - i,
     endurance: 0.5,
+    coreStrength: 0.5,
+    clutch: 0.5,
+    composure: 0.5,
   }));
 }
 
@@ -998,6 +1001,9 @@ describe("projectedField geographic entry bias", () => {
       ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
       firPoints: null,
       endurance: 0.5,
+      coreStrength: 0.5,
+      clutch: 0.5,
+      composure: 0.5,
     }));
   }
 

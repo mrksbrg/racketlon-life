@@ -247,13 +247,14 @@ function specFromRealPlayer(def: RealPlayerDef, worldSeed: string): PlayerSpec {
     potential: rollPotential(rng, 0.2, 0.9),
     durability: rng.range(0.3, 0.9),
     professionalism: rng.range(0.2, 0.9),
-    // real data: sampled around the imported endurance score rather than
-    // fully random — see content.ts's RealPlayerDef.endurance
+    // real data: sampled around the imported endurance/coreStrength/clutch/
+    // composure scores rather than fully random — see content.ts's
+    // RealPlayerDef.endurance (and its coreStrength/clutch/composure siblings)
     endurance: Math.max(0, Math.min(1, rng.normal(def.endurance, BALANCE.import.enduranceJitter))),
-    coreStrength: rng.range(0.3, 0.9),
+    coreStrength: Math.max(0, Math.min(1, rng.normal(def.coreStrength, BALANCE.import.coreStrengthJitter))),
     intelligence: rng.range(0.2, 0.9),
-    clutch: rng.range(0.2, 0.9),
-    composure: rng.range(0.2, 0.9),
+    clutch: Math.max(0, Math.min(1, rng.normal(def.clutch, BALANCE.import.clutchJitter))),
+    composure: Math.max(0, Math.min(1, rng.normal(def.composure, BALANCE.import.composureJitter))),
     // real-player traits are M4 scope — see docs/06
     traits: [],
     firPoints: def.firPoints,

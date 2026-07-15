@@ -458,6 +458,15 @@ export const BALANCE = {
      * profile value, not a measured rating), so this is one small fixed
      * spread rather than a per-player-scaled one like rdSampleK */
     enduranceJitter: 0.05,
+    /** per-world core strength sampled from N(mappedCoreStrength,
+     * coreStrengthJitter) — same reasoning as enduranceJitter. */
+    coreStrengthJitter: 0.05,
+    /** per-world clutch sampled from N(mappedClutch, clutchJitter) — same
+     * reasoning as enduranceJitter. */
+    clutchJitter: 0.05,
+    /** per-world composure sampled from N(mappedComposure, composureJitter)
+     * — same reasoning as enduranceJitter. */
+    composureJitter: 0.05,
   },
   /**
    * Tournament skill divisions (A/B/C/D/E), gated by real FIR ranking points

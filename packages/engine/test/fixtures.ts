@@ -28,6 +28,9 @@ function testRoster(): RealPlayerDef[] {
         ratings: { tt: rating, bd: rating, sq: rating, tn: rating },
         firPoints: null,
         endurance: 0.5,
+        coreStrength: 0.5,
+        clutch: 0.5,
+        composure: 0.5,
       });
     }
   }

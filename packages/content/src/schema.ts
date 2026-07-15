@@ -129,6 +129,9 @@ const realPlayerSchema = z.object({
   }),
   firPoints: z.number().nullable(),
   endurance: z.number().min(0).max(1),
+  coreStrength: z.number().min(0).max(1),
+  clutch: z.number().min(0).max(1),
+  composure: z.number().min(0).max(1),
 });
 
 /**

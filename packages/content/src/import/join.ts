@@ -14,7 +14,10 @@
  *    `rank` is empirically sorted by `points`. A ranking row whose guid
  *    doesn't resolve (~4.7% of the file) is skipped; most rated players
  *    simply never appear in ranking_players.csv at all (no FIR-counted
- *    result yet) and get `firPoints: null`, same as a missing birth year.
+ *    result yet) and get `firPoints: null`, same as a missing birth year;
+ *  - endurance/core_strength/clutch/composure are additive scraper score
+ *    columns, each independently optional (older CSVs without one or more
+ *    of them shouldn't fail the build) — see readScoreColumn().
  */
 
 /** Game sport key → the scraper's per-sport column prefix (note te→tn). */
@@ -52,6 +55,20 @@ export interface JoinedPlayer {
    * column is missing or blank — additive field, older CSVs without it
    * shouldn't fail the build. */
   endurance: number;
+  /** the scraper's `core_strength` column — expert-prior + skill-category
+   * only, no match-outcome signal (see Racketlon_TS's glicko2_ratings.py),
+   * roughly in [-0.45, 0.45]. Defaults to 0 (neutral) if missing/blank. */
+  coreStrength: number;
+  /** the scraper's `clutch` column — close-set performance vs Glicko
+   * expectation, blended with any expert prior and the skill-category nudge.
+   * Not hard-clipped upstream but practically small (observed stdev ~0.09).
+   * Defaults to 0 (neutral) if missing/blank. */
+  clutch: number;
+  /** the scraper's `composure` column — set-streak recovery/collapse signal,
+   * blended the same way as clutch. Not hard-clipped upstream (observed
+   * stdev ~0.14, occasional outliers beyond ±0.45). Defaults to 0 (neutral)
+   * if missing/blank. */
+  composure: number;
 }
 
 function num(value: string, context: string): number {
@@ -60,10 +77,11 @@ function num(value: string, context: string): number {
   return n;
 }
 
-/** Soft parse for the additive `endurance` column — blank, missing, or
- * malformed all default to 0 (neutral) rather than failing the build. */
-function readEndurance(row: Record<string, string>): number {
-  const n = Number(row.endurance ?? "");
+/** Soft parse for an additive scraper score column (`endurance`,
+ * `core_strength`, `clutch`, `composure`) — blank, missing, or malformed all
+ * default to 0 (neutral) rather than failing the build. */
+function readScoreColumn(row: Record<string, string>, column: string): number {
+  const n = Number(row[column] ?? "");
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -128,7 +146,10 @@ export function joinPlayers(
         birthYear: birthYearById.get(playerId) ?? null,
         perSport,
         firPoints: firPointsById.get(playerId) ?? null,
-        endurance: readEndurance(row),
+        endurance: readScoreColumn(row, "endurance"),
+        coreStrength: readScoreColumn(row, "core_strength"),
+        clutch: readScoreColumn(row, "clutch"),
+        composure: readScoreColumn(row, "composure"),
       });
     }
   }

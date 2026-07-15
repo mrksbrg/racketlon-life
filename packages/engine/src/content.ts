@@ -84,6 +84,20 @@ export interface RealPlayerDef {
    * from sport profile at import time, not measured from match fatigue — see
    * packages/content/src/import/mapRatings.ts. */
   endurance: number;
+  /** 0–1, this player's build-time-mapped core strength score — the seed
+   * for {@link PlayerAttributes.coreStrength} at world creation. No
+   * match-outcome signal at all (unlike endurance); expert-prior +
+   * skill-category only — see packages/content/src/import/mapRatings.ts. */
+  coreStrength: number;
+  /** 0–1, this player's build-time-mapped clutch score — the seed for
+   * {@link PlayerAttributes.clutch} at world creation. Close-set
+   * performance vs Glicko expectation, blended with any expert prior and
+   * skill-category — see packages/content/src/import/mapRatings.ts. */
+  clutch: number;
+  /** 0–1, this player's build-time-mapped composure score — the seed for
+   * {@link PlayerAttributes.composure} at world creation. Set-streak
+   * recovery/collapse signal, blended the same way as clutch. */
+  composure: number;
 }
 
 /**

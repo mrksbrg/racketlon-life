@@ -23,6 +23,9 @@ const menRow = (overrides: Partial<Record<string, string>> = {}) => ({
   te_cons: "",
   te_games: "",
   endurance: "0.12",
+  core_strength: "0.08",
+  clutch: "0.04",
+  composure: "-0.05",
   ...overrides,
 });
 
@@ -88,5 +91,31 @@ describe("joinPlayers", () => {
     const { endurance: _omit, ...rowWithoutEndurance } = menRow();
     const [missing] = joinPlayers([{ gender: "m", rows: [rowWithoutEndurance] }], []);
     expect(missing!.endurance).toBe(0);
+  });
+
+  it("reads the core_strength, clutch, and composure columns", () => {
+    const [p] = joinPlayers(
+      [{ gender: "m", rows: [menRow({ core_strength: "0.17", clutch: "0.23", composure: "-0.31" })] }],
+      [],
+    );
+    expect(p!.coreStrength).toBe(0.17);
+    expect(p!.clutch).toBe(0.23);
+    expect(p!.composure).toBe(-0.31);
+  });
+
+  it("defaults core_strength/clutch/composure to 0 when missing or blank", () => {
+    const [blank] = joinPlayers(
+      [{ gender: "m", rows: [menRow({ core_strength: "", clutch: "", composure: "" })] }],
+      [],
+    );
+    expect(blank!.coreStrength).toBe(0);
+    expect(blank!.clutch).toBe(0);
+    expect(blank!.composure).toBe(0);
+
+    const { core_strength: _cs, clutch: _c, composure: _co, ...rowWithoutNewCols } = menRow();
+    const [missing] = joinPlayers([{ gender: "m", rows: [rowWithoutNewCols] }], []);
+    expect(missing!.coreStrength).toBe(0);
+    expect(missing!.clutch).toBe(0);
+    expect(missing!.composure).toBe(0);
   });
 });

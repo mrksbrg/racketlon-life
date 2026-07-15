@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import type { JoinedPlayer } from "./join.js";
-import { MAP, averageSkill, enduranceFromScore, skillFromRating, splitName, toBundlePlayer } from "./mapRatings.js";
+import {
+  MAP,
+  averageSkill,
+  clutchFromScore,
+  composureFromScore,
+  coreStrengthFromScore,
+  enduranceFromScore,
+  skillFromRating,
+  splitName,
+  toBundlePlayer,
+} from "./mapRatings.js";
 
 describe("skillFromRating", () => {
   it("clamps at the anchors", () => {
@@ -38,6 +48,9 @@ function joined(overrides: Partial<JoinedPlayer> = {}): JoinedPlayer {
     birthYear: 1990,
     firPoints: null,
     endurance: 0,
+    coreStrength: 0,
+    clutch: 0,
+    composure: 0,
     ...overrides,
     perSport: {
       tt: { rating: 1500, rd: 150, games: 10 },
@@ -103,5 +116,35 @@ describe("toBundlePlayer endurance", () => {
   it("carries the mapped endurance score through", () => {
     const bp = toBundlePlayer(joined({ endurance: 0.3 }))!;
     expect(bp.endurance).toBeCloseTo(enduranceFromScore(0.3));
+  });
+});
+
+describe.each([
+  ["coreStrengthFromScore", coreStrengthFromScore, MAP.CORE_STRENGTH_MIN, MAP.CORE_STRENGTH_MAX] as const,
+  ["clutchFromScore", clutchFromScore, MAP.CLUTCH_MIN, MAP.CLUTCH_MAX] as const,
+  ["composureFromScore", composureFromScore, MAP.COMPOSURE_MIN, MAP.COMPOSURE_MAX] as const,
+])("%s", (_name, fn, min, max) => {
+  it("clamps at the anchors", () => {
+    expect(fn(min - 1)).toBe(0);
+    expect(fn(max + 1)).toBe(1);
+  });
+
+  it("maps a neutral score (0) to the midpoint (0.5)", () => {
+    expect(fn(0)).toBeCloseTo(0.5);
+  });
+
+  it("is monotonically increasing", () => {
+    const scores = [min, min / 2, 0, max / 2, max];
+    const mapped = scores.map(fn);
+    for (let i = 1; i < mapped.length; i++) expect(mapped[i]!).toBeGreaterThan(mapped[i - 1]!);
+  });
+});
+
+describe("toBundlePlayer coreStrength/clutch/composure", () => {
+  it("carries the mapped core_strength, clutch, and composure scores through", () => {
+    const bp = toBundlePlayer(joined({ coreStrength: 0.2, clutch: -0.1, composure: 0.35 }))!;
+    expect(bp.coreStrength).toBeCloseTo(coreStrengthFromScore(0.2));
+    expect(bp.clutch).toBeCloseTo(clutchFromScore(-0.1));
+    expect(bp.composure).toBeCloseTo(composureFromScore(0.35));
   });
 });

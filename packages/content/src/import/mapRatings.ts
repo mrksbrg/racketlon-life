@@ -26,6 +26,26 @@ export const MAP = {
   ENDURANCE_MIN: -0.45,
   /** scraper endurance score that maps to the engine's attribute ceiling (1) */
   ENDURANCE_MAX: 0.45,
+  /** scraper core_strength score → attribute floor (0). Same ±0.45 clip as
+   * endurance — CORE_STRENGTH_CLIP in Racketlon_TS's glicko2_ratings.py. */
+  CORE_STRENGTH_MIN: -0.45,
+  /** scraper core_strength score → attribute ceiling (1). */
+  CORE_STRENGTH_MAX: 0.45,
+  /** scraper clutch score → attribute floor (0). Not hard-clipped upstream
+   * (unlike endurance/core_strength), but its practical spread comfortably
+   * fits within ±0.45 (observed stdev ≈0.09, p99 ≈0.26 on the real dataset)
+   * — reusing the same anchor as the other three for consistency. A rare
+   * outlier beyond the anchor simply clamps, same as skill's R_MIN/R_MAX
+   * doesn't cover the literal rating extremes either. */
+  CLUTCH_MIN: -0.45,
+  /** scraper clutch score → attribute ceiling (1). */
+  CLUTCH_MAX: 0.45,
+  /** scraper composure score → attribute floor (0). Same reasoning as
+   * CLUTCH_MIN (observed stdev ≈0.14, p99 ≈0.44, occasional outliers beyond
+   * ±0.45 clamp). */
+  COMPOSURE_MIN: -0.45,
+  /** scraper composure score → attribute ceiling (1). */
+  COMPOSURE_MAX: 0.45,
 } as const;
 
 /** Affine rating → 0–1000 skill, clamped. */
@@ -34,12 +54,35 @@ export function skillFromRating(rating: number): number {
   return Math.round(Math.max(0, Math.min(1, t)) * 1000);
 }
 
+/** Affine score → the engine's 0–1 attribute scale, clamped. A score of 0
+ * (neutral on the scraper's own scale) lands at 0.5, matching the engine's
+ * other neutral-attribute defaults. Shared by endurance/core_strength/
+ * clutch/composure — see their MAP.*_MIN/MAX anchors. */
+function affineUnit(score: number, min: number, max: number): number {
+  const t = (score - min) / (max - min);
+  return Math.max(0, Math.min(1, t));
+}
+
 /** Affine endurance score → the engine's 0–1 attribute scale, clamped. A
  * score of 0 (no squash/table-tennis profile signal and no expert prior)
  * lands at 0.5, matching the engine's other neutral-attribute defaults. */
 export function enduranceFromScore(score: number): number {
-  const t = (score - MAP.ENDURANCE_MIN) / (MAP.ENDURANCE_MAX - MAP.ENDURANCE_MIN);
-  return Math.max(0, Math.min(1, t));
+  return affineUnit(score, MAP.ENDURANCE_MIN, MAP.ENDURANCE_MAX);
+}
+
+/** Affine core_strength score → the engine's 0–1 attribute scale, clamped. */
+export function coreStrengthFromScore(score: number): number {
+  return affineUnit(score, MAP.CORE_STRENGTH_MIN, MAP.CORE_STRENGTH_MAX);
+}
+
+/** Affine clutch score → the engine's 0–1 attribute scale, clamped. */
+export function clutchFromScore(score: number): number {
+  return affineUnit(score, MAP.CLUTCH_MIN, MAP.CLUTCH_MAX);
+}
+
+/** Affine composure score → the engine's 0–1 attribute scale, clamped. */
+export function composureFromScore(score: number): number {
+  return affineUnit(score, MAP.COMPOSURE_MIN, MAP.COMPOSURE_MAX);
 }
 
 /** RD expressed in skill-space (same affine slope, no offset) so world
@@ -73,6 +116,20 @@ export interface WorldBundlePlayer {
    * strength up, table-tennis-relative strength down), not measured from
    * match data — see Racketlon_TS's endurance.py for the full rationale. */
   endurance: number;
+  /** 0–1, the engine's `coreStrength` attribute scale — see
+   * coreStrengthFromScore(). No match-outcome data signal at all (unlike
+   * endurance); expert-prior + skill-category only — see Racketlon_TS's
+   * glicko2_ratings.py `compute_core_strength_scores()`. */
+  coreStrength: number;
+  /** 0–1, the engine's `clutch` attribute scale — see clutchFromScore().
+   * Close-set performance vs Glicko expectation, blended with any expert
+   * prior and the skill-category nudge — see Racketlon_TS's
+   * glicko2_ratings.py `compute_mp_scores()`. */
+  clutch: number;
+  /** 0–1, the engine's `composure` attribute scale — see
+   * composureFromScore(). Set-streak recovery/collapse signal, blended the
+   * same way as clutch. */
+  composure: number;
 }
 
 function mapSport(r: SportRating | null): BundleSportRating {
@@ -112,6 +169,9 @@ export function toBundlePlayer(p: JoinedPlayer): WorldBundlePlayer | null {
     ratings,
     firPoints: p.firPoints,
     endurance: enduranceFromScore(p.endurance),
+    coreStrength: coreStrengthFromScore(p.coreStrength),
+    clutch: clutchFromScore(p.clutch),
+    composure: composureFromScore(p.composure),
   };
 }
 
