@@ -95,13 +95,22 @@ brackets — across divisions or genders — exist for one event.
   the *only* place a true-skill-derived number surfaces), your Glicko-2
   ratings and FIR points, plus your character attributes and personality traits.
 - **Every other player:** Glicko-2 ratings + FIR points + results, plus a
-  deliberately fuzzy per-sport **level range** (true level ±
-  `BALANCE.opponentInfo.levelRangeWidth`, e.g. level 10 shows as "8–12") —
-  never the exact level, and **no attributes, no traits**. The range is
-  built from the same hidden skill as your own exact level, just banded
-  wider before display (`model/sport.ts`'s `levelRangeForSkill`,
-  `OpponentProfileView.sports: OpponentSportView`) — you get a scouting
-  report, not their private ledger. `OpponentView` (the lighter field-list
+  deliberately fuzzy per-sport **level range** (true level ± a band width
+  that starts at `BALANCE.opponentInfo.levelRangeStartWidth`, e.g. level 10
+  shows as "5–15" before you've ever faced them) — never the exact level,
+  and **no attributes, no traits**. The band tightens, per sport, as you
+  actually play sets against that specific opponent: it halves (rounding
+  up) for every completed set, floored at
+  `BALANCE.opponentInfo.levelRangeMinWidth` so some mystery always remains
+  (`model/sport.ts`'s `levelRangeWidthForFamiliarity`, fed by
+  `career.headToHeadSets[opponentId][sport]`, a count incremented in
+  `tournament/engine.ts`'s `advanceTournament` for every set that actually
+  finished — a set the match ended early without reaching teaches you
+  nothing). The range is built from the same hidden skill as your own exact
+  level, just banded wider before display (`model/sport.ts`'s
+  `levelRangeForSkill`, `OpponentProfileView.sports: OpponentSportView`) —
+  you get a scouting report, not their private ledger. `OpponentView` (the
+  lighter field-list
   row) drops sport info entirely; only the full profile shows the range.
 
 ---
@@ -271,10 +280,11 @@ Build inside **Me** first; split out when they earn the space:
    name" profile) keeps per-sport info, but now as a fuzzed
    `OpponentSportView { levelMin, levelMax }` instead of the exact
    `SportView { level, progress }` — the same true-skill-derived band
-   `HumanView` uses for your own character, just widened by
-   `BALANCE.opponentInfo.levelRangeWidth` before anyone else sees it, so an
-   exact level is never inferable. (`facade.ts`, `model/sport.ts`'s
-   `levelRangeForSkill`)
+   `HumanView` uses for your own character, just widened by a per-sport,
+   per-opponent band (`levelRangeWidthForFamiliarity`, narrowing as you
+   actually play them — see "What you may show, per player" above) before
+   anyone else sees it, so an exact level is never inferable. (`facade.ts`,
+   `model/sport.ts`'s `levelRangeForSkill`)
 2. **FIR points formula & window.** Points per placement per tier, and whether the
    ranking is a rolling 12-month window or cumulative — a `RankingSystem`
    addition distinct from the Glicko rating period. (04-simulation-systems.md

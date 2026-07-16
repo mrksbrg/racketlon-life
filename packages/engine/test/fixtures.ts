@@ -59,8 +59,12 @@ export const testContent: ContentBundle = {
   // Game.newGame is called without a `character`) — NO is a foreign
   // destination for travel-cost tests.
   countries: {
-    SE: { name: "Sweden", lat: 60, lon: 15, costIndex: 1 },
+    SE: { name: "Sweden", lat: 60, lon: 15, costIndex: 1, president: "Test President" },
     NO: { name: "Norway", lat: 60, lon: 5, costIndex: 1.5 },
+  },
+  firOfficials: {
+    president: { role: "FIR President", name: "Test FIR President" },
+    rankingsOfficer: { role: "FIR Rankings Officer", name: "Test Rankings Officer" },
   },
   // Three dated test tournaments landing on weekIndex 3, 7, 11 (Mondays
   // 2026-01-26 / 02-23 / 03-23) — stands in for what used to be a single

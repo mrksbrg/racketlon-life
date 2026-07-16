@@ -69,6 +69,22 @@ export function levelRangeForSkill(skill: number, bandWidth: number): LevelRange
 }
 
 /**
+ * `levelRangeForSkill`'s band width shrinks (never disappears) as the human
+ * plays more sets against a given opponent in a given sport — every set
+ * played is a scouting look, so the fuzzed range tightens toward the truth
+ * but keeps at least `minWidth` of mystery forever. Halves per set played,
+ * rounding up: `startWidth` 5 with `minWidth` 1 goes 5 → 3 → 2 → 1 → 1 → ...
+ */
+export function levelRangeWidthForFamiliarity(
+  setsPlayed: number,
+  startWidth: number,
+  minWidth: number,
+): number {
+  const halved = Math.ceil(startWidth / 2 ** setsPlayed);
+  return Math.max(minWidth, halved);
+}
+
+/**
  * Representative internal skill for a display level (1–20) — the midpoint of
  * that level's band, so it round-trips: `levelForSkill(skillForLevel(L)) === L`.
  * The exact inverse of `levelForSkill`, used at character creation to turn a

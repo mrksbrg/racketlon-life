@@ -44,6 +44,7 @@ function playWeekThreeTournament(game: Game): void {
     if (result.status !== "nextRound") break;
     match = result.match;
   }
+  game.clearConcludedTournament();
   game.submitWeek(WORK);
 }
 
@@ -127,7 +128,24 @@ describe("inbox generation", () => {
     const draw = game.inbox.find((m) => m.category === "draw" && m.tournamentWeek === 3);
     expect(draw).toBeTruthy();
     expect(draw?.from).toMatch(/tournament director/i);
-    expect(draw?.body).toMatch(/last training slots/i);
+    expect(draw?.body).toMatch(/seeds:/i);
+    expect(draw?.body).toMatch(/you open against/i);
+  });
+
+  it("names the human's real first-round opponent in the draw email — not just a possibility", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-draw-match" });
+    game.registerForTournament(3);
+    advance(game, 3);
+    const draw = game.inbox.find((m) => m.category === "draw" && m.tournamentWeek === 3);
+    expect(draw).toBeTruthy();
+
+    game.enterTournament();
+    const round0 = game.tournamentDraw()?.[0];
+    const humanMatchup = round0?.sections.flatMap((s) => s.matchups).find((m) => m.isYouA || m.isYouB);
+    const opponentName = humanMatchup?.isYouA ? humanMatchup.b.name : humanMatchup?.a.name;
+
+    expect(opponentName).toBeTruthy();
+    expect(draw!.body).toContain(opponentName);
   });
 
   it("marks messages read and clears the unread count", () => {
@@ -195,6 +213,7 @@ describe("inbox generation", () => {
       if (result.status !== "nextRound") break;
       match = result.match;
     }
+    game.clearConcludedTournament();
     game.submitWeek(WORK);
 
     const results = game.inbox.filter((m) => m.category === "result");

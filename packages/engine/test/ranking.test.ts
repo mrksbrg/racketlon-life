@@ -22,6 +22,7 @@ function playTournamentToWeekEnd(game: Game) {
     if (result.status !== "nextRound") break;
     match = result.match;
   }
+  game.clearConcludedTournament();
   game.submitWeek(WORK_PLAN);
   return result;
 }

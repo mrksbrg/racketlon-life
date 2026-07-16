@@ -45,6 +45,14 @@
   <MatchScreen />
 {:else if store.screen === "draw"}
   <Draw />
+{:else if store.screen === "tournamentDetail" && store.tournamentDetail}
+  <Draw
+    mode={store.tournamentDetail.mode}
+    rounds={store.tournamentDetail.rounds}
+    otherDivisionDraws={store.tournamentDetail.otherDivisionDraws}
+    title={store.tournamentDetail.title}
+    onClose={() => store.closeTournamentDetail()}
+  />
 {:else if store.screen === "opponent"}
   <OpponentProfile />
 {/if}

@@ -6,6 +6,7 @@ import {
   levelForSkill,
   levelProgress,
   levelRangeForSkill,
+  levelRangeWidthForFamiliarity,
   skillForLevel,
 } from "../src/index.js";
 
@@ -105,5 +106,29 @@ describe("levelRangeForSkill", () => {
   it("a zero band width degenerates to the exact level — callers, not this function, decide how much fog to add", () => {
     const skill = skillForLevel(14);
     expect(levelRangeForSkill(skill, 0)).toEqual({ min: 14, max: 14 });
+  });
+});
+
+describe("levelRangeWidthForFamiliarity", () => {
+  it("halves per set played, rounding up, at the 5/1 defaults: 5, 3, 2, 1, 1, ...", () => {
+    expect(levelRangeWidthForFamiliarity(0, 5, 1)).toBe(5);
+    expect(levelRangeWidthForFamiliarity(1, 5, 1)).toBe(3);
+    expect(levelRangeWidthForFamiliarity(2, 5, 1)).toBe(2);
+    expect(levelRangeWidthForFamiliarity(3, 5, 1)).toBe(1);
+    expect(levelRangeWidthForFamiliarity(4, 5, 1)).toBe(1);
+    expect(levelRangeWidthForFamiliarity(50, 5, 1)).toBe(1);
+  });
+
+  it("never tightens past minWidth even for an unplayed opponent with minWidth above the halving curve", () => {
+    expect(levelRangeWidthForFamiliarity(10, 5, 2)).toBe(2);
+  });
+
+  it("is monotonic non-increasing as sets played climbs", () => {
+    let prev = levelRangeWidthForFamiliarity(0, 5, 1);
+    for (let sets = 1; sets <= 10; sets++) {
+      const width = levelRangeWidthForFamiliarity(sets, 5, 1);
+      expect(width).toBeLessThanOrEqual(prev);
+      prev = width;
+    }
   });
 });

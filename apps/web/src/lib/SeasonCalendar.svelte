@@ -1,9 +1,12 @@
 <script lang="ts">
-  import type { InjurySpanView, Sport, TourEntry, TrainedWeekView } from "@racketlon/engine";
+  import type { InjurySpanView, SeasonTournamentEntry, Sport, TrainedWeekView } from "@racketlon/engine";
   import { DEFAULT_START_MONDAY, SPORT_LABELS, SPORTS } from "@racketlon/engine";
   import { untrack } from "svelte";
   import { SPORT_COLORS } from "./ui";
 
+  // `entries` covers the whole current year — past, present, future (see
+  // `store.seasonTournaments`) — so a completed tournament's cell stays
+  // visible/clickable on the calendar, not just upcoming ones.
   let {
     entries,
     injurySpan,
@@ -11,7 +14,7 @@
     weekIndex,
     onSelectWeek,
   }: {
-    entries: TourEntry[];
+    entries: SeasonTournamentEntry[];
     injurySpan: InjurySpanView | null;
     trainedWeeks: TrainedWeekView[];
     weekIndex: number;
@@ -121,6 +124,12 @@
     });
   });
 
+  const STATUS_SUFFIX: Partial<Record<string, string>> = {
+    registered: " · Registered",
+    played: " · Played",
+    skipped: " · Skipped",
+  };
+
   const agenda = $derived.by(() => {
     const monthPrefix = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
     const items: { key: string; weekIndex: number | null; label: string; sub: string; kind: "tournament" | "injury" }[] = [];
@@ -133,7 +142,7 @@
         key: `t${t.weekIndex}`,
         weekIndex: t.weekIndex,
         label: `🏆 ${t.name}`,
-        sub: `${t.tier} · ${fmt(t.start)} – ${fmt(t.end)}${t.status === "registered" ? " · Registered" : ""}`,
+        sub: `${t.tier} · ${fmt(t.start)} – ${fmt(t.end)}${STATUS_SUFFIX[t.status] ?? ""}`,
         kind: "tournament",
       });
     }
@@ -181,12 +190,14 @@
         <button
           class="cell has-tournament"
           class:registered={c.tournament.status === "registered"}
+          class:played={c.tournament.status === "played"}
+          class:skipped={c.tournament.status === "skipped"}
           class:dim={!c.inMonth}
           class:today={c.isToday}
           onclick={() => onSelectWeek(c.tournament!.weekIndex)}
         >
           <span class="num">{c.dayNum}</span>
-          <span class="marker">🏆</span>
+          <span class="marker">{c.tournament.status === "played" ? "✓" : "🏆"}</span>
         </button>
       {:else}
         <div class="cell" class:injured={c.injured} class:dim={!c.inMonth} class:today={c.isToday}>
@@ -327,6 +338,15 @@
 
   .cell.has-tournament.registered {
     background: color-mix(in srgb, var(--ok) 18%, var(--card));
+  }
+
+  .cell.has-tournament.played {
+    background: color-mix(in srgb, var(--muted) 20%, var(--card));
+  }
+
+  .cell.has-tournament.skipped {
+    background: color-mix(in srgb, var(--muted) 10%, var(--card));
+    opacity: 0.6;
   }
 
   .cell.injured {

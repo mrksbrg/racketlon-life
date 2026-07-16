@@ -1,18 +1,36 @@
 <script lang="ts">
-  import type { DivisionCode, TourEntry } from "@racketlon/engine";
+  import type { DivisionCode, SeasonTournamentStatus, TourEntry } from "@racketlon/engine";
   import SeasonCalendar from "./SeasonCalendar.svelte";
   import StatusBar from "./StatusBar.svelte";
   import TabBar from "./TabBar.svelte";
   import { store } from "./store.svelte";
-  import { flagEmoji, formatFieldStanding, formatMoney } from "./ui";
+  import { finishLabel, flagEmoji, formatFieldStanding, formatMoney, setScoreLine } from "./ui";
 
   let selected = $state<number | null>(null);
   // per-week class pick, defaulting to whatever entry.tournament.division
   // already is (the human's own class, or the actually-registered one)
   let chosenDivision = $state<Record<number, DivisionCode>>({});
+  // which played week's own match-by-match results are expanded, if any —
+  // the season list's "browse a finished tournament" detail
+  let expandedResultWeek = $state<number | null>(null);
 
   function selectWeek(weekIndex: number) {
     selected = selected === weekIndex ? null : weekIndex;
+  }
+
+  // The calendar now spans the whole season (store.seasonTournaments), not
+  // just upcoming weeks — but the register/withdraw detail card only ever
+  // made sense for an upcoming entry (it needs eligibleDivisions/travelCost/
+  // entrants, which a past SeasonTournamentEntry doesn't carry). A week the
+  // card can't render (played, or skipped) goes straight to the draw/results
+  // view instead of silently doing nothing.
+  function onCalendarSelectWeek(weekIndex: number) {
+    if (store.tourEntries.some((e) => e.weekIndex === weekIndex)) selectWeek(weekIndex);
+    else store.viewTournamentDetail(weekIndex);
+  }
+
+  function toggleResult(weekIndex: number) {
+    expandedResultWeek = expandedResultWeek === weekIndex ? null : weekIndex;
   }
 
   const selectedEntry = $derived(
@@ -28,6 +46,14 @@
   }
 
   const STATUS_LABEL = { open: "Open", registered: "Registered", closed: "Entry closed" };
+
+  const SEASON_STATUS_LABEL: Record<SeasonTournamentStatus, string> = {
+    played: "Played",
+    registered: "Registered",
+    open: "Open",
+    closed: "Entry closed",
+    skipped: "Skipped",
+  };
 </script>
 
 <StatusBar />
@@ -37,12 +63,47 @@
   <p class="sub">Register at least two weeks ahead — entry closes after that</p>
 
   <SeasonCalendar
-    entries={store.tourEntries}
+    entries={store.seasonTournaments}
     injurySpan={store.injurySpan}
     trainedWeeks={store.trainedWeeks}
     weekIndex={store.weekIndex}
-    onSelectWeek={selectWeek}
+    onSelectWeek={onCalendarSelectWeek}
   />
+
+  <section class="season">
+    <h3 class="season-heading">This season</h3>
+    <div class="season-list">
+      {#each store.seasonTournaments as entry (entry.weekIndex)}
+        {@const played = entry.status === "played" ? entry.result : null}
+        <div class="season-row-wrap">
+          <button
+            class="season-row"
+            onclick={() => (played ? toggleResult(entry.weekIndex) : selectWeek(entry.weekIndex))}
+          >
+            <span class="season-week">{entry.weekLabel}</span>
+            <span class="season-name">{entry.tournament.name}</span>
+            <span class="season-status {entry.status}">
+              {played ? finishLabel(played.finishingPosition, played.tiedCount) : SEASON_STATUS_LABEL[entry.status]}
+            </span>
+          </button>
+          {#if played && expandedResultWeek === entry.weekIndex}
+            <div class="season-detail">
+              {#each store.matchesForWeek(entry.weekIndex) as m (m.opponentId + m.round)}
+                <div class="season-match">
+                  <span class="season-match-round">R{m.round}/{m.totalRounds}</span>
+                  <button class="season-match-opp" onclick={() => store.viewOpponent(m.opponentId)}>{m.opponentName}</button>
+                  <span class="season-match-result" class:won={m.won}>{m.won ? "W" : "L"} {setScoreLine(m.sets)}</span>
+                </div>
+              {:else}
+                <p class="season-match-empty">No match detail available.</p>
+              {/each}
+              <button class="season-view-draw" onclick={() => store.viewTournamentDetail(entry.weekIndex)}>View draw ▸</button>
+            </div>
+          {/if}
+        </div>
+      {/each}
+    </div>
+  </section>
 
   {#if selectedEntry}
     {@const entry = selectedEntry}
@@ -117,6 +178,9 @@
             <span class="domestic">Domestic — no travel cost</span>
           </div>
         {/if}
+        <div class="actions inline">
+          <button class="skip" onclick={() => store.viewTournamentDetail(entry.weekIndex)}>View draw ▸</button>
+        </div>
         {#if entry.status !== "closed"}
           <div class="actions inline">
             {#if entry.status === "open"}
@@ -414,5 +478,148 @@
     font-size: 13px;
     border-radius: 8px;
     padding: 8px 14px;
+  }
+
+  .season {
+    flex-shrink: 0;
+  }
+
+  .season-heading {
+    font-size: 15px;
+    margin: 0 0 8px;
+  }
+
+  .season-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .season-row-wrap {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .season-row {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    text-align: left;
+  }
+
+  .season-week {
+    flex-shrink: 0;
+    width: 64px;
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .season-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .season-status {
+    flex-shrink: 0;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: var(--card-2);
+    color: var(--muted);
+  }
+
+  .season-status.played {
+    background: color-mix(in srgb, var(--accent) 20%, var(--card));
+    color: var(--accent);
+  }
+
+  .season-status.registered {
+    background: color-mix(in srgb, var(--ok) 20%, var(--card));
+    color: var(--ok);
+  }
+
+  .season-status.open {
+    background: color-mix(in srgb, var(--accent) 12%, var(--card));
+    color: var(--accent);
+  }
+
+  .season-status.closed {
+    background: color-mix(in srgb, var(--danger) 16%, var(--card));
+    color: var(--danger);
+  }
+
+  .season-status.skipped {
+    opacity: 0.6;
+  }
+
+  .season-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 0 12px 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .season-match {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    font-size: 12px;
+  }
+
+  .season-match:not(:last-child) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .season-match-round {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .season-match-opp {
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .season-match-result {
+    color: var(--danger);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .season-match-result.won {
+    color: var(--ok);
+  }
+
+  .season-match-empty {
+    color: var(--muted);
+    font-size: 12px;
+    font-style: italic;
+    padding: 8px 0;
+  }
+
+  .season-view-draw {
+    width: 100%;
+    text-align: center;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    padding: 8px 0 2px;
   }
 </style>

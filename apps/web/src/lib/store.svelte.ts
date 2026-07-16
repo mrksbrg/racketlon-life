@@ -15,10 +15,12 @@ import type {
   RankingRowView,
   RecentMatchView,
   SaveGame,
+  SeasonTournamentEntry,
   Sport,
   SportView,
   Tactic,
   TourEntry,
+  TournamentAdvanceResult,
   TournamentDef,
   TravelBlock,
   TrainedWeekView,
@@ -59,7 +61,8 @@ export type Screen =
   | "summary"
   | "match"
   | "draw"
-  | "opponent";
+  | "opponent"
+  | "tournamentDetail";
 
 /** Screens reachable from the bottom tab bar (docs/07's nav model — full-screen
  * flows like match/summary/create run over the top, without it). */
@@ -68,7 +71,19 @@ export type TabScreen = "planner" | "tour" | "rankings" | "world" | "me";
 /** Screens that show the persistent bottom tab bar. */
 export const TAB_SCREENS: readonly Screen[] = ["planner", "tour", "rankings", "world", "me"];
 
+/** Rankings screen UI state — see `GameStore.rankingsView` etc. for why this
+ * lives on the store instead of as component-local state. */
+export type RankingsView = "fir" | "race" | "ratings";
+export type RankingsSortKey = "points" | "racePoints" | "rating";
+export type RankingsSortDir = "asc" | "desc";
+export type RankingsRatingSport = "tt" | "bd" | "sq" | "tn";
+
 export type MatchSpeed = 1 | 2 | 3;
+
+/** `TournamentAdvanceResult` minus the "nextRound" variant — what
+ * `store.concludedTournament` actually holds, since it's only ever set once
+ * a tournament has genuinely ended (see `finishMatch`). */
+export type ConcludedTournamentResult = Exclude<TournamentAdvanceResult, { status: "nextRound" }>;
 
 export interface TournamentContext {
   name: string;
@@ -194,11 +209,28 @@ class GameStore {
    * affordance. Set when entering a tournament and between rounds; cleared once
    * the match is actually entered. */
   awaitingKickoff = $state(false);
+  /** set once the human's own tournament has fully concluded (won or
+   * eliminated) but the Draw screen is still showing the final bracket for
+   * browsing — see `finishMatch`/`continueAfterTournament`. Null the rest of
+   * the time, including mid-tournament. */
+  concludedTournament = $state<ConcludedTournamentResult | null>(null);
   /** id of the player whose profile is open, and the screen to return to —
    * set together by `viewOpponent`, so the profile can be reached from any
    * tab/draw/field-list context and hand back to exactly where it opened. */
   viewingOpponentId = $state<string | null>(null);
-  private previousScreen = $state<Screen>("planner");
+  /** week whose draw is open on the `tournamentDetail` screen — set together
+   * with a `screenStack` push by `viewTournamentDetail`, same pattern as
+   * `viewingOpponentId`. Null the rest of the time. */
+  viewingTournamentWeek = $state<number | null>(null);
+  /** Overlay navigation history: `openInbox`/`viewOpponent`/
+   * `viewTournamentDetail` each push the screen they're opening *from*, and
+   * their matching close method pops it back. A single non-stack slot isn't
+   * enough once overlays nest (e.g. opening a draw from inside the inbox) —
+   * a second push would clobber the first overlay's own return screen,
+   * stranding the user unable to back out past it. `goToTab` also pops when
+   * used as an inbox shortcut (its one bypass of the dedicated close
+   * methods), so every push always has exactly one matching pop. */
+  private screenStack = $state<Screen[]>([]);
 
   /** Game is a non-reactive class; bumped after every simulated week so views refresh. */
   private version = $state(0);
@@ -230,6 +262,16 @@ class GameStore {
     return this.game ? this.game.recentMatches() : [];
   });
 
+  /** Every individual match the human played in one specific week — the Tour
+   * season list's "expand a played event" detail. Reads from the same
+   * durable event log as `recentMatches`, just with a wide-enough limit and
+   * a week filter, since a single tournament run is only ever a handful of
+   * matches. */
+  matchesForWeek(weekIndex: number): RecentMatchView[] {
+    if (!this.game) return [];
+    return this.game.recentMatches(200).filter((m) => m.week === weekIndex);
+  }
+
   /** Which gender's ladder the Rankings screen shows — defaults to the
    * human's own gender until explicitly switched. */
   private rankingsGenderOverride = $state<"m" | "f" | null>(null);
@@ -239,6 +281,18 @@ class GameStore {
   setRankingsGender(gender: "m" | "f"): void {
     this.rankingsGenderOverride = gender;
   }
+
+  /** Rankings screen UI state (view tab, sort, rating-sport tab, page) —
+   * lifted out of Rankings.svelte because that component unmounts whenever
+   * the screen changes (see App.svelte's `{#if store.screen === ...}`
+   * routing), so anything kept as local component state resets to its
+   * default instead of restoring what the player last had selected when
+   * they back out of an opponent profile and return to Rankings. */
+  rankingsView = $state<RankingsView>("fir");
+  rankingsSortKey = $state<RankingsSortKey>("points");
+  rankingsSortDir = $state<RankingsSortDir>("desc");
+  rankingsRatingSport = $state<RankingsRatingSport>("tt");
+  rankingsPage = $state(0);
 
   /** FIR World Ranking (primary sort) + Tour Race + Glicko, for whichever
    * gender `rankingsGender` currently points at — see `Game.rankings`. */
@@ -293,6 +347,16 @@ class GameStore {
     return this.game ? this.game.tournamentSchedule(SEASON_HORIZON) : [];
   });
 
+  /** Every tournament of the current in-game year, oldest first — the Tour
+   * screen's full-year list. Unlike `tourEntries` (upcoming-only) or the
+   * ephemeral live draw, this stays reachable for a played event long after
+   * the week it happened, since "played" status comes from the durable
+   * event log (`Game.careerStats`), not the tournament session. */
+  readonly seasonTournaments: SeasonTournamentEntry[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.seasonTournaments(this.game.year) : [];
+  });
+
   /** The human's current injury as a real date span, for the season
    * calendar — null whenever uninjured. */
   readonly injurySpan: InjurySpanView | null = $derived.by(() => {
@@ -310,6 +374,11 @@ class GameStore {
   readonly weekLabel: string = $derived.by(() => {
     this.version;
     return this.game ? this.game.weekLabel : "";
+  });
+
+  readonly year: number = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.year : 0;
   });
 
 
@@ -427,21 +496,25 @@ class GameStore {
     this.screen = "planner";
   }
 
-  /** Bottom tab bar navigation — valid on tabs and from lightweight modal-like flows such as inbox. */
+  /** Bottom tab bar navigation — valid on tabs and from lightweight modal-like flows such as inbox.
+   * Leaving the inbox this way (instead of `closeInbox`) still has to pop
+   * `screenStack` — it's the one shortcut that bypasses a dedicated close
+   * method, so it has to keep the push/pop balance itself. */
   goToTab(screen: TabScreen): void {
     if (!TAB_SCREENS.includes(this.screen) && this.screen !== "inbox") return;
+    if (this.screen === "inbox") this.screenStack.pop();
     this.screen = screen;
   }
 
   /** Opens the global inbox as a separate flow so the bottom nav can stay focused. */
   openInbox(): void {
-    this.previousScreen = this.screen;
+    this.screenStack.push(this.screen);
     this.screen = "inbox";
   }
 
   /** Returns from the inbox to the screen that opened it. */
   closeInbox(): void {
-    this.screen = this.previousScreen;
+    this.screen = this.screenStack.pop() ?? "planner";
   }
 
   /** Opens a public profile for another player — reachable from a draw, a
@@ -451,13 +524,13 @@ class GameStore {
    * navigation is always safe there). But mid-match or mid-draw, "Me" would
    * strand that in-progress flow with no way back — so there it opens the
    * same lightweight overlay as any other player and hands back to
-   * `previousScreen` on close, exactly like an opponent's would. */
+   * `screenStack`'s top on close, exactly like an opponent's would. */
   viewOpponent(id: string): void {
     if (id === this.you?.id && TAB_SCREENS.includes(this.screen)) {
       this.screen = "me";
       return;
     }
-    this.previousScreen = this.screen;
+    this.screenStack.push(this.screen);
     this.viewingOpponentId = id;
     this.screen = "opponent";
   }
@@ -465,7 +538,7 @@ class GameStore {
   /** Returns from the opponent profile to wherever it was opened from. */
   closeOpponent(): void {
     this.viewingOpponentId = null;
-    this.screen = this.previousScreen;
+    this.screen = this.screenStack.pop() ?? "planner";
   }
 
   /** Marks one inbox message read and persists (read state lives in the save). */
@@ -599,6 +672,62 @@ class GameStore {
     if (this.match) this.screen = "match";
   }
 
+  /** Draw data for whichever week `viewingTournamentWeek` points at — null
+   * when nothing's open. "completed" once a persisted bracket exists for
+   * that week (`Game.completedDraw`); otherwise a round-1-only "preview"
+   * (`Game.previewTournamentDraw`), since nothing later is knowable yet. The
+   * live case never reaches this screen at all — see `viewTournamentDetail`. */
+  readonly tournamentDetail: {
+    mode: "preview" | "completed";
+    title: string;
+    rounds: DrawRound[];
+    otherDivisionDraws: OtherDivisionDraw[];
+  } | null = $derived.by(() => {
+    this.version;
+    if (!this.game || this.viewingTournamentWeek === null) return null;
+    const week = this.viewingTournamentWeek;
+    const completed = this.game.completedDraw(week);
+    if (completed) {
+      return { mode: "completed", title: completed.tournament.name, rounds: completed.rounds, otherDivisionDraws: completed.otherDivisions };
+    }
+    const entry = this.seasonTournaments.find((e) => e.weekIndex === week);
+    return {
+      mode: "preview",
+      title: entry?.tournament.name ?? "Draw",
+      rounds: this.game.previewTournamentDraw(week) ?? [],
+      otherDivisionDraws: [],
+    };
+  });
+
+  /** Opens the full draw/bracket view for an arbitrary tournament week — the
+   * live in-progress one reuses the existing "draw" screen (no separate
+   * rendering needed, see `tournamentDetail`'s doc comment); anything else
+   * opens the read-only `tournamentDetail` screen instead, following the
+   * same `screenStack`-push pattern as `viewOpponent` (so it nests correctly
+   * even when opened from inside another overlay, like the inbox). No-ops
+   * for a "skipped" past week with no completed draw — there's no real
+   * bracket to show for an event the human never entered. */
+  viewTournamentDetail(weekIndex: number): void {
+    if (!this.game) return;
+    if (this.tournamentContext && this.weekIndex === weekIndex) {
+      this.screen = "draw";
+      return;
+    }
+    if (!this.game.completedDraw(weekIndex)) {
+      const entry = this.seasonTournaments.find((e) => e.weekIndex === weekIndex);
+      if (entry?.status === "skipped") return;
+    }
+    this.screenStack.push(this.screen);
+    this.viewingTournamentWeek = weekIndex;
+    this.screen = "tournamentDetail";
+  }
+
+  /** Returns from the tournament-detail screen to wherever it was opened from. */
+  closeTournamentDetail(): void {
+    this.viewingTournamentWeek = null;
+    this.screen = this.screenStack.pop() ?? "planner";
+  }
+
   /** The human is always side "a" in a tournament match. */
   chooseTactic(tactic: Tactic): void {
     if (this.match) setTactic(this.match, "a", tactic);
@@ -614,14 +743,18 @@ class GameStore {
     this.match = null;
     this.tournamentContext = null;
     this.awaitingKickoff = false;
+    this.concludedTournament = null;
     this.screen = "planner";
   }
 
   /**
    * Called when the player dismisses a finished match's result panel —
    * advances the tournament bracket: onward to the next round, or — on
-   * elimination or the final win — folds the result into this week's
-   * simulation and shows the weekly summary.
+   * elimination or the final win — lands on the now-fully-revealed final
+   * draw (own bracket + siblings) so the human can browse it, the same
+   * "study the draw" beat as every round, but for the whole finished event.
+   * `continueAfterTournament` is what actually folds the result into the
+   * week and moves on.
    */
   async finishMatch(): Promise<void> {
     if (!this.game || !this.match || !this.tournamentContext) {
@@ -639,9 +772,21 @@ class GameStore {
       this.screen = "draw";
       return;
     }
-    this.tournamentContext = null;
     this.match = null;
     this.awaitingKickoff = false;
+    this.concludedTournament = outcome;
+    this.screen = "draw";
+  }
+
+  /** Called from the Draw screen once the human is done browsing the
+   * concluded tournament's final bracket — releases the engine's session
+   * (see `Game.clearConcludedTournament`) and folds the result into the
+   * week, same as `finishMatch` used to do immediately. */
+  async continueAfterTournament(): Promise<void> {
+    if (!this.game) return;
+    this.game.clearConcludedTournament();
+    this.tournamentContext = null;
+    this.concludedTournament = null;
     // simulateWeek() only runs from "planner" (guards against double-fires
     // from its own button) — pass through it before handing off to it
     this.screen = "planner";
@@ -657,6 +802,7 @@ class GameStore {
     this.match = null;
     this.tournamentContext = null;
     this.awaitingKickoff = false;
+    this.concludedTournament = null;
     this.draft = randomDraft();
     this.version++;
     this.screen = "create";

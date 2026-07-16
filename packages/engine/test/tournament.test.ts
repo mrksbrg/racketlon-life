@@ -93,6 +93,7 @@ function playTournamentToWeekEnd(game: Game, plan = WORK_PLAN) {
     if (result.status !== "nextRound") break;
     match = result.match;
   }
+  game.clearConcludedTournament();
   const summary = game.submitWeek(plan);
   return { result, summary };
 }
@@ -167,33 +168,56 @@ describe("bracket seeding", () => {
   it("always seats the highest-rated entrant at bracket position 0", () => {
     const ratings = [1000, 1600, 1100, 900, 1200, 1300, 1050, 950];
     const entrants = ratings.map((r, i) => player(String.fromCharCode(97 + i), r));
-    const bracket = seedBracket(entrants, 8);
+    const bracket = seedBracket(entrants, 8, "seed-a");
     expect(bracket[0]).toBe("b"); // rating 1600, highest
   });
 
-  it("matches the standard 8-player seed order (1v8, 4v5, 2v7, 3v6)", () => {
+  it("seats seed 1 on top, seed 2 on the bottom, and seeds 3/4 in the two middle slots (8-player)", () => {
     const ratings = [1600, 1500, 1400, 1300, 1200, 1100, 1000, 900]; // seed 1..8
     const entrants = ratings.map((r, i) => player(`p${i + 1}`, r));
-    const bracket = seedBracket(entrants, 8);
-    expect(bracket).toEqual(["p1", "p8", "p4", "p5", "p2", "p7", "p3", "p6"]);
+    const bracket = seedBracket(entrants, 8, "seed-b");
+    expect(bracket[0]).toBe("p1");
+    expect(bracket[7]).toBe("p2");
+    expect(new Set([bracket[3], bracket[4]])).toEqual(new Set(["p3", "p4"]));
+    // the rest (5-8) fill whatever's left, no collisions
+    expect(new Set(bracket).size).toBe(8);
   });
 
-  it("matches the standard 16-player seed order", () => {
+  it("seats seed 1 on top, seed 2 on the bottom, and seeds 3/4 in the two middle slots (16-player)", () => {
     const ratings = [1600, 1500, 1400, 1300, 1200, 1100, 1000, 900, 800, 700, 600, 500, 400, 300, 200, 100];
     const entrants = ratings.map((r, i) => player(`p${i + 1}`, r));
-    const bracket = seedBracket(entrants, 16);
-    expect(bracket).toEqual([
-      "p1", "p16", "p8", "p9", "p4", "p13", "p5", "p12",
-      "p2", "p15", "p7", "p10", "p3", "p14", "p6", "p11",
-    ]);
+    const bracket = seedBracket(entrants, 16, "seed-c");
+    expect(bracket[0]).toBe("p1");
+    expect(bracket[15]).toBe("p2");
+    expect(new Set([bracket[7], bracket[8]])).toEqual(new Set(["p3", "p4"]));
+    expect(new Set(bracket).size).toBe(16);
+  });
+
+  it("randomizes which of seeds 3/4 lands in the upper vs. lower middle slot, deterministically per rngSeed", () => {
+    const ratings = [1600, 1500, 1400, 1300, 1200, 1100, 1000, 900];
+    const entrants = ratings.map((r, i) => player(`p${i + 1}`, r));
+    const orders = new Set(
+      Array.from({ length: 20 }, (_, i) => seedBracket(entrants, 8, `flip-${i}`)[3]),
+    );
+    // across enough different seeds, both p3 and p4 should appear in the upper-middle slot
+    expect(orders).toEqual(new Set(["p3", "p4"]));
+  });
+
+  it("is deterministic — the same rngSeed always reproduces the same bracket", () => {
+    const ratings = [1600, 1500, 1400, 1300, 1200, 1100, 1000, 900];
+    const entrants = ratings.map((r, i) => player(`p${i + 1}`, r));
+    const a = seedBracket(entrants, 8, "repeat-me");
+    const b = seedBracket(entrants, 8, "repeat-me");
+    expect(a).toEqual(b);
   });
 
   it("produces a valid, collision-free bracket at the largest field size (64)", () => {
     const entrants = Array.from({ length: 64 }, (_, i) => player(`p${i + 1}`, 2000 - i * 10));
-    const bracket = seedBracket(entrants, 64);
+    const bracket = seedBracket(entrants, 64, "seed-d");
     expect(new Set(bracket).size).toBe(64); // every entrant placed exactly once
     expect(bracket[0]).toBe("p1"); // top seed at position 0
-    expect(bracket[1]).toBe("p64"); // top seed's round-1 opponent is the bottom seed
+    expect(bracket[63]).toBe("p2"); // seed 2 anchors the very bottom
+    expect(new Set([bracket[31], bracket[32]])).toEqual(new Set(["p3", "p4"]));
   });
 });
 
@@ -817,6 +841,47 @@ describe("monrad placement bracket", () => {
     expect(new Set(allIds).size).toBe(16);
   });
 
+  it("records the real Final (and every other round) in history, not just the human's own path, once the whole 16-draw concludes", () => {
+    // Regression test: `finishAllRemainingGroups` used to fast-forward every
+    // group besides the human's own via a variant that never wrote to
+    // `session.history` — fine for an 8-draw (whose 3-round cap coincides
+    // with totalRounds, so nothing was ever left to fast-forward), but for a
+    // 16-draw a human eliminated early left the real champion/Final
+    // unrecorded anywhere retrievable. Reuses the exact same 16-draw fixture
+    // as "bands a 16-draw..." above.
+    const game = Game.newGame({ content: testContent, seed: "monrad-16-full-history" });
+    advanceUntil(game, () => game.weekIndex === 30, planWith({ work: 5 }), 35);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["intl-open-2-m"]!;
+    expect(def.fieldSize).toBe(16);
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      const result = advanceTournament(state, session, match, log);
+      if (result.status !== "nextRound") break;
+    }
+
+    const rounds = drawRounds(state, session);
+    // totalRounds = log2(16) = 4 — the main draw's unbeaten lineage always
+    // plays a real Final at the last round, regardless of when the human's
+    // own lineage was decided.
+    expect(rounds).toHaveLength(4);
+    const finalSection = rounds[3]!.sections.find((s) => s.isMainDraw);
+    expect(finalSection?.roundName).toBe("Final");
+    expect(finalSection?.matchups).toHaveLength(1);
+    expect(finalSection?.matchups[0]!.winnerId).not.toBeNull();
+    // every round, not just the ones the human personally played, is fully
+    // decided — the whole bracket is recorded, not just the human's path
+    for (const round of rounds) {
+      for (const section of round.sections) {
+        for (const m of section.matchups) expect(m.winnerId).not.toBeNull();
+      }
+    }
+  });
+
   it("awards FIR ranking points to every entrant, not just the human", () => {
     // locks in the fix for "NPCs don't earn Tour Race points" — every
     // entrant's own firResults ledger (not just the human's) should gain an
@@ -857,6 +922,32 @@ describe("monrad placement bracket", () => {
     const championPoints = getPlayer(state, championId).firResults.find((r) => r.tournamentId === def.id)!.points;
     const lastPoints = getPlayer(state, lastId).firResults.find((r) => r.tournamentId === def.id)!.points;
     expect(championPoints).toBeGreaterThan(lastPoints);
+  });
+
+  it("records each completed set of the human's match against career.headToHeadSets[opponentId], skipping sets the match ended early without reaching", () => {
+    const game = Game.newGame({ content: testContent, seed: "monrad-h2h" });
+    advanceUntil(game, () => game.weekIndex === 3);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+
+    expect(state.career.headToHeadSets).toEqual({});
+
+    const match = session.pendingMatch!;
+    const opponentId = match.players.b.id;
+    simulateMatchAuto(match);
+    advanceTournament(state, session, match, log);
+
+    const h2h = state.career.headToHeadSets[opponentId];
+    expect(h2h).toBeDefined();
+    for (const [i, sport] of SPORTS.entries()) {
+      if (match.sets[i]!.done) {
+        expect(h2h![sport]).toBe(1);
+      } else {
+        expect(h2h![sport]).toBeUndefined();
+      }
+    }
   });
 });
 
@@ -1047,7 +1138,7 @@ describe("drawRounds (draw tree view)", () => {
     expect(playedYours.sets).toHaveLength(4);
   });
 
-  it("badges only the top-seeded players (top quarter, min 2) and no one else", () => {
+  it("badges only the top-4 seeded players (the ones seedBracket structurally protects) and no one else", () => {
     const { rounds } = playToDraw("draw-seeds");
     const players = rounds
       .flatMap((r) => r.sections)
@@ -1055,10 +1146,52 @@ describe("drawRounds (draw tree view)", () => {
       .flatMap((m) => [m.a, m.b]);
     const seeds = players.map((p) => p.seed).filter((s): s is number => s !== undefined);
     expect(seeds.length).toBeGreaterThan(0);
-    // an 8-draw seeds its top 2 only — every surfaced seed is 1 or 2
-    for (const s of seeds) expect(s).toBeLessThanOrEqual(2);
+    // an 8-draw seeds its top 4 only — every surfaced seed is 1-4
+    for (const s of seeds) expect(s).toBeLessThanOrEqual(4);
     // and the top seed appears somewhere in the draw
     expect(seeds).toContain(1);
+  });
+});
+
+describe("previewFirstRoundDraw / Game.previewTournamentDraw", () => {
+  it("previews round 1 pairings with no results yet — every winnerId null, every sets undefined", () => {
+    const game = Game.newGame({ content: testContent, seed: "preview-1" });
+    const rounds = game.previewTournamentDraw(3)!;
+    expect(rounds).toHaveLength(1); // later rounds aren't knowable yet
+    const section = rounds[0]!.sections[0]!;
+    expect(section.isMainDraw).toBe(true);
+    expect(section.roundName).toBe("Quarterfinal"); // 8-field round 0
+    expect(section.matchups).toHaveLength(4);
+    for (const m of section.matchups) {
+      expect(m.winnerId).toBeNull();
+      expect(m.sets).toBeUndefined();
+    }
+    // exactly one matchup is the human's
+    expect(section.matchups.filter((m) => m.isYouA || m.isYouB)).toHaveLength(1);
+  });
+
+  it("agrees with the real bracket once actually entered — same pairings, never in disagreement", () => {
+    const game = Game.newGame({ content: testContent, seed: "preview-2" });
+    const previewPairs = game
+      .previewTournamentDraw(3)![0]!.sections[0]!.matchups.map((m) => [m.a.id, m.b.id].sort());
+
+    registerAndAdvanceTo(game, 3);
+    game.enterTournament();
+    const realPairs = game.tournamentDraw()![0]!.sections[0]!.matchups.map((m) => [m.a.id, m.b.id].sort());
+
+    expect(previewPairs).toEqual(realPairs);
+  });
+
+  it("returns null for a week with no tournament", () => {
+    const game = Game.newGame({ content: testContent, seed: "preview-3" });
+    expect(game.previewTournamentDraw(0)).toBeNull();
+  });
+
+  it("doesn't touch GameState", () => {
+    const game = Game.newGame({ content: testContent, seed: "preview-4" });
+    const before = JSON.stringify(game.serialize());
+    game.previewTournamentDraw(3);
+    expect(JSON.stringify(game.serialize())).toBe(before);
   });
 });
 
@@ -1350,5 +1483,122 @@ describe("Game.otherDivisionDraws", () => {
     expect(r.division).toBe("B");
     expect(r.finishingPosition).toBeGreaterThanOrEqual(1);
     expect(r.matchesPlayed).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("browsing the draw after the human's own tournament concludes", () => {
+  it("keeps tournamentDraw and otherDivisionDraws populated once concluded, until clearConcludedTournament", () => {
+    const game = Game.newGame({ content: testContent, seed: "post-conclude-1" });
+    registerAndAdvanceTo(game, 3);
+    let match = game.enterTournament();
+    let result: TournamentAdvanceResult;
+    for (;;) {
+      simulateMatchAuto(match);
+      result = game.resolveTournamentMatch(match);
+      if (result.status !== "nextRound") break;
+      match = result.match;
+    }
+    expect(result.status).not.toBe("nextRound");
+
+    // still fully browsable right after conclusion — nothing nulled yet
+    expect(game.tournamentDraw()).not.toBeNull();
+    expect(game.tournamentDraw()!.length).toBeGreaterThan(0);
+    expect(game.otherDivisionDraws().length).toBeGreaterThan(0);
+
+    game.clearConcludedTournament();
+    expect(game.tournamentDraw()).toBeNull();
+    expect(game.otherDivisionDraws()).toHaveLength(0);
+  });
+
+  it("completedDraw is null until clearConcludedTournament, then holds the full bracket (own + siblings) even after the session is gone", () => {
+    const game = Game.newGame({ content: testContent, seed: "post-conclude-completed-draw" });
+    expect(game.completedDraw(3)).toBeNull();
+    registerAndAdvanceTo(game, 3);
+    let match = game.enterTournament();
+    let result: TournamentAdvanceResult;
+    for (;;) {
+      simulateMatchAuto(match);
+      result = game.resolveTournamentMatch(match);
+      if (result.status !== "nextRound") break;
+      match = result.match;
+    }
+    const otherDivisionsBefore = game.otherDivisionDraws().length;
+
+    // not snapshotted yet — still live in the session
+    expect(game.completedDraw(3)).toBeNull();
+
+    game.clearConcludedTournament();
+    const completed = game.completedDraw(3);
+    expect(completed).not.toBeNull();
+    expect(completed!.rounds.length).toBeGreaterThan(0);
+    expect(completed!.otherDivisions).toHaveLength(otherDivisionsBefore);
+    const finalSection = completed!.rounds[completed!.rounds.length - 1]!.sections.find((s) => s.isMainDraw)!;
+    expect(finalSection.matchups[0]!.winnerId).not.toBeNull();
+  });
+
+  it("lets a new tournament be entered only after clearConcludedTournament releases the old session", () => {
+    const game = Game.newGame({ content: testContent, seed: "post-conclude-2" });
+    registerAndAdvanceTo(game, 3);
+    let match = game.enterTournament();
+    let result: TournamentAdvanceResult;
+    for (;;) {
+      simulateMatchAuto(match);
+      result = game.resolveTournamentMatch(match);
+      if (result.status !== "nextRound") break;
+      match = result.match;
+    }
+
+    // registration for a later week still works, but entering it doesn't —
+    // the old (concluded) session is still holding the door
+    game.registerForTournament(7);
+    advanceUntil(game, () => game.weekIndex === 7);
+    expect(() => game.enterTournament()).toThrow(/not registered/i);
+
+    // once released, the flow works again for the next event
+    game.clearConcludedTournament();
+    expect(() => game.enterTournament()).not.toThrow();
+  });
+});
+
+describe("Game.seasonTournaments", () => {
+  it("marks a played week's entry 'played' with its result, sourced from the durable event log", () => {
+    const game = Game.newGame({ content: testContent, seed: "season-1" });
+    registerAndAdvanceTo(game, 3);
+    const { result: outcome } = playTournamentToWeekEnd(game);
+    const year = game.year;
+
+    const season = game.seasonTournaments(year);
+    const played = season.find((e) => e.weekIndex === 3)!;
+    expect(played.status).toBe("played");
+    expect(played.result).not.toBeNull();
+    expect(played.result!.week).toBe(3);
+    if (outcome.status === "won") expect(played.result!.won).toBe(true);
+  });
+
+  it("marks a registered future week 'registered', and an unregistered future week 'open' or 'closed'", () => {
+    const game = Game.newGame({ content: testContent, seed: "season-2" });
+    game.registerForTournament(7); // 7 weeks out from week 0 — well past the 2-week deadline
+    advanceUntil(game, () => game.weekIndex === 2); // 1 week from week 3 — inside the deadline now
+    const year = game.year;
+    const season = game.seasonTournaments(year);
+    expect(season.find((e) => e.weekIndex === 7)?.status).toBe("registered");
+    expect(season.find((e) => e.weekIndex === 3)?.status).toBe("closed"); // 1 week out, deadline is 2
+    expect(season.find((e) => e.weekIndex === 11)?.status).toBe("open"); // still 9 weeks out
+  });
+
+  it("marks a past week the human never registered for as 'skipped'", () => {
+    const game = Game.newGame({ content: testContent, seed: "season-3" });
+    advanceUntil(game, () => game.weekIndex === 4); // week 3's tournament has come and gone, unplayed
+    const year = game.year;
+    const season = game.seasonTournaments(year);
+    expect(season.find((e) => e.weekIndex === 3)?.status).toBe("skipped");
+  });
+
+  it("returns entries in ascending week order, scoped to the requested year only", () => {
+    const game = Game.newGame({ content: testContent, seed: "season-4" });
+    const season = game.seasonTournaments(game.year);
+    const weeks = season.map((e) => e.weekIndex);
+    expect(weeks).toEqual([...weeks].sort((a, b) => a - b));
+    for (const e of season) expect(e.weekLabel).toBeTruthy();
   });
 });

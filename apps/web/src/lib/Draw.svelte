@@ -1,27 +1,66 @@
 <script lang="ts">
-  import type { DivisionCode, DrawRound } from "@racketlon/engine";
+  import type { DivisionCode, DrawRound, OtherDivisionDraw } from "@racketlon/engine";
   import { store } from "./store.svelte";
-  import { flagEmoji, seedBadge, setScoreLine } from "./ui";
+  import { finishLabel, flagEmoji, seedBadge, setScoreLine } from "./ui";
+
+  // Live (default, no props): everything comes straight off the store, same
+  // as before this component took props at all — the in-progress-tournament
+  // screen (App.svelte's `screen === "draw"`) renders `<Draw />` with none of
+  // these set. Preview/completed: the caller (the `tournamentDetail` screen)
+  // passes the draw data explicitly instead, since there's no live session to
+  // read it from.
+  let {
+    rounds: roundsProp,
+    otherDivisionDraws: otherProp,
+    title: titleProp,
+    mode = "live",
+    onClose,
+  }: {
+    rounds?: DrawRound[];
+    otherDivisionDraws?: OtherDivisionDraw[];
+    title?: string;
+    mode?: "live" | "preview" | "completed";
+    onClose?: () => void;
+  } = $props();
 
   let viewing = $state<DivisionCode | null>(null);
   let sheetEl = $state<HTMLElement | null>(null);
 
+  const effectiveOtherDivisionDraws = $derived(mode === "live" ? store.otherDivisionDraws : (otherProp ?? []));
   const otherTournament = $derived(
-    viewing ? store.otherDivisionDraws.find((d) => d.division === viewing) : null,
+    viewing ? effectiveOtherDivisionDraws.find((d) => d.division === viewing) : null,
   );
-  const rounds = $derived(otherTournament ? otherTournament.rounds : store.drawRounds);
-  // The round the human hasn't played yet — its other matches already have
-  // real results internally (AI-vs-AI resolves instantly), but revealing them
-  // before the player's own match would spoil "who else is through" as a
-  // reason to care about your own result. Only the latest round is ever
-  // pending, so its index doubles as "the round still worth hiding".
+  const ownRounds = $derived(mode === "live" ? store.drawRounds : (roundsProp ?? []));
+  const rounds = $derived(otherTournament ? otherTournament.rounds : ownRounds);
+  // The round the human hasn't finished their own match of yet — its other
+  // matches already have real results internally (AI-vs-AI resolves
+  // instantly), but revealing them before the player's own result would
+  // spoil "who else is through" as a reason to care about your own match.
+  // Only the latest round of whichever draw is being viewed is ever "live"
+  // this way, so its index doubles as "the round still worth hiding".
   const lastRoundNumber = $derived(rounds.length > 0 ? rounds[rounds.length - 1]!.round : -1);
 
   // Own draw only: the kickoff CTA and "back to match" peek make no sense over
-  // a spectator division.
+  // a spectator division. All three are live-only — a preview has no match to
+  // kick off, and a completed draw is browsed straight from "This season", not
+  // continued from.
   const isOwnDraw = $derived(viewing === null);
-  const showPlay = $derived(isOwnDraw && store.awaitingKickoff);
-  const showBackToMatch = $derived(isOwnDraw && !store.awaitingKickoff && store.match !== null);
+  const showPlay = $derived(mode === "live" && isOwnDraw && store.awaitingKickoff);
+  const showBackToMatch = $derived(mode === "live" && isOwnDraw && !store.awaitingKickoff && store.match !== null);
+  const showContinue = $derived(mode === "live" && isOwnDraw && store.concludedTournament !== null);
+
+  // Once the human's own tournament has fully concluded, every sibling has
+  // also been fast-forwarded to its own real conclusion (see
+  // `Game.resolveTournamentMatch`) — there's no more suspense left to
+  // protect anywhere, so every division reveals in full. Until then, only
+  // the round the human hasn't finished yet stays hidden, and only for a
+  // division that's still actually live (a sibling that wrapped up earlier
+  // has nothing left to hide either). A preview or a completed draw is never
+  // "still playing" from the viewer's perspective, so both always reveal in
+  // full too (a preview has nothing to hide anyway — every winnerId is
+  // already null).
+  const revealAll = $derived(mode !== "live" || store.concludedTournament !== null);
+  const branchConcluded = $derived(otherTournament ? otherTournament.concluded : false);
 
   /** Column heading for a round — the main draw's stage name ("Quarterfinal",
    * "Final", …) when it's still alive, else a plain round number once only
@@ -31,17 +70,27 @@
   }
 
   // When landing on the draw before a match, bring the player's own pending
-  // matchup into view so "your draw" is the first thing they see.
+  // matchup into view so "your draw" is the first thing they see. Once the
+  // tournament has concluded, scroll to the far (final) column instead so
+  // the outcome is the first thing they see. Live only — a preview/completed
+  // draw has no kickoff-vs-concluded distinction driving where to land.
   $effect(() => {
-    if (!store.awaitingKickoff || !isOwnDraw || !sheetEl) return;
-    void rounds; // re-run once the draw is populated
-    requestAnimationFrame(() => {
-      sheetEl?.querySelector(".matchup.yours.pending")?.scrollIntoView({
-        inline: "center",
-        block: "nearest",
-        behavior: "smooth",
+    if (mode !== "live" || !isOwnDraw || !sheetEl) return;
+    if (store.awaitingKickoff) {
+      void rounds; // re-run once the draw is populated
+      requestAnimationFrame(() => {
+        sheetEl?.querySelector(".matchup.yours.pending")?.scrollIntoView({
+          inline: "center",
+          block: "nearest",
+          behavior: "smooth",
+        });
       });
-    });
+    } else if (store.concludedTournament) {
+      void rounds;
+      requestAnimationFrame(() => {
+        sheetEl?.scrollTo({ left: sheetEl.scrollWidth, behavior: "smooth" });
+      });
+    }
   });
 </script>
 
@@ -49,25 +98,34 @@
   <div class="top">
     {#if showBackToMatch}
       <button class="close" onclick={() => store.closeDraw()}>‹ Back to match</button>
+    {:else if mode !== "live"}
+      <button class="close" onclick={() => onClose?.()}>‹ Back</button>
     {:else}
       <span class="close-spacer"></span>
     {/if}
-    <span class="title">{otherTournament ? otherTournament.tournament.name : (store.tournamentContext?.name ?? "Draw")}</span>
+    <span class="title">{otherTournament ? otherTournament.tournament.name : (titleProp ?? store.tournamentContext?.name ?? "Draw")}</span>
     <span class="spacer"></span>
   </div>
 
-  {#if isOwnDraw && store.awaitingKickoff && store.tournamentContext}
+  {#if mode === "live" && isOwnDraw && store.awaitingKickoff && store.tournamentContext}
     <p class="stage-line">
       <span class="stage">{store.tournamentContext.roundName}</span> — study the draw, then play your match
     </p>
+  {:else if mode === "live" && isOwnDraw && store.concludedTournament}
+    {@const outcome = store.concludedTournament}
+    <p class="stage-line">
+      <span class="stage">{finishLabel(outcome.finishingPosition, outcome.tiedCount)}</span> — the tournament is over, browse the final draw
+    </p>
+  {:else if mode === "preview"}
+    <p class="stage-line">The draw is out — round 1 pairings, before anyone's played a match</p>
   {/if}
 
-  {#if store.otherDivisionDraws.length > 0}
+  {#if effectiveOtherDivisionDraws.length > 0}
     <div class="tabs">
       <button class="tab" class:active={viewing === null} onclick={() => (viewing = null)}>
         Your draw
       </button>
-      {#each store.otherDivisionDraws as other (other.division)}
+      {#each effectiveOtherDivisionDraws as other (other.division)}
         <button class="tab" class:active={viewing === other.division} onclick={() => (viewing = other.division)}>
           Class {other.division}{other.concluded ? " ✓" : ""}
         </button>
@@ -77,7 +135,7 @@
 
   <div class="sheet" bind:this={sheetEl}>
     {#each rounds as round (round.round)}
-      {@const isCurrentRound = isOwnDraw && round.round === lastRoundNumber}
+      {@const isCurrentRound = !revealAll && !branchConcluded && round.round === lastRoundNumber}
       <div class="column">
         <div class="column-title">{columnTitle(round)}</div>
         <div class="sections">
@@ -132,6 +190,10 @@
   {#if showPlay}
     <footer class="cta">
       <button class="play" onclick={() => store.playPendingMatch()}>Play match ▸</button>
+    </footer>
+  {:else if showContinue}
+    <footer class="cta">
+      <button class="play" onclick={() => store.continueAfterTournament()}>Continue ▸</button>
     </footer>
   {/if}
 </div>

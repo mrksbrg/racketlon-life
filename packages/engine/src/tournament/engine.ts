@@ -106,6 +106,11 @@ export interface TournamentDef {
   fieldSize: FieldSize;
   /** prize money indexed by rounds won: 0 = lost round 1 … last = won it all */
   prizeByRoundsWon: number[];
+  /** named tournament director — flavor source for this event's draw email
+   * (systems/inbox.ts's `addDrawEmails`). Not every event has a name on file
+   * yet, so callers fall back to a generic "tournament director" role label
+   * when absent. */
+  director?: string;
 }
 
 /** this def's own division array (own tier, own gender) — the single lookup
@@ -117,20 +122,14 @@ function tierDivisionsFor(tier: string, gender: "m" | "f"): readonly string[] {
   return tierDivisions;
 }
 
-/**
- * Standard single-elimination seed placement, so top seeds meet as late as
- * possible — the textbook recursive "reflection" method: start with [1, 2],
- * then each doubling pairs every existing seed `s` with `size + 1 - s`.
- * Verified to reproduce the well-known 4/8/16-player orders (1v8/4v5/2v7/3v6
- * at 8, etc.) exactly, and extends the same way to 32/64.
- */
-function standardSeedOrder(size: FieldSize): number[] {
-  let order = [1, 2];
-  while (order.length < size) {
-    const next = order.length * 2;
-    order = order.flatMap((seed) => [seed, next + 1 - seed]);
+/** In-place Fisher–Yates shuffle, deterministic given `rng`. */
+function shuffle<T>(items: readonly T[], rng: Rng): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = rng.int(i + 1);
+    [arr[i], arr[j]] = [arr[j]!, arr[i]!];
   }
-  return order;
+  return arr;
 }
 
 /** One pairing within a round's group. `winner` is null only for the human's
@@ -215,7 +214,7 @@ export interface TournamentSession {
    * asymmetry once the human is visibly carrying fatigue of their own.
    * Initialized to 100 for every entrant at session start (`startTournament`
    * / `startSiblingSession`); updated for both sides of every match
-   * `resolveRound`/`resolveRoundAuto` simulate, and for the human's own
+   * `resolveRound` simulates, and for the human's own
    * opponent in `advanceTournament`. Never read or written for the human
    * themself — that's `humanEnergyCarry`. */
   entrantEnergyCarry: Map<string, number>;
@@ -235,11 +234,10 @@ export interface TournamentSession {
   /** the FIR placement-points table, snapshotted at entry so scoring doesn't
    * need a `content` parameter threaded through every advance call */
   rankingMatrix: RankingMatrix;
-  /** every round the human actually experienced, oldest first — see
-   * {@link RoundRecord}. Only `resolveRound` appends (the human-facing path);
-   * `finishAllRemainingGroups`' silent mop-up after the human's own result is
-   * known deliberately isn't recorded, so this stops exactly where their
-   * tournament did. */
+  /** every round of the tournament, oldest first — see {@link RoundRecord}.
+   * `resolveRound` appends every round, including `finishAllRemainingGroups`'
+   * mop-up of groups the human isn't in, so a completed session's `history`
+   * covers the whole bracket, not just the human's own path. */
   history: RoundRecord[];
 }
 
@@ -497,14 +495,39 @@ function pickEntrants(state: GameState, def: TournamentDef, weekIndex: number, c
   return [human, ...projectedField(state, def, weekIndex, content)];
 }
 
-/** Seeds entrants by Glicko rating (what a real seeding committee would see,
- * not hidden true skill) into fixed bracket positions. */
-export function seedBracket(entrants: Player[], fieldSize: FieldSize): string[] {
-  const order = standardSeedOrder(fieldSize);
+/**
+ * Seeds entrants by Glicko rating (what a real seeding committee would see,
+ * not hidden true skill) into fixed bracket positions, using the real-world
+ * draw convention: only the top 4 rated entrants get a structurally
+ * protected slot — seed 1 anchors position 0 (top), seed 2 the last position
+ * (bottom), so they can only meet in the final. Seeds 3 and 4 anchor the two
+ * central positions (so each can only meet 1 or 2 in the semifinal), with a
+ * coin flip deciding which of the pair lands on which side — same as a real
+ * draw ceremony, where the specific slot isn't rating-determined. Every
+ * other entrant (rank 5 and below) is shuffled blind into whatever slots are
+ * left, exactly like an unseeded real-world draw: no further protection.
+ */
+export function seedBracket(entrants: Player[], fieldSize: FieldSize, rngSeed: string): string[] {
+  const rng = new Rng(rngSeed);
   const sorted = [...entrants].sort((a, b) => combinedRating(b) - combinedRating(a));
-  const bySeed = new Map<number, string>();
-  sorted.forEach((p, i) => bySeed.set(i + 1, p.identity.id));
-  return order.map((seed) => bySeed.get(seed)!);
+  const positions = new Array<Player | undefined>(fieldSize);
+
+  positions[0] = sorted[0];
+  positions[fieldSize - 1] = sorted[1];
+
+  const mid = fieldSize / 2;
+  const [thirdSeed, fourthSeed] = [sorted[2], sorted[3]];
+  const [upper, lower] = rng.chance(0.5) ? [thirdSeed, fourthSeed] : [fourthSeed, thirdSeed];
+  positions[mid - 1] = upper;
+  positions[mid] = lower;
+
+  const rest = shuffle(sorted.slice(4), rng);
+  let next = 0;
+  for (let pos = 0; pos < fieldSize; pos++) {
+    if (positions[pos] === undefined) positions[pos] = rest[next++];
+  }
+
+  return positions.map((p) => p!.identity.id);
 }
 
 /** Each entrant's seed rank (1 = top-rated), by the same Glicko sort as
@@ -512,6 +535,99 @@ export function seedBracket(entrants: Player[], fieldSize: FieldSize): string[] 
 function seedRanks(entrants: Player[]): Map<string, number> {
   const sorted = [...entrants].sort((a, b) => combinedRating(b) - combinedRating(a));
   return new Map(sorted.map((p, i) => [p.identity.id, i + 1]));
+}
+
+/** The real seeded bracket for an event that hasn't been played yet — the
+ * top seeds and the human's actual round-1 opponent, computed the exact same
+ * way `startTournament` will (same `pickEntrants`/`seedBracket` call chain,
+ * same seed formula) so the two can never disagree. Doesn't touch
+ * `GameState`, matching `projectedField`'s no-mutation guarantee (see
+ * docs/04's "Field preview ahead of time"). Used by the inbox's
+ * draw-announcement email (systems/inbox.ts) so it can name real seeds and a
+ * real opponent instead of hedging with "possible" ones. */
+export interface DrawPreview {
+  seeds: DrawPlayerView[];
+  /** null only if the human isn't actually in this field (shouldn't happen
+   * for a def the human is entered in) */
+  humanOpponent: DrawPlayerView | null;
+}
+
+export function previewDraw(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+): DrawPreview {
+  const rngSeed = childSeed(state.seed, "tournament", weekIndex, def.id);
+  const entrants = pickEntrants(state, def, weekIndex, content);
+  const bracketBySeed = seedBracket(entrants, def.fieldSize, childSeed(rngSeed, "seedBracket"));
+  const seedByPlayerId = seedRanks(entrants);
+  const maxSeed = seededCount(def.fieldSize);
+
+  const seeds = [...seedByPlayerId.entries()]
+    .filter(([, rank]) => rank <= maxSeed)
+    .sort((a, b) => a[1] - b[1])
+    .map(([id, rank]) => drawPlayerView(state, id, rank));
+
+  const humanIdx = bracketBySeed.indexOf(state.career.playerId);
+  const opponentIdx = humanIdx === -1 ? -1 : humanIdx % 2 === 0 ? humanIdx + 1 : humanIdx - 1;
+  const opponentId = opponentIdx === -1 ? undefined : bracketBySeed[opponentIdx];
+  const humanOpponent = opponentId ? drawPlayerView(state, opponentId, seedByPlayerId.get(opponentId)) : null;
+
+  return { seeds, humanOpponent };
+}
+
+/**
+ * A "the draw is out" bracket-shaped preview of round 1 only, for a
+ * tournament that hasn't started yet — same entrant/seeding pipeline as
+ * `previewDraw`/`startTournament` (`pickEntrants`/`seedBracket`), so it can
+ * never disagree with the real bracket once entered. Deliberately never
+ * calls `resolveRound`/`simulateMatchAuto`: every `winnerId` here is null and
+ * every `sets` is undefined, even for AI-vs-AI pairs that could technically
+ * be simulated already — revealing a result before the event has actually
+ * started would spoil "the draw" as a real preview. Later rounds aren't
+ * included at all: who plays round 2 depends on round-1 results (including
+ * the human's) that don't exist yet. Doesn't touch `GameState`, matching
+ * `previewDraw`'s own no-mutation guarantee.
+ */
+export function previewFirstRoundDraw(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+): DrawRound[] {
+  const rngSeed = childSeed(state.seed, "tournament", weekIndex, def.id);
+  const entrants = pickEntrants(state, def, weekIndex, content);
+  const bracketBySeed = seedBracket(entrants, def.fieldSize, childSeed(rngSeed, "seedBracket"));
+  const seedByPlayerId = seedRanks(entrants);
+  const maxSeed = seededCount(def.fieldSize);
+  const seedOf = (id: string): number | undefined => {
+    const rank = seedByPlayerId.get(id);
+    return rank !== undefined && rank <= maxSeed ? rank : undefined;
+  };
+
+  const matchups: DrawMatchup[] = roundPairs(bracketBySeed).map(([a, b]) => ({
+    a: drawPlayerView(state, a, seedOf(a)),
+    b: drawPlayerView(state, b, seedOf(b)),
+    winnerId: null,
+    isYouA: a === state.career.playerId,
+    isYouB: b === state.career.playerId,
+  }));
+
+  return [
+    {
+      round: 0,
+      sections: [
+        {
+          isMainDraw: true,
+          roundName: drawRoundName(def.fieldSize, true, 1, def.fieldSize),
+          positionFrom: 1,
+          positionTo: def.fieldSize,
+          matchups,
+        },
+      ],
+    },
+  ];
 }
 
 function roundPairs(participants: string[]): Array<[string, string]> {
@@ -542,9 +658,13 @@ function carryEnergy(leftover: number, endurance: number): number {
  * per-group) so results stay identical to the pre-monrad pairing order for
  * round 0, and remain fully deterministic for a given seed thereafter.
  *
- * Only ever called when the human's own group is NOT already decided (the
- * caller — `startTournament` at round 0, or `advanceTournament` after a
- * split — guarantees this), so a `pendingMatch` is always produced.
+ * Called by `startTournament` at round 0 and `advanceTournament` after a
+ * split, always with the human's own group NOT yet decided, so a
+ * `pendingMatch` is always produced there. Also called by
+ * `finishAllRemainingGroups` to mop up every other group once the human's
+ * own result IS already decided (and thus excluded from `session.groups`)
+ * — there, the human branch below simply never fires and `pendingMatch`
+ * stays whatever it already was.
  */
 function resolveRound(state: GameState, session: TournamentSession): void {
   const round = session.currentRound;
@@ -586,37 +706,6 @@ function resolveRound(state: GameState, session: TournamentSession): void {
   });
 
   session.history.push({ round, groups: session.groups, pairs: session.roundPairs });
-}
-
-/**
- * Auto-resolves one round for every still-active group, with AI tactics on
- * both sides for every match (used only by `finishAllRemainingGroups`, once
- * the human's own result is already known and nothing here needs to reach
- * the UI). Mirrors `resolveRound`'s pairing/seeding exactly, minus the
- * human's interactive branch.
- */
-function resolveRoundAuto(state: GameState, session: TournamentSession, round: number): (RoundPair[] | null)[] {
-  const ref = (player: Player) =>
-    matchRefFromPlayer(player, ageOn(state.calendar.mondayISO, player.identity.birthDate));
-  let globalIndex = 0;
-
-  return session.groups.map((group) => {
-    if (isDecided(group)) return null;
-    const pairs = roundPairs(group.participants);
-    return pairs.map(([a, b]): RoundPair => {
-      const seed = childSeed(session.seed, "round", round, globalIndex++);
-      const pa = getPlayer(state, a);
-      const pb = getPlayer(state, b);
-      const m = createMatch(ref(pa), ref(pb), seed);
-      m.energy.a = session.entrantEnergyCarry.get(a) ?? 100;
-      m.energy.b = session.entrantEnergyCarry.get(b) ?? 100;
-      simulateMatchAuto(m);
-      recordMatchResults(session.resultsBook, m);
-      session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.endurance));
-      session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.endurance));
-      return { a, b, winner: m.winner === "a" ? a : b, sets: m.sets.map((s) => ({ a: s.a, b: s.b })) };
-    });
-  });
 }
 
 /**
@@ -675,16 +764,18 @@ function groupStartPosition(groups: Group[], index: number): number {
 /**
  * Silently plays out every group still active once the human's own result is
  * already decided — purely so the rest of the field's ratings stay realistic
- * (see the module doc comment). No UI interaction: every match, including
- * what would otherwise be the human's own, is impossible here by
- * construction (their group is already decided, so it's excluded from
- * `roundPairsByGroup`).
+ * (see the module doc comment), and so `session.history` ends up with a
+ * complete bracket (through the real Final) even though the human's own
+ * tournament ended earlier. Reuses `resolveRound` itself (not a separate
+ * "auto" variant) — its human branch simply never fires here, since the
+ * human's own group is already decided and thus excluded from the active
+ * groups it resolves.
  */
 function finishAllRemainingGroups(state: GameState, session: TournamentSession): void {
   let guard = 0;
   while (session.groups.some((g) => !isDecided(g)) && ++guard <= session.totalRounds + 1) {
-    const roundPairsByGroup = resolveRoundAuto(state, session, session.currentRound);
-    session.groups = buildNextGroups(session.groups, roundPairsByGroup);
+    resolveRound(state, session);
+    session.groups = buildNextGroups(session.groups, session.roundPairs!);
     session.currentRound += 1;
   }
 }
@@ -765,7 +856,7 @@ export function startTournament(
 
   const rngSeed = childSeed(state.seed, "tournament", week, def.id);
   const entrants = pickEntrants(state, def, week, content);
-  const bracketBySeed = seedBracket(entrants, def.fieldSize);
+  const bracketBySeed = seedBracket(entrants, def.fieldSize, childSeed(rngSeed, "seedBracket"));
   const seedByPlayerId = seedRanks(entrants);
   const totalRounds = Math.log2(def.fieldSize);
 
@@ -831,10 +922,10 @@ export function startSiblingSession(
   content: ContentBundle,
 ): TournamentSession {
   const entrants = fullDivisionField(state, def, weekIndex, content);
-  const bracketBySeed = seedBracket(entrants, def.fieldSize);
+  const rngSeed = childSeed(state.seed, "tournament", weekIndex, def.id);
+  const bracketBySeed = seedBracket(entrants, def.fieldSize, childSeed(rngSeed, "seedBracket"));
   const seedByPlayerId = seedRanks(entrants);
   const totalRounds = Math.log2(def.fieldSize);
-  const rngSeed = childSeed(state.seed, "tournament", weekIndex, def.id);
 
   const session: TournamentSession = {
     def,
@@ -1034,6 +1125,19 @@ export function advanceTournament(
   human.condition.sorenessStartedWeek = session.weekIndex;
   recordMatchResults(session.resultsBook, finishedMatch);
 
+  // Every completed set is a scouting look at this specific opponent in this
+  // specific sport — see model/sport.ts's `levelRangeWidthForFamiliarity`,
+  // which reads this count to tighten their fuzzed level band on the
+  // opponent profile screen. A set the match ended early without reaching
+  // (`!done`) teaches nothing, so it doesn't count.
+  const opponentId = finishedMatch.players.b.id;
+  const h2h = (state.career.headToHeadSets[opponentId] ??= {});
+  finishedMatch.sets.forEach((set, i) => {
+    if (!set.done) return;
+    const sport = SPORTS[i]!;
+    h2h[sport] = (h2h[sport] ?? 0) + 1;
+  });
+
   // one entry per individual match the human plays (not just the eventual
   // tournament placement) — the Me screen's "recent matches" list (see
   // facade.ts's `recentMatches`) mines these out of the log rather than a
@@ -1192,11 +1296,12 @@ function drawPlayerView(state: GameState, playerId: string, seed: number | undef
   return { id: playerId, name: fullName(p), nationality: p.identity.nationality, seed };
 }
 
-/** How many top entrants carry a printed seed in a field of this size — the
- * top quarter, floor of 2, mirroring how a real draw seeds only its strongest
- * names rather than every entrant. */
+/** How many top entrants carry a printed seed badge — exactly the ranks
+ * `seedBracket` structurally protects (1 anchors the top, 2 the bottom, 3/4
+ * the two middle slots); everyone past that is genuinely unseeded, not just
+ * unlabeled, so there's nothing meaningful to badge. */
 function seededCount(fieldSize: FieldSize): number {
-  return Math.max(2, Math.floor(fieldSize / 4));
+  return Math.min(4, fieldSize);
 }
 
 /**

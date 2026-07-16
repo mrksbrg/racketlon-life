@@ -22,6 +22,20 @@ export interface CountryDef {
   lat: number;
   lon: number;
   costIndex: number;
+  /** national federation president — flavor source for inbox messages tied
+   * to this country (e.g. a player's own nationality). Not every federation
+   * has a name on file yet, so this is optional. */
+  president?: string;
+}
+
+/** A named person holding an international FIR role — flavor source for the
+ * inbox's official-looking mail (see world/factory.ts, systems/inbox.ts).
+ * Keyed by a stable role id (e.g. "president", "rankingsOfficer") on
+ * {@link ContentBundle.firOfficials}, distinct from `CountryDef.president`
+ * which is per-national-federation, not FIR itself. */
+export interface FirOfficialDef {
+  role: string;
+  name: string;
 }
 
 export type TraitCategory = "mentality" | "lifestyle" | "training" | "competition" | "body";
@@ -129,4 +143,8 @@ export interface ContentBundle {
   /** real-player roster from the FIR world bundle — the pool world creation
    * seeds tier-1 NPCs from (replaces the old random generation) */
   players: RealPlayerDef[];
+  /** named FIR office-holders, keyed by a stable role id — see
+   * {@link FirOfficialDef}. Distinct from each country's own
+   * `CountryDef.president`. */
+  firOfficials: Record<string, FirOfficialDef>;
 }

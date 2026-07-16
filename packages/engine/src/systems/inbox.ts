@@ -11,7 +11,8 @@ import { skillCeiling } from "./effects.js";
 import { firWorldRanking } from "./ranking-points.js";
 import { eliminationLabel } from "./summary.js";
 import { travelCost } from "./travel.js";
-import { humanDivisionDef, projectedField, tournamentCalendar } from "../tournament/engine.js";
+import type { TournamentDef } from "../tournament/engine.js";
+import { humanDivisionDef, previewDraw, tournamentCalendar } from "../tournament/engine.js";
 
 /**
  * The diegetic "living world" feed (docs/07's Inbox). A Story-type system: it
@@ -38,6 +39,14 @@ function eur(amount: number): string {
   return `€${Math.round(amount).toLocaleString("en-US")}`;
 }
 
+/** This event's "from" line — a named director when the calendar has one on
+ * file (see packages/content/data/tournaments.json), else the generic role
+ * label. Shared by the invitation and draw-published emails so the same
+ * event always reads as coming from the same person. */
+function tournamentDirectorFrom(def: TournamentDef): string {
+  return def.director ? `${def.name} Tournament Director, ${def.director}` : `${def.name} tournament director`;
+}
+
 /**
  * The new inbox messages due at `week`, excluding any whose id already exists
  * (so re-running a week, or seeding week 0 at career start, never duplicates).
@@ -62,7 +71,7 @@ export function generateInboxMessages(
   addInvitations(state, content, week, add);
   addDrawEmails(state, content, week, add);
   addTournamentResults(state, weekEvents, add);
-  addRankingDigest(state, week, add);
+  addRankingDigest(state, content, week, add);
   addPotentialClues(state, week, add);
   return out;
 }
@@ -160,25 +169,25 @@ function addDrawEmails(
   const def = content.tournaments[entry.tournamentId];
   if (!def) return;
 
-  const field = projectedField(state, def, week, content);
-  const opponents = field
-    .filter((p) => p.identity.id !== state.career.playerId)
-    .slice(0, 4)
-    .map((p) => fullName(p));
-  const opponentNote = opponents.length > 0
-    ? ` Early-round possibilities include ${opponents.join(", ")}.`
-    : " The director has you listed, but the rest of the field is still light.";
+  const { seeds, humanOpponent } = previewDraw(state, def, week, content);
+  const seedNote = seeds.length > 0
+    ? ` Seeds: ${seeds.map((s) => `${s.seed}) ${s.name}`).join(", ")}.`
+    : "";
+  const opponentNote = humanOpponent
+    ? ` You open against ${humanOpponent.name}${humanOpponent.seed ? ` (seed ${humanOpponent.seed})` : ""}.`
+    : "";
 
   add({
     id: `draw:${week}:${def.id}`,
     week,
     category: "draw",
-    from: `${def.name} tournament director`,
+    from: tournamentDirectorFrom(def),
     subject: `Draws published: ${def.name}`,
     body:
-      `The ${def.name} Division ${def.division} draw is out for ${def.city}. ` +
-      `Review the field before you play and use any last training slots to arrive with the right form.` +
-      opponentNote,
+      `The ${def.name} Division ${def.division} draw is out for ${def.city}.` +
+      seedNote +
+      opponentNote +
+      ` Full bracket's live on the Tour — check it before you play.`,
     read: false,
     tournamentWeek: week,
   });
@@ -212,7 +221,7 @@ function addInvitations(
       id: `invite:${def.id}`,
       week,
       category: "invitation",
-      from: "FIR World Tour",
+      from: tournamentDirectorFrom(def),
       subject: `Entry open: ${def.name}`,
       body:
         `You're invited to the ${def.tier} ${def.name} in ${def.city} on ${def.date} — ` +
@@ -232,7 +241,7 @@ function addInvitations(
  * keeps entirely separate men's and women's rankings, so the digest reports
  * both top-N lists rather than one mixed one.
  */
-function addRankingDigest(state: GameState, week: number, add: (m: InboxMessage) => void): void {
+function addRankingDigest(state: GameState, content: ContentBundle, week: number, add: (m: InboxMessage) => void): void {
   // fire on a calendar-month boundary (and at week 0, whose "previous" month
   // differs) — the dedup id keeps it to one digest per month
   if (monthKeyForWeek(state.calendar, week) === monthKeyForWeek(state.calendar, week - 1)) return;
@@ -264,7 +273,7 @@ function addRankingDigest(state: GameState, week: number, add: (m: InboxMessage)
     id: `ranking:${monthKeyForWeek(state.calendar, week)}`,
     week,
     category: "ranking",
-    from: "FIR Rankings Officer, James Pope",
+    from: `${content.firOfficials.rankingsOfficer?.role ?? "FIR Rankings Officer"}, ${content.firOfficials.rankingsOfficer?.name ?? "James Pope"}`,
     subject: `${monthLabel} FIR world ranking`,
     body: you
       ? `The ${monthLabel} FIR World Ranking is out. ${youName} sits at #${you.rank} of ${ownStandings.length}, with ${you.points} points.`

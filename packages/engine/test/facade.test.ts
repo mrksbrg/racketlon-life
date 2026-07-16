@@ -19,6 +19,7 @@ function playTournamentAt(game: Game, weekIndex: number): void {
     if (result.status !== "nextRound") break;
     match = result.match;
   }
+  game.clearConcludedTournament();
   game.submitWeek(WORK);
 }
 
@@ -58,6 +59,23 @@ describe("Game facade", () => {
     const summaryB = restored.submitWeek(plan);
     expect(JSON.stringify(summaryA)).toBe(JSON.stringify(summaryB));
     expect(JSON.stringify(original.serialize())).toBe(JSON.stringify(restored.serialize()));
+  });
+
+  it("completedDraw survives clearConcludedTournament and a serialize/fromSave round-trip", () => {
+    const game = Game.newGame({ content: testContent, seed: "f4-completed-draw" });
+    expect(game.completedDraw(3)).toBeNull(); // nothing played yet
+    playTournamentAt(game, 3); // plays week 3's tournament and clears the session
+
+    const draw = game.completedDraw(3);
+    expect(draw).not.toBeNull();
+    expect(draw!.rounds.length).toBeGreaterThan(0);
+    const finalSection = draw!.rounds[draw!.rounds.length - 1]!.sections.find((s) => s.isMainDraw)!;
+    expect(finalSection.matchups[0]!.winnerId).not.toBeNull();
+    // the live session is long gone — completedDraw doesn't depend on it
+    expect(game.tournamentDraw()).toBeNull();
+
+    const restored = Game.fromSave(game.serialize(), testContent);
+    expect(restored.completedDraw(3)).toEqual(draw);
   });
 
   it("exposes level view models, not raw skill numbers", () => {
@@ -220,8 +238,9 @@ describe("Game facade", () => {
     expect(levelMax).toBeLessThanOrEqual(20);
     expect(trueLevel).toBeGreaterThanOrEqual(levelMin);
     expect(trueLevel).toBeLessThanOrEqual(levelMax);
-    if (trueLevel > 1 + BALANCE.opponentInfo.levelRangeWidth && trueLevel < 20 - BALANCE.opponentInfo.levelRangeWidth) {
-      expect(levelMax - levelMin).toBe(2 * BALANCE.opponentInfo.levelRangeWidth);
+    const startWidth = BALANCE.opponentInfo.levelRangeStartWidth;
+    if (trueLevel > 1 + startWidth && trueLevel < 20 - startWidth) {
+      expect(levelMax - levelMin).toBe(2 * startWidth);
     }
     // no traits/attributes/hidden fields, and no exact `level`/`progress`,
     // leak onto the type at all — this is a compile-time guarantee

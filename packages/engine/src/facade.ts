@@ -12,7 +12,13 @@ import type { Player } from "./model/player.js";
 import { fullName } from "./model/player.js";
 import type { WeekSummary } from "./model/summary.js";
 import type { Sport } from "./model/sport.js";
-import { SPORTS, levelForSkill, levelProgress, levelRangeForSkill } from "./model/sport.js";
+import {
+  SPORTS,
+  levelForSkill,
+  levelProgress,
+  levelRangeForSkill,
+  levelRangeWidthForFamiliarity,
+} from "./model/sport.js";
 import type { MatchState } from "./match/engine.js";
 import { simulateTournamentPreparation, simulateWeek } from "./orchestrator.js";
 import { recoveryAgeMultiplier } from "./systems/age.js";
@@ -44,6 +50,7 @@ import {
   humanDivisionDef,
   humanEligibleDivisions,
   isSiblingConcluded,
+  previewFirstRoundDraw,
   projectedField,
   startSiblingSession,
   startTournament,
@@ -311,6 +318,26 @@ export interface DivisionChoice {
   entrants: OpponentView[];
 }
 
+/** "played" — the human actually contested it (see `result`). "registered" —
+ * committed, still upcoming. "open"/"closed" — same meaning as
+ * `TourEntryStatus`. "skipped" — the week has passed and the human never
+ * registered (or withdrew) — informational only, nothing to show. */
+export type SeasonTournamentStatus = "played" | "registered" | "open" | "closed" | "skipped";
+
+/** One event on the human's season list — the Tour screen's full-year
+ * "every tournament this year" view, past and future, so a played event
+ * stays reachable long after the week it happened (unlike the ephemeral
+ * `TournamentSession`, which only lives for the duration of the event). */
+export interface SeasonTournamentEntry {
+  weekIndex: number;
+  weekLabel: string;
+  /** the human's own division for that week's event */
+  tournament: TournamentDef;
+  status: SeasonTournamentStatus;
+  /** populated only when `status === "played"` */
+  result: TournamentResultView | null;
+}
+
 /** One other division of the current week's event, fully AI-simulated
  * alongside the human's own — see `Game.otherDivisionDraws`. */
 export interface OtherDivisionDraw {
@@ -536,6 +563,10 @@ export class Game {
     return weekLabel(this.state.calendar);
   }
 
+  get year(): number {
+    return yearOfWeek(this.state.calendar, this.state.calendar.weekIndex);
+  }
+
   get seed(): string {
     return this.state.seed;
   }
@@ -750,7 +781,13 @@ export class Game {
         const level = levelForSkill(skill);
         sports[sport] = { levelMin: level, levelMax: level, level, progress: levelProgress(skill) };
       } else {
-        const range = levelRangeForSkill(skill, BALANCE.opponentInfo.levelRangeWidth);
+        const setsPlayed = this.state.career.headToHeadSets[id]?.[sport] ?? 0;
+        const bandWidth = levelRangeWidthForFamiliarity(
+          setsPlayed,
+          BALANCE.opponentInfo.levelRangeStartWidth,
+          BALANCE.opponentInfo.levelRangeMinWidth,
+        );
+        const range = levelRangeForSkill(skill, bandWidth);
         sports[sport] = { levelMin: range.min, levelMax: range.max };
       }
       const g = p.ratings[sport];
@@ -962,6 +999,39 @@ export class Game {
   }
 
   /**
+   * Every tournament of the given real-calendar year that lands on the
+   * human's own division, oldest first — the Tour screen's season list, so a
+   * result stays reachable long after `tournamentSchedule`'s upcoming-only
+   * window (and the live `TournamentSession`) have moved on. "Played" status
+   * comes from `careerStats().results` (the durable event-log record), not
+   * the ephemeral session, so this works for any past week this career has
+   * already lived through.
+   */
+  seasonTournaments(year: number): SeasonTournamentEntry[] {
+    const calendar = tournamentCalendar(this.content);
+    const thisWeekIndex = this.state.calendar.weekIndex;
+    const deadline = BALANCE.tournament.entryDeadlineWeeks;
+    const resultsByWeek = new Map(this.careerStats().results.map((r) => [r.week, r]));
+
+    const weeks = [...calendar.keys()]
+      .filter((w) => yearOfWeek(this.state.calendar, w) === year)
+      .sort((a, b) => a - b);
+
+    return weeks.map((weekIndex) => {
+      const defs = calendar.get(weekIndex)!;
+      const tournament = humanDivisionDef(this.state, defs);
+      const result = resultsByWeek.get(weekIndex) ?? null;
+      const registeredEntry = this.state.career.tournamentEntries.find((e) => e.weekIndex === weekIndex);
+      let status: SeasonTournamentStatus;
+      if (result) status = "played";
+      else if (registeredEntry) status = "registered";
+      else if (weekIndex < thisWeekIndex) status = "skipped";
+      else status = weekIndex - thisWeekIndex >= deadline ? "open" : "closed";
+      return { weekIndex, weekLabel: weekLabelAt(this.state.calendar, weekIndex), tournament, status, result };
+    });
+  }
+
+  /**
    * Registers for a future tournament — commits to playing it, but the
    * entry fee isn't charged until that week actually arrives and
    * `enterTournament` is called. Must be at least `entryDeadlineWeeks`
@@ -1125,11 +1195,16 @@ export class Game {
    * Advances the bracket once the human's match has finished: records the
    * result, carries energy into the next round, or — on elimination or the
    * final win — awards prize money and converts the day's exertion into
-   * fatigue, closing out the session. Every other division's sibling
-   * session (see `otherDivisionDraws`) advances one round in lockstep; once
-   * the human's own tournament concludes, any siblings still going are
-   * fast-forwarded straight to their own final result rather than left
-   * mid-bracket.
+   * fatigue. Every other division's sibling session (see
+   * `otherDivisionDraws`) advances one round in lockstep; once the human's
+   * own tournament concludes, any siblings still going are fast-forwarded
+   * straight to their own final result rather than left mid-bracket.
+   *
+   * On conclusion, the session is deliberately *not* cleared here — its
+   * permanent effects (prize money, fatigue, ranking points, event log) are
+   * already applied by this point, but the draw itself stays live so the UI
+   * can let the human browse the finished bracket (own + siblings) before
+   * moving on. Call `clearConcludedTournament` once they're done.
    */
   resolveTournamentMatch(finishedMatch: MatchState): TournamentAdvanceResult {
     if (!this.tournamentSession) throw new Error("No active tournament to advance");
@@ -1137,9 +1212,69 @@ export class Game {
     for (const sibling of this.siblingSessions.values()) advanceSiblingSession(this.state, sibling);
     if (result.status !== "nextRound") {
       for (const sibling of this.siblingSessions.values()) finishSiblingSession(this.state, sibling);
-      this.tournamentSession = null;
     }
     return result;
+  }
+
+  /** Releases the concluded tournament's session (own + siblings) once the
+   * human is done browsing its final draw — see `resolveTournamentMatch`.
+   * Snapshots the full bracket (own division + every sibling) into
+   * `career.completedDraws` first, since the session itself is about to be
+   * discarded and is otherwise the only place that data ever lived — see
+   * `completedDraw`. */
+  clearConcludedTournament(): void {
+    if (this.tournamentSession) {
+      const session = this.tournamentSession;
+      this.state.career.completedDraws[session.weekIndex] = {
+        tournamentId: session.def.id,
+        rounds: drawRounds(this.state, session),
+        otherDivisions: [...this.siblingSessions.values()].map((sibling) => ({
+          tournamentId: sibling.def.id,
+          rounds: drawRounds(this.state, sibling),
+        })),
+      };
+    }
+    this.tournamentSession = null;
+    this.siblingSessions = new Map();
+  }
+
+  /**
+   * A bracket-shaped preview of round 1 for a tournament that hasn't started
+   * yet — null once it's actually begun (use `tournamentDraw`/
+   * `completedDraw` instead) or if the week has no tournament. Resolves the
+   * same def `registeredTournamentThisWeek`/`enterTournament` would use — the
+   * human's actual registered (possibly played-up) division if they
+   * registered, else their default division — so a played-up preview never
+   * shows the wrong class. See `tournament/engine.ts`'s `previewFirstRoundDraw`.
+   */
+  previewTournamentDraw(weekIndex: number): DrawRound[] | null {
+    const defs = tournamentForWeek(this.content, weekIndex);
+    if (!defs) return null;
+    const registeredEntry = this.state.career.tournamentEntries.find((e) => e.weekIndex === weekIndex);
+    const def = registeredEntry
+      ? (this.content.tournaments[registeredEntry.tournamentId] ?? humanDivisionDef(this.state, defs))
+      : humanDivisionDef(this.state, defs);
+    return previewFirstRoundDraw(this.state, def, weekIndex, this.content);
+  }
+
+  /**
+   * A concluded tournament's full bracket (own division + every sibling),
+   * snapshotted at the moment it ended — see `clearConcludedTournament`.
+   * Null if this week was never played, or if the content that produced it
+   * has since changed underneath an old save.
+   */
+  completedDraw(weekIndex: number): { tournament: TournamentDef; rounds: DrawRound[]; otherDivisions: OtherDivisionDraw[] } | null {
+    const persisted = this.state.career.completedDraws[weekIndex];
+    if (!persisted) return null;
+    const tournament = this.content.tournaments[persisted.tournamentId];
+    if (!tournament) return null;
+    const otherDivisions = persisted.otherDivisions
+      .map((other): OtherDivisionDraw | null => {
+        const def = this.content.tournaments[other.tournamentId];
+        return def ? { division: def.division, tournament: def, rounds: other.rounds, concluded: true } : null;
+      })
+      .filter((d): d is OtherDivisionDraw => d !== null);
+    return { tournament, rounds: persisted.rounds, otherDivisions };
   }
 
   /**

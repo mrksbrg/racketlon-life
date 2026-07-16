@@ -507,8 +507,14 @@ export const BALANCE = {
    * `levelRangeForSkill`. */
   opponentInfo: {
     /** an opponent's shown level range is their true level ± this many
-     * levels (e.g. true level 10 shows as "8–12" at the default of 2) */
-    levelRangeWidth: 2,
+     * levels before the human has ever played them in a given sport (e.g.
+     * true level 10 shows as "5–15" at the default of 5) — see
+     * `levelRangeWidthForFamiliarity`, which shrinks this per sport as the
+     * human plays more sets against that specific opponent. */
+    levelRangeStartWidth: 5,
+    /** the band never tightens past ± this many levels — some mystery
+     * always remains, however many times they've played. */
+    levelRangeMinWidth: 1,
   },
   /** InboxSystem — the diegetic message feed (docs/07). */
   inbox: {

@@ -111,6 +111,12 @@
                 {/if}
               </div>
             {/if}
+
+            {#if msg.category === "draw" && msg.tournamentWeek !== undefined}
+              <div class="actions">
+                <button class="view" onclick={() => store.viewTournamentDetail(msg.tournamentWeek!)}>View the draw ▸</button>
+              </div>
+            {/if}
           </div>
         {/if}
       </div>

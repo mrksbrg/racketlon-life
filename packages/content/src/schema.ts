@@ -51,9 +51,20 @@ const countrySchema = z.object({
   lat: z.number().min(-90).max(90),
   lon: z.number().min(-180).max(180),
   costIndex: z.number().positive(),
+  /** national federation president, when known */
+  president: z.string().min(1).optional(),
 });
 
 export const countriesSchema = z.record(z.string().length(2), countrySchema);
+
+/** A named FIR office-holder, keyed by a stable role id (e.g. "president",
+ * "rankingsOfficer") — see packages/content/data/fir-officials.json. */
+const firOfficialSchema = z.object({
+  role: z.string().min(1),
+  name: z.string().min(1),
+});
+
+export const firOfficialsSchema = z.record(z.string().min(1), firOfficialSchema);
 
 const tournamentSchema = z
   .object({
@@ -88,6 +99,8 @@ const tournamentSchema = z
      * in size), always seeded and played as separate brackets (never mixed) */
     fieldSize: z.union([z.literal(8), z.literal(16), z.literal(32), z.literal(64)]),
     prizeByRoundsWon: z.array(z.number().min(0)),
+    /** named tournament director, when known */
+    director: z.string().min(1).optional(),
   })
   .refine((t) => t.prizeByRoundsWon.length === Math.log2(t.fieldSize) + 1, {
     message: "prizeByRoundsWon length must equal log2(fieldSize) + 1",

@@ -71,7 +71,19 @@ import type { Calendar } from "./date.js";
 // v19: Career gained `travelBlocks`, persistent post-tournament travel days
 // derived from trip distance so the week after a long-haul event can lock
 // return-travel slots.
-export const SAVE_VERSION = 19;
+// v20: Career gained `headToHeadSets`, a per-opponent per-sport count of
+// completed sets the human has actually played against them — the opponent
+// profile's fuzzed level band (model/sport.ts's
+// `levelRangeWidthForFamiliarity`) tightens as this climbs, so an old save
+// without it would show every opponent at maximum mystery forever rather
+// than genuinely missing data; discarded like the other shape changes above.
+// v21: Career gained `completedDraws`, a full bracket snapshot (own division
+// plus siblings) taken the moment each tournament concludes — see
+// facade.ts's `clearConcludedTournament` — so a played tournament's draw
+// stays viewable afterward instead of vanishing with the ephemeral
+// `TournamentSession`. A new required field an old save's career lacks, so
+// it's discarded like the other shape changes above.
+export const SAVE_VERSION = 21;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
@@ -129,6 +141,60 @@ export interface InboxMessage {
   resultWon?: boolean;
 }
 
+/**
+ * Persisted mirror of `tournament/engine.ts`'s `DrawPlayerView`/`DrawMatchup`/
+ * `DrawSection`/`DrawRound` — structurally identical (so `drawRounds(...)`'s
+ * output can be assigned straight into a `PersistedDrawRound[]` with no
+ * conversion) but declared locally here rather than imported, since this is a
+ * leaf module and `tournament/engine.ts` imports `GameState` from it. Same
+ * pattern as `InboxMessage`/`TournamentEntry` above.
+ */
+export interface PersistedDrawPlayerView {
+  id: string;
+  name: string;
+  nationality: string;
+  seed?: number;
+}
+
+export interface PersistedDrawMatchup {
+  a: PersistedDrawPlayerView;
+  b: PersistedDrawPlayerView;
+  winnerId: string | null;
+  isYouA: boolean;
+  isYouB: boolean;
+  sets?: { a: number; b: number }[];
+}
+
+export interface PersistedDrawSection {
+  isMainDraw: boolean;
+  roundName: string;
+  positionFrom: number;
+  positionTo: number;
+  matchups: PersistedDrawMatchup[];
+}
+
+export interface PersistedDrawRound {
+  round: number;
+  sections: PersistedDrawSection[];
+}
+
+export interface PersistedOtherDivisionDraw {
+  tournamentId: string;
+  rounds: PersistedDrawRound[];
+}
+
+/** A concluded tournament's full bracket, snapshotted once at the moment it
+ * ends (`facade.ts`'s `clearConcludedTournament`) since the live
+ * `TournamentSession` it's read from is otherwise discarded. Keyed by
+ * `weekIndex` on `Career.completedDraws`. Stores `tournamentId`, not the
+ * full `TournamentDef`, so it always resolves against current content (and
+ * correctly reflects a "played up" division) — see `Game.completedDraw`. */
+export interface CompletedDraw {
+  tournamentId: string;
+  rounds: PersistedDrawRound[];
+  otherDivisions: PersistedOtherDivisionDraw[];
+}
+
 /** Career-only state for the human player (AI players carry none of this). */
 export interface Career {
   playerId: string;
@@ -151,6 +217,17 @@ export interface Career {
    * derived from the current registration, return travel is scheduled when
    * the tournament starts and persists into the following week. */
   travelBlocks: TravelBlock[];
+  /** per-opponent, per-sport count of completed sets the human has actually
+   * played against them, keyed by opponent id — see model/sport.ts's
+   * `levelRangeWidthForFamiliarity`, which uses this to tighten that
+   * opponent's fuzzed level band in facade.ts's `opponentProfile`. Only
+   * grows for opponents the human has personally faced (see
+   * tournament/engine.ts's `advanceTournament`), never backfilled. */
+  headToHeadSets: Record<string, Partial<Record<Sport, number>>>;
+  /** every concluded tournament's full bracket this season, keyed by
+   * `weekIndex` — see `CompletedDraw`. Bounded by the season's own size
+   * (currently ~16 tournament weeks total), not pruned. */
+  completedDraws: Record<number, CompletedDraw>;
 }
 
 export interface GameState {

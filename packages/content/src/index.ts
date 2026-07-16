@@ -1,6 +1,7 @@
 import type { ContentBundle } from "@racketlon/engine";
 import activitiesJson from "../data/activities.json";
 import countriesJson from "../data/countries.json";
+import firOfficialsJson from "../data/fir-officials.json";
 import namesJson from "../data/names.json";
 import rankingMatrixJson from "../data/ranking-matrix.json";
 import tournamentsJson from "../data/tournaments.json";
@@ -9,6 +10,7 @@ import worldBundleJson from "../data/world-bundle.json";
 import {
   activitiesSchema,
   countriesSchema,
+  firOfficialsSchema,
   namesSchema,
   rankingMatrixSchema,
   tournamentsSchema,
@@ -24,6 +26,7 @@ export const defaultContent: ContentBundle = {
   activities: activitiesSchema.parse(activitiesJson) as ContentBundle["activities"],
   names: namesSchema.parse(namesJson),
   countries: countriesSchema.parse(countriesJson),
+  firOfficials: firOfficialsSchema.parse(firOfficialsJson),
   tournaments: tournamentsSchema.parse(tournamentsJson) as ContentBundle["tournaments"],
   traits: traitsSchema.parse(traitsJson) as ContentBundle["traits"],
   players: worldBundleSchema.parse(worldBundleJson).players as ContentBundle["players"],

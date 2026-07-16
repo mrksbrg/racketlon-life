@@ -328,7 +328,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
           id: "welcome",
           week: 0,
           category: "welcome",
-          from: "FIR President, Duncan Stahl",
+          from: `${content.firOfficials.president?.role ?? "FIR President"}, ${content.firOfficials.president?.name ?? "Duncan Stahl"}`,
           subject: "Welcome to the FIR World Tour 2026",
           body:
             "This is your inbox — invitations, monthly rankings, and news land here. " +
@@ -338,6 +338,8 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
       ],
       trainedWeeks: [],
       travelBlocks: [],
+      headToHeadSets: {},
+      completedDraws: {},
     },
   };
 

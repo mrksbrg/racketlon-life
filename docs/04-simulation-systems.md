@@ -157,8 +157,11 @@ the player gets a few weeks to prepare first).
 - **Field & seeding.** Human + 7 tier-1 NPCs (shuffled deterministically),
   seeded into a single-elimination bracket by **Glicko rating** — not hidden
   skill, matching the game's "layers" rule (docs/07): a real seeding committee
-  only ever sees ratings. Standard bracket seed order (1v8, 4v5, 2v7, 3v6 for
-  an 8-field) so top seeds meet as late as possible.
+  only ever sees ratings. Real-world draw convention: only seeds 1-4 get a
+  protected slot (1 on top, 2 on the bottom so they can only meet in the
+  final; 3/4 anchor the two middle positions, coin-flipped, so each can only
+  meet 1 or 2 in the semifinal) — everyone else is shuffled in blind, same as
+  an unseeded real-world draw.
 - **AI-vs-AI matches auto-resolve instantly** (`simulateMatchAuto`: both sides
   driven by `aiChooseTactic` in a tight loop) — full tournament draws cost
   microseconds. **The human's own matches stay fully interactive**, reusing
