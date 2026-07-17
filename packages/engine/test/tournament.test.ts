@@ -467,7 +467,7 @@ describe("tournament facade flow", () => {
       tournaments: Object.fromEntries(
         Object.entries(testContent.tournaments).map(([id, def]) =>
           id.startsWith("monthly-open-1")
-            ? [id, { ...def, country: "NZ", lat: -36.8, lon: 174.8 }]
+            ? [id, { ...def, country: "NZ", lat: -36.8, lon: 174.8, date: "2026-01-30" }]
             : [id, def],
         ),
       ),
@@ -490,9 +490,12 @@ describe("tournament facade flow", () => {
     const game = Game.newGame({ content, character, seed: "tour-long-haul" });
 
     registerAndAdvanceTo(game, 3);
+    // Tournament starts Friday (day 4) this week — outbound travel must land
+    // on the two days immediately before it (Wed/Thu), not collide with the
+    // tournament's own day-block (Fri/Sat).
     expect(game.travelBlocksThisWeek()[0]?.slotIndices).toEqual([
+      slotIndex(2, 0), slotIndex(2, 1), slotIndex(2, 2),
       slotIndex(3, 0), slotIndex(3, 1), slotIndex(3, 2),
-      slotIndex(4, 0), slotIndex(4, 1), slotIndex(4, 2),
     ]);
 
     game.enterTournament();
@@ -1192,6 +1195,82 @@ describe("previewFirstRoundDraw / Game.previewTournamentDraw", () => {
     const before = JSON.stringify(game.serialize());
     game.previewTournamentDraw(3);
     expect(JSON.stringify(game.serialize())).toBe(before);
+  });
+});
+
+describe("match.played roundName", () => {
+  it("logs the actual stage name on every match, main draw and plate alike, agreeing with drawRounds' own naming", () => {
+    // find a seed where the default (deliberately weak) human loses round 0,
+    // landing them in a plate lineage for round 1 — exercises the
+    // non-main-draw naming path, not just the always-"Quarterfinal" opener.
+    let found: { state: GameState; session: ReturnType<typeof startTournament>; log: EventLog } | null = null;
+    for (let i = 0; i < 20 && !found; i++) {
+      const game = Game.newGame({ content: testContent, seed: `roundname-${i}` });
+      advanceUntil(game, () => game.weekIndex === 3);
+      const state: GameState = game.serialize().state;
+      const def = testContent.tournaments["monthly-open-1-m"]!;
+      const log: EventLog = [];
+      const session = startTournament(state, def, testContent, log);
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      const result = advanceTournament(state, session, match, log);
+      if (result.status === "nextRound" && log[log.length - 1]!.data!.won === false) {
+        found = { state, session, log };
+      }
+    }
+    expect(found).not.toBeNull();
+    const { state, session, log } = found!;
+
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      const result = advanceTournament(state, session, match, log);
+      if (result.status !== "nextRound") break;
+    }
+
+    const roundNames = log.filter((e) => e.type === "match.played").map((e) => e.data!.roundName as string);
+    // round 0 is a single undivided group for everyone — always Quarterfinal
+    expect(roundNames[0]).toBe("Quarterfinal");
+    // having lost round 0, round 1 must be a plate (non-main-draw) name
+    const PLATE_NAMES = new Set(["Playoff for 5th–8th", "Bronze Medal Match", "5th Place Match", "7th Place Match"]);
+    expect(PLATE_NAMES.has(roundNames[1]!)).toBe(true);
+
+    // cross-check: every logged name matches one drawRounds independently
+    // reconstructs for the exact same session/log — proves the inline
+    // computation at log time can never disagree with the draw view
+    const rounds = drawRounds(state, session);
+    const allDrawNames = new Set(rounds.flatMap((r) => r.sections.map((s) => s.roundName)));
+    for (const name of roundNames) expect(allDrawNames.has(name)).toBe(true);
+  });
+
+  it("logs the opponent's rating/rank snapshot and whether a gummiarm decided it", () => {
+    const game = Game.newGame({ content: testContent, seed: "recsnap-1" });
+    advanceUntil(game, () => game.weekIndex === 3);
+    const state: GameState = game.serialize().state;
+    const def = testContent.tournaments["monthly-open-1-m"]!;
+    const log: EventLog = [];
+    const session = startTournament(state, def, testContent, log);
+    const match = session.pendingMatch!;
+    simulateMatchAuto(match);
+    advanceTournament(state, session, match, log);
+
+    const entry = log.find((e) => e.type === "match.played")!;
+    const opponentId = entry.data!.opponentId as string;
+    const opponent = getPlayer(state, opponentId);
+    // a fresh-career opponent has no counted FIR result yet, so the snapshot
+    // is null rather than some default rank
+    expect(entry.data!.opponentRank).toBeNull();
+    expect(entry.data!.opponentRatings).toEqual({
+      tt: Math.round(opponent.ratings.tt.rating),
+      bd: Math.round(opponent.ratings.bd.rating),
+      sq: Math.round(opponent.ratings.sq.rating),
+      tn: Math.round(opponent.ratings.tn.rating),
+    });
+    expect(entry.data!.gummiarm).toBe(match.gummiarm);
+    expect(entry.data!.tier).toBe(def.tier);
+    const sets = entry.data!.sets as { a: number; b: number; done: boolean }[];
+    expect(sets).toHaveLength(4);
+    for (let i = 0; i < 4; i++) expect(sets[i]!.done).toBe(match.sets[i]!.done);
   });
 });
 

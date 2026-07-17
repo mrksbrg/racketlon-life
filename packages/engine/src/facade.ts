@@ -242,6 +242,11 @@ export interface RecentMatchSetView {
   sport: Sport;
   a: number;
   b: number;
+  /** false when an early finish (an uncatchable aggregate lead) cut this set
+   * short mid-play — see match/engine.ts's `playPoint`. Its a/b score is a
+   * real snapshot but not a completed contest, so per-sport win/loss records
+   * (`Game.records`) skip sets where this is false. */
+  done: boolean;
 }
 
 /** One individual match the human has played, newest first — finer-grained
@@ -254,16 +259,129 @@ export interface RecentMatchView {
   week: number;
   weekLabel: string;
   tournamentName: string;
+  /** tour tier badge, e.g. "CHA", "IWT" — see `TournamentDef.tier`. Empty
+   * string for matches logged before this field existed. */
+  tournamentTier: string;
   round: number;
   totalRounds: number;
+  /** the stage this match was actually played for, e.g. "Quarterfinal" or
+   * "5th Place Match" — same text as `DrawSection.roundName`. */
+  roundName: string;
   opponentId: string;
   opponentName: string;
+  /** the opponent's real FIR World Ranking rank at the moment this match was
+   * played (a snapshot — their standing keeps moving afterward); null if they
+   * had no counted result yet. Backs the "highest ranked player beaten"
+   * record — see `Game.records`. */
+  opponentRank: number | null;
+  /** the opponent's per-sport Glicko-2 rating at the moment this match was
+   * played — same snapshot rationale as `opponentRank`. Backs the "best
+   * player ever faced" per-sport record. */
+  opponentRatings: Record<Sport, number>;
   won: boolean;
   /** total points across all 4 sports — racketlon's real match winner
    * (aggregate points, not sets won); see match/engine.ts's module doc. */
   totalA: number;
   totalB: number;
   sets: RecentMatchSetView[];
+  /** true if the match total was tied after all 4 sets and a single
+   * sudden-death gummiarm point decided it — see match/engine.ts's module
+   * doc. Backs the Me screen's gummiarm tally. */
+  gummiarm: boolean;
+}
+
+/** One opponent's tally of matches played against the human, most-played
+ * first — the Me screen's "Most played opponents" card. Mined from the same
+ * `match.played` log entries as `RecentMatchView`; distinct from
+ * `state.career.headToHeadSets` (which counts completed sets per sport, for
+ * opponent-scouting familiarity, not a match count). See
+ * `Game.mostPlayedOpponents`. */
+export interface OpponentMatchCountView {
+  opponentId: string;
+  opponentName: string;
+  matches: number;
+  wins: number;
+}
+
+/** A single "biggest win"/"biggest loss" record match — the point margin is
+ * always positive (the gap between the two totals), so the UI never has to
+ * re-derive which side "won" the record. */
+export interface MatchRecordView {
+  opponentId: string;
+  opponentName: string;
+  week: number;
+  weekLabel: string;
+  year: number;
+  tournamentName: string;
+  /** tour tier badge, e.g. "CHA", "IWT" — see `TournamentDef.tier`. Empty
+   * string for matches logged before this field existed. */
+  tournamentTier: string;
+  margin: number;
+  totalA: number;
+  totalB: number;
+}
+
+/** A per-sport biggest win/loss record — the same shape as
+ * {@link MatchRecordView} plus which sport and that sport's own set score
+ * (not the whole match's point totals). */
+export interface SportRecordView extends MatchRecordView {
+  sport: Sport;
+  a: number;
+  b: number;
+}
+
+/** The strongest opponent (by Glicko-2 rating, at the time) the human has
+ * ever faced in one sport — win or lose. See `Game.records`. */
+export interface BestOpponentView {
+  opponentId: string;
+  opponentName: string;
+  rating: number;
+  /** how that specific sport's set went against them, e.g. "won 21-15" —
+   * the set score as played, whatever the outcome. */
+  a: number;
+  b: number;
+  won: boolean;
+  week: number;
+  weekLabel: string;
+  year: number;
+  tournamentName: string;
+  tournamentTier: string;
+}
+
+/** The best-ranked opponent (by real FIR World Ranking rank at the time) the
+ * human has ever beaten. See `Game.records`. */
+export interface RankedWinView {
+  opponentId: string;
+  opponentName: string;
+  rank: number;
+  week: number;
+  weekLabel: string;
+  year: number;
+  tournamentName: string;
+  tournamentTier: string;
+  /** the full match result, all 4 sets — see {@link RecentMatchSetView}. */
+  totalA: number;
+  totalB: number;
+  sets: RecentMatchSetView[];
+}
+
+export interface GummiarmStatsView {
+  played: number;
+  won: number;
+}
+
+/** The "Records" hub behind the Me screen's Records tab — personal bests
+ * mined from the same `match.played` event log as `RecentMatchView`, so
+ * there's nothing to persist separately. Null fields mean "hasn't happened
+ * yet" (e.g. no ranked opponent beaten), not zero. */
+export interface RecordsView {
+  biggestWin: MatchRecordView | null;
+  biggestLoss: MatchRecordView | null;
+  biggestWinBySport: Partial<Record<Sport, SportRecordView>>;
+  biggestLossBySport: Partial<Record<Sport, SportRecordView>>;
+  bestOpponentBySport: Partial<Record<Sport, BestOpponentView>>;
+  highestRankedWin: RankedWinView | null;
+  gummiarms: GummiarmStatsView;
 }
 
 /** A real date span for the human's current injury — see
@@ -395,6 +513,7 @@ export interface OpponentSportView {
  * backfill from real-world history, so this starts empty for every player at
  * career start and fills in over time. Newest first. */
 export interface OpponentResultView {
+  week: number;
   weekLabel: string;
   name: string;
   division: string;
@@ -471,9 +590,26 @@ export interface NewGameOptions {
   character?: CharacterDraft;
 }
 
-function outboundTravelSlots(days: TravelDays): number[] {
-  const travelDays = days === 2 ? [3, 4] : days === 1 ? [4] : [];
-  return travelDays.flatMap((day) => [0, 1, 2].map((period) => slotIndex(day, period)));
+const DAY_MS = 86_400_000;
+
+function tournamentStartDay(cal: Calendar, def: TournamentDef): number {
+  const weekStart = new Date(`${cal.mondayISO}T00:00:00Z`).getTime();
+  const eventStart = new Date(`${def.date}T00:00:00Z`).getTime();
+  return Math.floor((eventStart - weekStart) / DAY_MS);
+}
+
+/**
+ * Outbound travel occupies the N days immediately before the tournament's
+ * actual start day (derived from `def.date`, like `tournamentDaySlots`) —
+ * not a fixed weekday, since real events start anywhere from Wednesday to
+ * Saturday. Days that would fall before this week's Monday (a start day too
+ * early in the week for the full lead time to fit) are simply dropped rather
+ * than spilling into the already-submitted previous week.
+ */
+function outboundTravelSlots(days: TravelDays, startDay: number): number[] {
+  const offsets = days === 2 ? [2, 1] : days === 1 ? [1] : [];
+  const travelDayIndices = offsets.map((n) => startDay - n).filter((day) => day >= 0 && day < 7);
+  return travelDayIndices.flatMap((day) => [0, 1, 2].map((period) => slotIndex(day, period)));
 }
 
 function returnTravelSlots(days: TravelDays): number[] {
@@ -481,14 +617,11 @@ function returnTravelSlots(days: TravelDays): number[] {
   return travelDays.flatMap((day) => [0, 1, 2].map((period) => slotIndex(day, period)));
 }
 
-const DAY_MS = 86_400_000;
-
 function tournamentDaySlots(cal: Calendar, def: TournamentDef): number[] {
-  const weekStart = new Date(`${cal.mondayISO}T00:00:00Z`).getTime();
-  const eventStart = new Date(`${def.date}T00:00:00Z`).getTime();
+  const startDay = tournamentStartDay(cal, def);
   const slots: number[] = [];
   for (let offset = 0; offset <= def.nights; offset++) {
-    const day = Math.floor((eventStart + offset * DAY_MS - weekStart) / DAY_MS);
+    const day = startDay + offset;
     if (day >= 0 && day < 7) {
       slots.push(...[0, 1, 2].map((period) => slotIndex(day, period)));
     }
@@ -677,38 +810,198 @@ export class Game {
   }
 
   /**
-   * The human's individual match history, newest first, capped at `limit` —
-   * one row per match played (not per tournament placement), mined from the
+   * The human's whole individual match history, newest first, no cap — one
+   * row per match played (not per tournament placement), mined from the
    * event log's `match.played` entries (tournament/engine.ts's
-   * `advanceTournament`). See `RecentMatchView`.
+   * `advanceTournament`). The log is append-only and never pruned, so this
+   * is always the human's complete match history. See `RecentMatchView`,
+   * and `recentMatches`/`matchesForYear`/`matchesForWeek` for the capped/
+   * filtered views built on top of this.
    */
-  recentMatches(limit = 15): RecentMatchView[] {
+  private matchViews(): RecentMatchView[] {
     const humanId = this.state.career.playerId;
     const matches: RecentMatchView[] = [];
     for (const e of this.log) {
       if (e.subject !== humanId || e.type !== "match.played") continue;
       const d = e.data ?? {};
-      const sets = (d.sets as { a: number; b: number }[] | undefined ?? []).map((s, i) => ({
+      const sets = (d.sets as { a: number; b: number; done?: boolean }[] | undefined ?? []).map((s, i) => ({
         sport: SPORTS[i]!,
         a: s.a,
         b: s.b,
+        // old logged events (before `done` existed) fall back to the same
+        // "reached 21, won by 2" shape check a genuinely completed set
+        // always satisfies — a set an early finish cut short essentially
+        // never does, so this reconstructs the right answer for old saves
+        // too (see match/engine.ts's `playPoint`).
+        done: s.done ?? ((s.a >= 21 || s.b >= 21) && Math.abs(s.a - s.b) >= 2),
       }));
+      const round = Number(d.round ?? 0);
+      const totalRounds = Number(d.totalRounds ?? 0);
       matches.push({
         week: e.week,
         weekLabel: weekLabelAt(this.state.calendar, e.week),
         tournamentName: String(d.tournamentName ?? "Tournament"),
-        round: Number(d.round ?? 0),
-        totalRounds: Number(d.totalRounds ?? 0),
+        tournamentTier: String(d.tier ?? ""),
+        round,
+        totalRounds,
+        // old logged events (before roundName existed) fall back to the bare
+        // round numbers rather than showing nothing
+        roundName: String(d.roundName ?? `Round ${round}/${totalRounds}`),
         opponentId: String(d.opponentId ?? ""),
         opponentName: String(d.opponentName ?? ""),
+        // old logged events (before these existed) fall back to "unknown"
+        // rather than a misleading zero/false
+        opponentRank: d.opponentRank == null ? null : Number(d.opponentRank),
+        opponentRatings: (d.opponentRatings as Record<Sport, number> | undefined) ?? { tt: 0, bd: 0, sq: 0, tn: 0 },
         won: Boolean(d.won),
         totalA: sets.reduce((sum, s) => sum + s.a, 0),
         totalB: sets.reduce((sum, s) => sum + s.b, 0),
         sets,
+        gummiarm: Boolean(d.gummiarm),
       });
     }
     matches.reverse(); // log is chronological; show most recent first
-    return matches.slice(0, limit);
+    return matches;
+  }
+
+  /** The human's individual match history, newest first, capped at `limit`.
+   * See `matchViews`. */
+  recentMatches(limit = 15): RecentMatchView[] {
+    return this.matchViews().slice(0, limit);
+  }
+
+  /** Every match the human played in one calendar year, newest first, no cap
+   * — the Me screen's year-scoped "Recent matches" list. */
+  matchesForYear(year: number): RecentMatchView[] {
+    return this.matchViews().filter((m) => yearOfWeek(this.state.calendar, m.week) === year);
+  }
+
+  /** Every match the human played in one specific tournament week, no cap —
+   * the Tour season list's "expand a played event" detail. */
+  matchesForWeek(weekIndex: number): RecentMatchView[] {
+    return this.matchViews().filter((m) => m.week === weekIndex);
+  }
+
+  /** Every opponent the human has faced, tallied by how many matches were
+   * played against them, most-played first — the Me screen's "Most played
+   * opponents" card. See `OpponentMatchCountView`. */
+  mostPlayedOpponents(limit = 10): OpponentMatchCountView[] {
+    const tally = new Map<string, OpponentMatchCountView>();
+    for (const m of this.matchViews()) {
+      const entry = tally.get(m.opponentId) ?? { opponentId: m.opponentId, opponentName: m.opponentName, matches: 0, wins: 0 };
+      entry.matches += 1;
+      if (m.won) entry.wins += 1;
+      tally.set(m.opponentId, entry);
+    }
+    return [...tally.values()]
+      .sort((a, b) => b.matches - a.matches || b.wins - a.wins || a.opponentName.localeCompare(b.opponentName))
+      .slice(0, limit);
+  }
+
+  /**
+   * Personal-best records mined from the same match history as
+   * `matchViews`, for the Me screen's Records tab: biggest win/loss overall
+   * and per sport, the best-ranked opponent ever beaten, the strongest
+   * opponent ever faced in each sport, and a gummiarm tally. All "biggest"/
+   * "best" picks break ties by recency: `matchViews()` is newest-first and
+   * `better` only replaces its running pick on a strict improvement, so of
+   * two equal records the more recent one (encountered first) wins.
+   */
+  records(): RecordsView {
+    const matches = this.matchViews();
+
+    const better = <T>(records: T[], marginOf: (r: T) => number): T | null =>
+      records.reduce<T | null>((best, r) => (!best || marginOf(r) > marginOf(best) ? r : best), null);
+
+    const toMatchRecord = (m: RecentMatchView, margin: number): MatchRecordView => ({
+      opponentId: m.opponentId,
+      opponentName: m.opponentName,
+      week: m.week,
+      weekLabel: m.weekLabel,
+      year: yearOfWeek(this.state.calendar, m.week),
+      tournamentName: m.tournamentName,
+      tournamentTier: m.tournamentTier,
+      margin,
+      totalA: m.totalA,
+      totalB: m.totalB,
+    });
+
+    const wins = matches.filter((m) => m.won);
+    const losses = matches.filter((m) => !m.won);
+    const biggestWinMatch = better(wins, (m) => m.totalA - m.totalB);
+    const biggestLossMatch = better(losses, (m) => m.totalB - m.totalA);
+    const biggestWin = biggestWinMatch ? toMatchRecord(biggestWinMatch, biggestWinMatch.totalA - biggestWinMatch.totalB) : null;
+    const biggestLoss = biggestLossMatch ? toMatchRecord(biggestLossMatch, biggestLossMatch.totalB - biggestLossMatch.totalA) : null;
+
+    const biggestWinBySport: Partial<Record<Sport, SportRecordView>> = {};
+    const biggestLossBySport: Partial<Record<Sport, SportRecordView>> = {};
+    const bestOpponentBySport: Partial<Record<Sport, BestOpponentView>> = {};
+
+    for (const sport of SPORTS) {
+      type SetHit = { m: RecentMatchView; a: number; b: number };
+      const sportSets: SetHit[] = [];
+      for (const m of matches) {
+        const set = m.sets.find((s) => s.sport === sport);
+        // a set an early finish cut short (`!done`) is a real snapshot but
+        // not a decided contest — skip it so it can't masquerade as a
+        // per-sport win or loss (see `RecentMatchSetView.done`'s doc comment)
+        if (set && set.done) sportSets.push({ m, a: set.a, b: set.b });
+      }
+      const setWins = sportSets.filter((s) => s.a > s.b);
+      const setLosses = sportSets.filter((s) => s.b > s.a);
+      const bestWin = better(setWins, (s) => s.a - s.b);
+      const bestLoss = better(setLosses, (s) => s.b - s.a);
+      if (bestWin) biggestWinBySport[sport] = { ...toMatchRecord(bestWin.m, bestWin.a - bestWin.b), sport, a: bestWin.a, b: bestWin.b };
+      if (bestLoss) biggestLossBySport[sport] = { ...toMatchRecord(bestLoss.m, bestLoss.b - bestLoss.a), sport, a: bestLoss.a, b: bestLoss.b };
+
+      const strongest = better(matches, (m) => m.opponentRatings[sport]);
+      if (strongest) {
+        const set = strongest.sets.find((s) => s.sport === sport);
+        bestOpponentBySport[sport] = {
+          opponentId: strongest.opponentId,
+          opponentName: strongest.opponentName,
+          rating: strongest.opponentRatings[sport],
+          a: set?.a ?? 0,
+          b: set?.b ?? 0,
+          won: (set?.a ?? 0) > (set?.b ?? 0),
+          week: strongest.week,
+          weekLabel: strongest.weekLabel,
+          year: yearOfWeek(this.state.calendar, strongest.week),
+          tournamentName: strongest.tournamentName,
+          tournamentTier: strongest.tournamentTier,
+        };
+      }
+    }
+
+    const rankedWins = wins.filter((m) => m.opponentRank != null);
+    // lower rank number is the better standing — "highest ranked" beaten
+    const bestRankedWin = rankedWins.reduce<RecentMatchView | null>(
+      (best, m) => (!best || m.opponentRank! < best.opponentRank! ? m : best),
+      null,
+    );
+    const highestRankedWin: RankedWinView | null = bestRankedWin
+      ? {
+          opponentId: bestRankedWin.opponentId,
+          opponentName: bestRankedWin.opponentName,
+          rank: bestRankedWin.opponentRank!,
+          week: bestRankedWin.week,
+          weekLabel: bestRankedWin.weekLabel,
+          year: yearOfWeek(this.state.calendar, bestRankedWin.week),
+          tournamentName: bestRankedWin.tournamentName,
+          tournamentTier: bestRankedWin.tournamentTier,
+          totalA: bestRankedWin.totalA,
+          totalB: bestRankedWin.totalB,
+          sets: bestRankedWin.sets,
+        }
+      : null;
+
+    const gummiarmMatches = matches.filter((m) => m.gummiarm);
+    const gummiarms: GummiarmStatsView = {
+      played: gummiarmMatches.length,
+      won: gummiarmMatches.filter((m) => m.won).length,
+    };
+
+    return { biggestWin, biggestLoss, biggestWinBySport, biggestLossBySport, bestOpponentBySport, highestRankedWin, gummiarms };
   }
 
   /**
@@ -804,6 +1097,7 @@ export class Game {
       combinedRating: Math.round(combinedRating(p)),
       firStanding: firStandingFor(this.state, p.identity.id, p.identity.gender),
       recentResults: [...p.recentResults].reverse().map((r) => ({
+        week: r.weekIndex,
         weekLabel: weekLabelAt(this.state.calendar, r.weekIndex),
         name: r.name,
         division: r.division,
@@ -914,7 +1208,8 @@ export class Game {
       const def = this.content.tournaments[entry.tournamentId];
       if (def) {
         const days = travelDays(humanPlayer(this.state).identity.nationality, def, this.content);
-        const slotIndices = outboundTravelSlots(days);
+        const startDay = tournamentStartDay(this.state.calendar, def);
+        const slotIndices = outboundTravelSlots(days, startDay);
         if (slotIndices.length > 0) blocks.push({ weekIndex: week, slotIndices });
       }
     }

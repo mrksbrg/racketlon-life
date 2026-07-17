@@ -10,10 +10,12 @@ import type {
   InboxView,
   InjurySpanView,
   MatchState,
+  OpponentMatchCountView,
   OpponentProfileView,
   OtherDivisionDraw,
   RankingRowView,
   RecentMatchView,
+  RecordsView,
   SaveGame,
   SeasonTournamentEntry,
   Sport,
@@ -77,6 +79,10 @@ export type RankingsView = "fir" | "race" | "ratings";
 export type RankingsSortKey = "points" | "racePoints" | "rating";
 export type RankingsSortDir = "asc" | "desc";
 export type RankingsRatingSport = "tt" | "bd" | "sq" | "tn";
+
+/** Me screen's tab — see `GameStore.meSection` for why this lives on the
+ * store instead of as component-local state. */
+export type MeSection = "characteristics" | "history" | "records" | "trophies";
 
 export type MatchSpeed = 1 | 2 | 3;
 
@@ -254,22 +260,34 @@ class GameStore {
     return this.game ? this.game.trophyCabinet() : [];
   });
 
-  /** The human's individual match history, newest first — the Me screen's
-   * "recent matches" list (finer-grained than `careerStats().results`,
-   * which is per-tournament placement, not per-opponent). */
-  readonly recentMatches: RecentMatchView[] = $derived.by(() => {
+  /** Personal-best records (biggest win/loss, per-sport bests, highest
+   * ranked win, gummiarm tally) — the Me screen's Records tab. */
+  readonly records: RecordsView | null = $derived.by(() => {
     this.version;
-    return this.game ? this.game.recentMatches() : [];
+    return this.game ? this.game.records() : null;
   });
 
   /** Every individual match the human played in one specific week — the Tour
-   * season list's "expand a played event" detail. Reads from the same
-   * durable event log as `recentMatches`, just with a wide-enough limit and
-   * a week filter, since a single tournament run is only ever a handful of
-   * matches. */
+   * season list's "expand a played event" detail. */
   matchesForWeek(weekIndex: number): RecentMatchView[] {
     if (!this.game) return [];
-    return this.game.recentMatches(200).filter((m) => m.week === weekIndex);
+    return this.game.matchesForWeek(weekIndex);
+  }
+
+  /** Every individual match the human played in one calendar year, newest
+   * first, no cap — the Me screen's year-scoped "Recent matches" list
+   * (finer-grained than `careerStats().results`, which is per-tournament
+   * placement, not per-opponent). */
+  matchesForYear(year: number): RecentMatchView[] {
+    if (!this.game) return [];
+    return this.game.matchesForYear(year);
+  }
+
+  /** Every opponent the human has faced, tallied by matches played, most
+   * played first — the Me screen's "Most played opponents" card. */
+  mostPlayedOpponents(): OpponentMatchCountView[] {
+    if (!this.game) return [];
+    return this.game.mostPlayedOpponents();
   }
 
   /** Which gender's ladder the Rankings screen shows — defaults to the
@@ -293,6 +311,13 @@ class GameStore {
   rankingsSortDir = $state<RankingsSortDir>("desc");
   rankingsRatingSport = $state<RankingsRatingSport>("tt");
   rankingsPage = $state(0);
+
+  /** Me screen's selected tab — lifted out of Me.svelte for the same reason
+   * as the Rankings state above: tapping a player's name (e.g. from a
+   * Records row) navigates to the "opponent" screen and back, unmounting
+   * Me.svelte in between, so component-local state would silently reset to
+   * "characteristics" instead of returning to the tab the player was on. */
+  meSection = $state<MeSection>("characteristics");
 
   /** FIR World Ranking (primary sort) + Tour Race + Glicko, for whichever
    * gender `rankingsGender` currently points at — see `Game.rankings`. */

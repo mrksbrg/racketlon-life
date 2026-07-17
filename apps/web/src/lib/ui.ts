@@ -138,6 +138,14 @@ export function seedBadge(seed: number | undefined): string {
   return seed === undefined ? "" : `[${seed}]`;
 }
 
+/** "CHA New Zealand Open 2026" — tour tier badge + tournament name + year,
+ * the compact tournament identifier used on the Me screen's Records tab.
+ * Omits the tier prefix when unknown (matches logged before that field
+ * existed carry an empty string, not a guess). */
+export function tournamentLabel(tier: string, name: string, year: number): string {
+  return tier ? `${tier} ${name} ${year}` : `${name} ${year}`;
+}
+
 /** A played match's set scores as a single draw-sheet line, e.g.
  * "21-15 18-21 21-9 7-11" — empty for a not-yet-played match. */
 export function setScoreLine(sets: { a: number; b: number }[] | undefined): string {

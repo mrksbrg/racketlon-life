@@ -8,6 +8,7 @@ import { getPlayer } from "../core/state.js";
 import { clamp } from "../core/util.js";
 import type { Player, Ratings } from "../model/player.js";
 import { fullName } from "../model/player.js";
+import type { Sport } from "../model/sport.js";
 import { SPORTS } from "../model/sport.js";
 import type { MatchState } from "../match/engine.js";
 import {
@@ -20,7 +21,7 @@ import {
 } from "../match/engine.js";
 import { divisionAssignments, divisionOf } from "../systems/division.js";
 import { enduranceRecoveryMult } from "../systems/effects.js";
-import { rankingPointsFor } from "../systems/ranking-points.js";
+import { firWorldRanking, rankingPointsFor } from "../systems/ranking-points.js";
 import type { RatingResultsBook } from "../systems/ranking.js";
 import { applyTournamentRatings, cloneRatings, combinedRating, recordMatchResults } from "../systems/ranking.js";
 import { distanceKm, travelCost } from "../systems/travel.js";
@@ -1131,12 +1132,41 @@ export function advanceTournament(
   // opponent profile screen. A set the match ended early without reaching
   // (`!done`) teaches nothing, so it doesn't count.
   const opponentId = finishedMatch.players.b.id;
+  const opponent = getPlayer(state, opponentId);
   const h2h = (state.career.headToHeadSets[opponentId] ??= {});
   finishedMatch.sets.forEach((set, i) => {
     if (!set.done) return;
     const sport = SPORTS[i]!;
     h2h[sport] = (h2h[sport] ?? 0) + 1;
   });
+
+  // The stage name (e.g. "Quarterfinal", "5th Place Match") for the round the
+  // human just played — `session.groups` is still the pre-split "entering
+  // this round" snapshot here (`buildNextGroups`/`currentRound += 1` haven't
+  // run yet), the exact same shape `drawRounds` reconstructs stage names
+  // from, so this can never disagree with the draw view.
+  const hgiBeforeSplit = humanGroupIndex(session);
+  const humanGroupBeforeSplit = session.groups[hgiBeforeSplit]!;
+  const groupSize = humanGroupBeforeSplit.participants.length;
+  const positionFrom = groupStartPosition(session.groups, hgiBeforeSplit);
+  const positionTo = positionFrom + groupSize - 1;
+  const roundName = drawRoundName(groupSize, humanGroupBeforeSplit.undefeated, positionFrom, positionTo);
+
+  // the opponent's real FIR World Ranking rank at the moment this match was
+  // played (null if they had no counted result yet) — a snapshot, since the
+  // opponent's own standing keeps moving after this; backs the Me screen's
+  // "highest ranked player beaten" record (see facade.ts's `records`).
+  const opponentRank =
+    firWorldRanking(state, opponent.identity.gender).find((r) => r.playerId === opponentId)?.rank ?? null;
+  // the opponent's per-sport Glicko-2 rating at the moment this match was
+  // played — same snapshot rationale as `opponentRank`, backs the "best
+  // player ever faced" per-sport record.
+  const opponentRatings: Record<Sport, number> = {
+    tt: Math.round(opponent.ratings.tt.rating),
+    bd: Math.round(opponent.ratings.bd.rating),
+    sq: Math.round(opponent.ratings.sq.rating),
+    tn: Math.round(opponent.ratings.tn.rating),
+  };
 
   // one entry per individual match the human plays (not just the eventual
   // tournament placement) — the Me screen's "recent matches" list (see
@@ -1149,12 +1179,23 @@ export function advanceTournament(
     data: {
       tournamentId: session.def.id,
       tournamentName: session.def.name,
+      // tour tier badge (e.g. "CHA", "IWT") — the Me screen's Records tab
+      // uses this alongside tournamentName/week for a compact tournament label
+      tier: session.def.tier,
       round: session.currentRound + 1,
       totalRounds: session.totalRounds,
+      roundName,
       opponentId: finishedMatch.players.b.id,
       opponentName: finishedMatch.players.b.name,
+      opponentRank,
+      opponentRatings,
       won: humanWon,
-      sets: finishedMatch.sets.map((s) => ({ a: s.a, b: s.b })),
+      // `done` is false for a set an early finish cut short mid-play (see
+      // match/engine.ts's `playPoint`) — its a/b score is a real snapshot but
+      // not a completed contest, so consumers of this must not treat it as a
+      // decisive per-sport result (see facade.ts's `records`).
+      sets: finishedMatch.sets.map((s) => ({ a: s.a, b: s.b, done: s.done })),
+      gummiarm: finishedMatch.gummiarm,
     },
   });
 
@@ -1173,7 +1214,6 @@ export function advanceTournament(
 
   if (humanWon) session.roundsWon += 1;
   session.humanEnergyCarry = carryEnergy(finishedMatch.energy.a, human.attributes.endurance);
-  const opponent = getPlayer(state, finishedMatch.players.b.id);
   session.entrantEnergyCarry.set(
     opponent.identity.id,
     carryEnergy(finishedMatch.energy.b, opponent.attributes.endurance),

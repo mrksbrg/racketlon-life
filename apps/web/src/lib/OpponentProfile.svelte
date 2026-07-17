@@ -92,8 +92,8 @@
         <h2>Recent tournaments</h2>
         {#if p.recentResults.length > 0}
           <div class="results">
-            {#each p.recentResults as r (r.weekLabel + r.name)}
-              <div class="result">
+            {#each p.recentResults as r (r.week)}
+              <button class="result" onclick={() => store.viewTournamentDetail(r.week)}>
                 <div class="r-main">
                   <span class="r-name">{r.name}</span>
                   <span class="r-week">Division {r.division} · {r.weekLabel}</span>
@@ -102,7 +102,7 @@
                   <span class="r-finish">{finishLabel(r.finishingPosition, r.tiedCount)}</span>
                   <span class="r-matches">{r.matchesPlayed} match{r.matchesPlayed === 1 ? "" : "es"}</span>
                 </div>
-              </div>
+              </button>
             {/each}
           </div>
         {:else}
@@ -374,10 +374,12 @@
 
   .result {
     display: flex;
+    width: 100%;
     justify-content: space-between;
     align-items: center;
     gap: 10px;
     padding: 9px 0;
+    text-align: left;
   }
 
   .result + .result {

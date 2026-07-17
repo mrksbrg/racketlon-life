@@ -11,17 +11,31 @@
     formatMoney,
     formColor,
     formWord,
+    tournamentLabel,
   } from "./ui";
 
   type StatView = "lifetime" | "byYear";
-  type MeSection = "characteristics" | "statistics" | "trophies";
 
   let statView = $state<StatView>("lifetime");
-  let section = $state<MeSection>("characteristics");
+  let matchYear = $state<number | null>(null);
 
   const you = $derived(store.you);
   const stats = $derived(store.careerStats);
   const trophies = $derived(store.trophyCabinet);
+  const records = $derived(store.records);
+  const hasSportRecords = $derived(
+    records ? SPORTS.some((s) => records.biggestWinBySport[s] || records.biggestLossBySport[s]) : false,
+  );
+  const hasBestOpponents = $derived(records ? SPORTS.some((s) => records.bestOpponentBySport[s]) : false);
+  const mostPlayed = $derived(store.mostPlayedOpponents());
+
+  // union store.year in (not just years with results) so the current year is
+  // always selectable even before any tournament has been played in it yet
+  const availableMatchYears = $derived(
+    stats ? [...new Set([store.year, ...stats.byYear.map((y) => y.year)])].sort((a, b) => b - a) : [],
+  );
+  const effectiveMatchYear = $derived(matchYear ?? store.year);
+  const yearMatches = $derived(store.matchesForYear(effectiveMatchYear));
 
   const MEDAL_EMOJI: Record<1 | 2 | 3, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
@@ -84,12 +98,13 @@
     </section>
 
     <nav class="section-tabs" aria-label="Me sections">
-      <button class:on={section === "characteristics"} onclick={() => (section = "characteristics")}>Characteristics</button>
-      <button class:on={section === "statistics"} onclick={() => (section = "statistics")}>Statistics</button>
-      <button class:on={section === "trophies"} onclick={() => (section = "trophies")}>Prize cabinet</button>
+      <button class:on={store.meSection === "characteristics"} onclick={() => (store.meSection = "characteristics")}>Characteristics</button>
+      <button class:on={store.meSection === "history"} onclick={() => (store.meSection = "history")}>History</button>
+      <button class:on={store.meSection === "records"} onclick={() => (store.meSection = "records")}>Records</button>
+      <button class:on={store.meSection === "trophies"} onclick={() => (store.meSection = "trophies")}>Prize cabinet</button>
     </nav>
 
-    {#if section === "characteristics"}
+    {#if store.meSection === "characteristics"}
 
     <!-- Sports: levels + Glicko -->
     <section class="card">
@@ -160,7 +175,7 @@
       </section>
     {/if}
 
-    {:else if section === "statistics"}
+    {:else if store.meSection === "history"}
 
     <!-- Career stats -->
     <section class="card">
@@ -187,6 +202,9 @@
           </div>
           <div class="stat"><span class="sv small">{formatMoney(stats.lifetime.prizeMoney)}</span><span class="sc">Prize money</span></div>
           <div class="stat"><span class="sv">{stats.weeksPlayed}</span><span class="sc">Weeks</span></div>
+          {#if records && records.gummiarms.played > 0}
+            <div class="stat"><span class="sv">{records.gummiarms.won}/{records.gummiarms.played}</span><span class="sc">Gummiarms won</span></div>
+          {/if}
         </div>
       {:else}
         <div class="year-table">
@@ -206,8 +224,116 @@
       {/if}
     </section>
 
+    <!-- Records -->
+    {:else if store.meSection === "records" && records}
+
+    <section class="card">
+      <h2>Biggest results</h2>
+      {#if records.biggestWin || records.biggestLoss}
+        <div class="records-grid">
+          {#if records.biggestWin}
+            {@const bw = records.biggestWin}
+            <button class="record-tile win" onclick={() => store.viewOpponent(bw.opponentId)}>
+              <span class="record-label">Biggest win</span>
+              <span class="record-score">+{bw.margin}</span>
+              <span class="record-opponent">vs {bw.opponentName}</span>
+              <span class="record-meta">{tournamentLabel(bw.tournamentTier, bw.tournamentName, bw.year)}</span>
+            </button>
+          {/if}
+          {#if records.biggestLoss}
+            {@const bl = records.biggestLoss}
+            <button class="record-tile loss" onclick={() => store.viewOpponent(bl.opponentId)}>
+              <span class="record-label">Biggest loss</span>
+              <span class="record-score">−{bl.margin}</span>
+              <span class="record-opponent">vs {bl.opponentName}</span>
+              <span class="record-meta">{tournamentLabel(bl.tournamentTier, bl.tournamentName, bl.year)}</span>
+            </button>
+          {/if}
+        </div>
+      {:else}
+        <p class="empty">No matches played yet.</p>
+      {/if}
+    </section>
+
+    <section class="card">
+      <h2>Sport records</h2>
+      {#if hasSportRecords}
+        {#each SPORTS as sport (sport)}
+          {@const win = records.biggestWinBySport[sport]}
+          {@const loss = records.biggestLossBySport[sport]}
+          {#if win || loss}
+            <div class="sport-record">
+              <span class="tag" style:background={SPORT_COLORS[sport]}>{SPORT_SHORT[sport]}</span>
+              <div class="rec-main">
+                {#if win}
+                  <button class="rec-line win" onclick={() => store.viewOpponent(win.opponentId)}>
+                    <span>W {win.a}-{win.b} vs {win.opponentName}</span>
+                    <span class="rec-meta">{tournamentLabel(win.tournamentTier, win.tournamentName, win.year)}</span>
+                  </button>
+                {/if}
+                {#if loss}
+                  <button class="rec-line loss" onclick={() => store.viewOpponent(loss.opponentId)}>
+                    <span>L {loss.a}-{loss.b} vs {loss.opponentName}</span>
+                    <span class="rec-meta">{tournamentLabel(loss.tournamentTier, loss.tournamentName, loss.year)}</span>
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {/if}
+        {/each}
+      {:else}
+        <p class="empty">No matches played yet.</p>
+      {/if}
+    </section>
+
+    <section class="card">
+      <h2>Toughest opponents faced</h2>
+      {#if hasBestOpponents}
+        {#each SPORTS as sport (sport)}
+          {@const best = records.bestOpponentBySport[sport]}
+          {#if best}
+            <div class="sport-record">
+              <span class="tag" style:background={SPORT_COLORS[sport]}>{SPORT_SHORT[sport]}</span>
+              <div class="rec-main">
+                <button class="rec-line" class:win={best.won} class:loss={!best.won} onclick={() => store.viewOpponent(best.opponentId)}>
+                  <span>{best.won ? "W" : "L"} {best.a}-{best.b} vs {best.opponentName}</span>
+                  <span class="rec-rating">{best.rating}</span>
+                </button>
+                <span class="rec-meta">{tournamentLabel(best.tournamentTier, best.tournamentName, best.year)}</span>
+              </div>
+            </div>
+          {/if}
+        {/each}
+      {:else}
+        <p class="empty">No matches played yet.</p>
+      {/if}
+    </section>
+
+    <section class="card">
+      <h2>Highest ranked win</h2>
+      {#if records.highestRankedWin}
+        {@const hr = records.highestRankedWin}
+        <div class="match">
+          <div class="m-main">
+            <button class="m-opponent" onclick={() => store.viewOpponent(hr.opponentId)}>{hr.opponentName}</button>
+            <span class="m-meta">{tournamentLabel(hr.tournamentTier, hr.tournamentName, hr.year)}</span>
+          </div>
+          <div class="m-right">
+            <span class="m-result win">#{hr.rank} · {hr.totalA}–{hr.totalB}</span>
+            <div class="m-sets">
+              {#each hr.sets as s (s.sport)}
+                <span class="m-set" style="color: {SPORT_COLORS[s.sport]}">{SPORT_SHORT[s.sport]} {s.a}-{s.b}</span>
+              {/each}
+            </div>
+          </div>
+        </div>
+      {:else}
+        <p class="empty">No ranked opponent beaten yet.</p>
+      {/if}
+    </section>
+
     <!-- Trophy cabinet -->
-    {:else if section === "trophies"}
+    {:else if store.meSection === "trophies"}
     {#if trophies.length > 0}
       <section class="card">
         <h2>Trophy cabinet</h2>
@@ -230,12 +356,12 @@
     {/if}
 
     <!-- Results -->
-    {#if section === "statistics" && stats.results.length > 0}
+    {#if store.meSection === "history" && stats.results.length > 0}
       <section class="card">
         <h2>Results</h2>
         <div class="results">
           {#each stats.results as r (r.week + r.name)}
-            <div class="result" class:win={r.won}>
+            <button class="result" class:win={r.won} onclick={() => store.viewTournamentDetail(r.week)}>
               <div class="r-main">
                 <span class="r-name">{r.name}</span>
                 <span class="r-week">{r.weekLabel}</span>
@@ -244,31 +370,59 @@
                 <span class="r-finish" class:win={r.won}>{finishLabel(r.finishingPosition, r.tiedCount)}</span>
                 {#if r.prizeMoney > 0}<span class="r-prize">{formatMoney(r.prizeMoney)}</span>{/if}
               </div>
-            </div>
+            </button>
           {/each}
         </div>
       </section>
     {/if}
 
     <!-- Recent matches -->
-    {#if section === "statistics" && store.recentMatches.length > 0}
+    {#if store.meSection === "history"}
       <section class="card">
-        <h2>Recent matches</h2>
-        <div class="matches">
-          {#each store.recentMatches as m (m.week + m.opponentId + m.round)}
-            <div class="match">
-              <div class="m-main">
-                <button class="m-opponent" onclick={() => store.viewOpponent(m.opponentId)}>{m.opponentName}</button>
-                <span class="m-meta">{m.tournamentName} · Round {m.round}/{m.totalRounds} · {m.weekLabel}</span>
-              </div>
-              <div class="m-right">
-                <span class="m-result" class:win={m.won}>{m.won ? "W" : "L"} {m.totalA}–{m.totalB}</span>
-                <div class="m-sets">
-                  {#each m.sets as s (s.sport)}
-                    <span class="m-set" style="color: {SPORT_COLORS[s.sport]}">{SPORT_SHORT[s.sport]} {s.a}-{s.b}</span>
-                  {/each}
+        <div class="stats-head">
+          <h2>Recent matches</h2>
+          {#if availableMatchYears.length > 1}
+            <div class="year-seg">
+              {#each availableMatchYears as y (y)}
+                <button class:on={effectiveMatchYear === y} onclick={() => (matchYear = y)}>{y}</button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+        {#if yearMatches.length > 0}
+          <div class="matches">
+            {#each yearMatches as m (m.week + m.opponentId + m.round)}
+              <div class="match">
+                <div class="m-main">
+                  <button class="m-opponent" onclick={() => store.viewOpponent(m.opponentId)}>{m.opponentName}</button>
+                  <span class="m-meta">{m.tournamentName} · {m.roundName} · {m.weekLabel}</span>
+                </div>
+                <div class="m-right">
+                  <span class="m-result" class:win={m.won}>{m.won ? "W" : "L"} {m.totalA}–{m.totalB}</span>
+                  <div class="m-sets">
+                    {#each m.sets as s (s.sport)}
+                      <span class="m-set" style="color: {SPORT_COLORS[s.sport]}">{SPORT_SHORT[s.sport]} {s.a}-{s.b}</span>
+                    {/each}
+                  </div>
                 </div>
               </div>
+            {/each}
+          </div>
+        {:else}
+          <p class="empty">No matches played in {effectiveMatchYear}.</p>
+        {/if}
+      </section>
+    {/if}
+
+    <!-- Most played opponents -->
+    {#if store.meSection === "history" && mostPlayed.length > 0}
+      <section class="card">
+        <h2>Most played opponents</h2>
+        <div class="matches">
+          {#each mostPlayed as o (o.opponentId)}
+            <div class="match">
+              <button class="m-opponent" onclick={() => store.viewOpponent(o.opponentId)}>{o.opponentName}</button>
+              <span class="m-result">{o.wins}-{o.matches - o.wins} ({o.matches})</span>
             </div>
           {/each}
         </div>
@@ -431,18 +585,18 @@
 
   .section-tabs {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
   }
 
   .section-tabs button {
     min-height: 44px;
-    padding: 8px 6px;
+    padding: 8px 4px;
     border-radius: 12px;
     background: var(--card);
     border: 1px solid var(--border);
     color: var(--muted);
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 800;
   }
 
@@ -664,6 +818,31 @@
     color: var(--text);
   }
 
+  /* Year selector for Recent matches — like .seg, but horizontally
+   * scrollable since a career can span many years, not just a fixed 2. */
+  .year-seg {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    background: var(--card-2);
+    border-radius: 8px;
+    padding: 2px;
+  }
+
+  .year-seg button {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  .year-seg button.on {
+    background: var(--card);
+    color: var(--text);
+  }
+
   .stat-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -729,6 +908,115 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* Records */
+  .records-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .record-tile {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    text-align: left;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    min-width: 0;
+  }
+
+  .record-tile.win {
+    background: color-mix(in srgb, var(--ok) 10%, var(--card));
+    border-color: color-mix(in srgb, var(--ok) 35%, var(--border));
+  }
+
+  .record-tile.loss {
+    background: color-mix(in srgb, var(--danger) 10%, var(--card));
+    border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
+  }
+
+  .record-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+  }
+
+  .record-score {
+    font-size: 20px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .record-tile.win .record-score {
+    color: var(--ok);
+  }
+
+  .record-tile.loss .record-score {
+    color: var(--danger);
+  }
+
+  .record-opponent {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .record-meta {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .sport-record {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 0;
+  }
+
+  .sport-record + .sport-record {
+    border-top: 1px solid var(--border);
+  }
+
+  .rec-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .rec-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    width: 100%;
+    text-align: left;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .rec-line.win {
+    color: var(--ok);
+  }
+
+  .rec-line.loss {
+    color: var(--danger);
+  }
+
+  .rec-meta {
+    flex-shrink: 0;
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .rec-rating {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+  }
+
   /* Trophy cabinet */
   .trophies {
     display: flex;
@@ -777,10 +1065,12 @@
 
   .result {
     display: flex;
+    width: 100%;
     justify-content: space-between;
     align-items: center;
     gap: 10px;
     padding: 9px 0;
+    text-align: left;
   }
 
   .result + .result {

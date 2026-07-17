@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
-import type { MatchState, TournamentAdvanceResult } from "../src/index.js";
-import { BALANCE, Game, levelForSkill, simulateMatchAuto } from "../src/index.js";
+import type { EventLog, GameState, MatchState, TournamentAdvanceResult } from "../src/index.js";
+import {
+  BALANCE,
+  Game,
+  SAVE_VERSION,
+  advanceTournament,
+  dateForWeek,
+  levelForSkill,
+  simulateMatchAuto,
+  startTournament,
+  yearOfWeek,
+} from "../src/index.js";
 import { planWith, testContent } from "./fixtures.js";
 
 const WORK = planWith({ work: 5 });
@@ -178,11 +188,22 @@ describe("Game facade", () => {
     // newest first: round numbers descend from the last match played
     expect(matches.map((m) => m.round)).toEqual([3, 2, 1]);
 
+    // an 8-draw's every possible stage name, main draw or plate
+    const EIGHT_DRAW_STAGES = new Set([
+      "Quarterfinal",
+      "Semifinal",
+      "Playoff for 5th–8th",
+      "Final",
+      "Bronze Medal Match",
+      "5th Place Match",
+      "7th Place Match",
+    ]);
     for (const m of matches) {
       expect(m.tournamentName).toBe(def.name);
       expect(m.totalRounds).toBe(3);
       expect(m.opponentId).not.toBe("");
       expect(m.opponentName).not.toBe("");
+      expect(EIGHT_DRAW_STAGES.has(m.roundName)).toBe(true);
       expect(m.sets).toHaveLength(4); // tt, bd, sq, tn
       expect(m.totalA).toBeGreaterThanOrEqual(0);
       expect(m.totalB).toBeGreaterThanOrEqual(0);
@@ -190,6 +211,8 @@ describe("Game facade", () => {
       // point totals, racketlon's real match-winner rule (see match/engine.ts)
       expect(m.won).toBe(m.totalA > m.totalB);
     }
+    // round 0 of an 8-draw is always a Quarterfinal for every entrant
+    expect(matches[2]!.roundName).toBe("Quarterfinal");
   });
 
   it("recentMatches is capped at `limit`, still newest first", () => {
@@ -198,6 +221,233 @@ describe("Game facade", () => {
     const capped = game.recentMatches(2);
     expect(capped).toHaveLength(2);
     expect(capped.map((m) => m.round)).toEqual([3, 2]);
+  });
+
+  it("matchesForYear filters by calendar year, including across a year boundary", () => {
+    // test content has no tournaments scheduled past ~week 30, so this drives
+    // startTournament/advanceTournament directly at hand-picked weeks (same
+    // low-level pattern as tournament.test.ts's monrad suite) rather than
+    // going through the content-scheduled calendar.
+    const game = Game.newGame({ content: testContent, seed: "matchyear-1" });
+    const state: GameState = game.serialize().state;
+    const log: EventLog = [];
+    const def = testContent.tournaments["monthly-open-1-m"]!;
+
+    // `yearOfWeek` computes relative to `cal.weekIndex`/`cal.mondayISO` — the
+    // pair must stay consistent, so build a fresh, correctly-dated Calendar
+    // for each target week off the original (week-0) reference rather than
+    // just poking `weekIndex` in place.
+    const origin = { ...state.calendar };
+    const calendarAt = (weekIndex: number) => ({ weekIndex, mondayISO: dateForWeek(origin, weekIndex) });
+
+    const year1 = yearOfWeek(origin, 3);
+    let boundaryWeek = 3;
+    while (yearOfWeek(origin, boundaryWeek) === year1) boundaryWeek++;
+    const year2 = yearOfWeek(origin, boundaryWeek);
+    expect(year2).toBeGreaterThan(year1);
+
+    state.calendar = calendarAt(3);
+    let session = startTournament(state, def, testContent, log);
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      if (advanceTournament(state, session, match, log).status !== "nextRound") break;
+    }
+
+    state.calendar = calendarAt(boundaryWeek);
+    session = startTournament(state, def, testContent, log);
+    for (;;) {
+      const match = session.pendingMatch!;
+      simulateMatchAuto(match);
+      if (advanceTournament(state, session, match, log).status !== "nextRound") break;
+    }
+
+    const restored = Game.fromSave({ saveVersion: SAVE_VERSION, state, log }, testContent);
+    const matchesYear1 = restored.matchesForYear(year1);
+    const matchesYear2 = restored.matchesForYear(year2);
+    expect(matchesYear1.length).toBeGreaterThan(0);
+    expect(matchesYear2.length).toBeGreaterThan(0);
+    expect(matchesYear1.every((m) => m.week === 3)).toBe(true);
+    expect(matchesYear2.every((m) => m.week === boundaryWeek)).toBe(true);
+    // no cap — every match from that year, not just a recent few
+    expect(matchesYear1.length + matchesYear2.length).toBe(restored.recentMatches(999).length);
+  });
+
+  it("mostPlayedOpponents tallies matches per opponent, sorted most-played first", () => {
+    const game = Game.newGame({ content: testContent, seed: "mpo-1" });
+    const save = game.serialize();
+    const opp = (id: string, name: string, week: number, won: boolean) => ({
+      week,
+      type: "match.played" as const,
+      subject: save.state.career.playerId,
+      data: {
+        tournamentName: "T",
+        round: 1,
+        totalRounds: 1,
+        roundName: "Final",
+        opponentId: id,
+        opponentName: name,
+        won,
+        sets: [],
+      },
+    });
+    save.log.push(opp("o1", "Alice", 1, true), opp("o1", "Alice", 2, false), opp("o2", "Bob", 3, true));
+    const restored = Game.fromSave(save, testContent);
+    const result = restored.mostPlayedOpponents();
+    expect(result[0]).toMatchObject({ opponentId: "o1", opponentName: "Alice", matches: 2, wins: 1 });
+    expect(result[1]).toMatchObject({ opponentId: "o2", opponentName: "Bob", matches: 1, wins: 1 });
+  });
+
+  it("records mines biggest win/loss, per-sport bests, highest ranked win, and gummiarm tally", () => {
+    const game = Game.newGame({ content: testContent, seed: "rec-1" });
+    const save = game.serialize();
+    const match = (
+      week: number,
+      opponentId: string,
+      opponentName: string,
+      won: boolean,
+      sets: [number, number][],
+      opponentRank: number | null,
+      opponentRatings: { tt: number; bd: number; sq: number; tn: number },
+      gummiarm = false,
+    ) => ({
+      week,
+      type: "match.played" as const,
+      subject: save.state.career.playerId,
+      data: {
+        tournamentName: "T",
+        tier: "CHA",
+        round: 1,
+        totalRounds: 1,
+        roundName: "Final",
+        opponentId,
+        opponentName,
+        opponentRank,
+        opponentRatings,
+        won,
+        sets: sets.map(([a, b]) => ({ a, b, done: true })),
+        gummiarm,
+      },
+    });
+
+    save.log.push(
+      // biggest win overall (margin 22); best tt win (margin 16); best bd win (margin 2, later beaten)
+      match(1, "o1", "Alice", true, [[21, 5], [21, 19], [21, 19], [21, 19]], 5, { tt: 1500, bd: 1400, sq: 1300, tn: 1200 }),
+      // biggest loss overall (margin 27); best tn opponent rating (1900); best tn loss (margin 16)
+      match(2, "o2", "Bob", false, [[10, 21], [15, 21], [21, 15], [5, 21]], null, { tt: 1600, bd: 1550, sq: 1250, tn: 1900 }),
+      // best sq win (margin 11); highest ranked win (rank 2, beats o1's rank 5); a gummiarm win
+      match(3, "o3", "Cara", true, [[21, 15], [5, 21], [21, 10], [21, 18]], 2, { tt: 1000, bd: 1000, sq: 1000, tn: 1000 }, true),
+      // best tt/bd/sq opponent rating and best bd win (16) / best tn win (19)
+      match(4, "o4", "Dave", true, [[5, 21], [21, 5], [15, 21], [21, 2]], 10, { tt: 1700, bd: 1650, sq: 1800, tn: 1250 }),
+      // a gummiarm loss; rank 1 but lost, so must not surface as the highest ranked win
+      match(5, "o5", "Eve", false, [[21, 19], [15, 21], [21, 18], [10, 21]], 1, { tt: 900, bd: 900, sq: 900, tn: 900 }, true),
+    );
+    const restored = Game.fromSave(save, testContent);
+    const records = restored.records();
+
+    expect(records.biggestWin).toMatchObject({ opponentId: "o1", margin: 22, tournamentTier: "CHA" });
+    expect(records.biggestWin!.year).toBeGreaterThan(2000);
+    expect(records.biggestLoss).toMatchObject({ opponentId: "o2", margin: 27, tournamentTier: "CHA" });
+
+    expect(records.biggestWinBySport.tt).toMatchObject({ opponentId: "o1", a: 21, b: 5, margin: 16 });
+    expect(records.biggestLossBySport.tt).toMatchObject({ opponentId: "o4", a: 5, b: 21, margin: 16 });
+    expect(records.biggestWinBySport.bd).toMatchObject({ opponentId: "o4", a: 21, b: 5, margin: 16 });
+    expect(records.biggestLossBySport.bd).toMatchObject({ opponentId: "o3", a: 5, b: 21, margin: 16 });
+    expect(records.biggestWinBySport.sq).toMatchObject({ opponentId: "o3", a: 21, b: 10, margin: 11 });
+    expect(records.biggestLossBySport.sq).toMatchObject({ opponentId: "o4", a: 15, b: 21, margin: 6 });
+    expect(records.biggestWinBySport.tn).toMatchObject({ opponentId: "o4", a: 21, b: 2, margin: 19 });
+    expect(records.biggestLossBySport.tn).toMatchObject({ opponentId: "o2", a: 5, b: 21, margin: 16 });
+
+    // a/b/won reflect how that specific meeting's set actually went, not
+    // just the opponent's rating
+    expect(records.bestOpponentBySport.tt).toMatchObject({ opponentId: "o4", rating: 1700, a: 5, b: 21, won: false });
+    expect(records.bestOpponentBySport.bd).toMatchObject({ opponentId: "o4", rating: 1650, a: 21, b: 5, won: true });
+    expect(records.bestOpponentBySport.sq).toMatchObject({ opponentId: "o4", rating: 1800, a: 15, b: 21, won: false });
+    expect(records.bestOpponentBySport.tn).toMatchObject({ opponentId: "o2", rating: 1900, a: 5, b: 21, won: false });
+
+    // o5 (rank 1) lost, so o3 (rank 2, a real win) is the highest ranked win
+    expect(records.highestRankedWin).toMatchObject({ opponentId: "o3", rank: 2, totalA: 68, totalB: 64 });
+    expect(records.highestRankedWin!.sets).toEqual([
+      { sport: "tt", a: 21, b: 15, done: true },
+      { sport: "bd", a: 5, b: 21, done: true },
+      { sport: "sq", a: 21, b: 10, done: true },
+      { sport: "tn", a: 21, b: 18, done: true },
+    ]);
+
+    expect(records.gummiarms).toEqual({ played: 2, won: 1 });
+  });
+
+  it("records skips a set an early finish cut short, even if its score shape looks final", () => {
+    const game = Game.newGame({ content: testContent, seed: "rec-2" });
+    const save = game.serialize();
+    save.log.push({
+      week: 1,
+      type: "match.played",
+      subject: save.state.career.playerId,
+      data: {
+        tournamentName: "T",
+        tier: "CHA",
+        round: 1,
+        totalRounds: 1,
+        roundName: "Final",
+        opponentId: "o1",
+        opponentName: "Alice",
+        opponentRank: null,
+        opponentRatings: { tt: 1000, bd: 1000, sq: 1000, tn: 1000 },
+        won: true,
+        sets: [
+          // looks like a 21-1 blowout, but the match was actually decided
+          // (an uncatchable aggregate lead) before this set finished — must
+          // not surface as the biggest tt win
+          { a: 21, b: 1, done: false },
+          { a: 21, b: 19, done: true },
+          { a: 21, b: 19, done: true },
+          { a: 0, b: 0, done: false },
+        ],
+        gummiarm: false,
+      },
+    });
+    const restored = Game.fromSave(save, testContent);
+    const records = restored.records();
+    expect(records.biggestWinBySport.tt).toBeUndefined();
+    expect(records.biggestWinBySport.bd).toMatchObject({ a: 21, b: 19 });
+    expect(records.biggestWinBySport.sq).toMatchObject({ a: 21, b: 19 });
+    expect(records.biggestWinBySport.tn).toBeUndefined();
+  });
+
+  it("records reconstructs a legacy set's `done` from its score shape when the field predates it", () => {
+    const game = Game.newGame({ content: testContent, seed: "rec-3" });
+    const save = game.serialize();
+    save.log.push({
+      week: 1,
+      type: "match.played",
+      subject: save.state.career.playerId,
+      data: {
+        tournamentName: "T",
+        round: 1,
+        totalRounds: 1,
+        roundName: "Final",
+        opponentId: "o1",
+        opponentName: "Alice",
+        opponentRank: null,
+        opponentRatings: { tt: 1000, bd: 1000, sq: 1000, tn: 1000 },
+        won: true,
+        // no `done` on any set — the pre-`done` log shape
+        sets: [
+          { a: 21, b: 5 }, // shaped like a real completed set — counts
+          { a: 10, b: 6 }, // never reached 21 — an early-finish leftover, excluded
+          { a: 0, b: 0 }, // unplayed — excluded
+          { a: 21, b: 19 }, // shaped like a real completed set — counts
+        ],
+        gummiarm: false,
+      },
+    });
+    const restored = Game.fromSave(save, testContent);
+    const records = restored.records();
+    expect(records.biggestWinBySport.tt).toMatchObject({ a: 21, b: 5 });
+    expect(records.biggestWinBySport.bd).toBeUndefined();
+    expect(records.biggestWinBySport.sq).toBeUndefined();
+    expect(records.biggestWinBySport.tn).toMatchObject({ a: 21, b: 19 });
   });
 
   it("firStanding is null until the human has a counted FIR result", () => {
@@ -250,6 +500,18 @@ describe("Game facade", () => {
     expect(Object.keys(profile!)).not.toContain("attrs");
     expect(Object.keys(profile!.sports.tt)).not.toContain("level");
     expect(Object.keys(profile!.sports.tt)).not.toContain("progress");
+  });
+
+  it("opponentProfile.recentResults carries the real weekIndex, wired to the same week the human played", () => {
+    const game = Game.newGame({ content: testContent, seed: "f14-opp-week" });
+    playTournamentAt(game, 3);
+    const opponentId = game.recentMatches()[0]!.opponentId;
+
+    const profile = game.opponentProfile(opponentId)!;
+    expect(profile.recentResults.length).toBeGreaterThan(0);
+    const entry = profile.recentResults.find((r) => r.week === 3);
+    expect(entry).toBeDefined();
+    expect(entry!.weekLabel).toBe(game.recentMatches()[0]!.weekLabel);
   });
 
   it("rejects saves from unknown versions", () => {

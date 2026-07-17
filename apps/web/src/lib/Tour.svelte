@@ -90,7 +90,7 @@
             <div class="season-detail">
               {#each store.matchesForWeek(entry.weekIndex) as m (m.opponentId + m.round)}
                 <div class="season-match">
-                  <span class="season-match-round">R{m.round}/{m.totalRounds}</span>
+                  <span class="season-match-round">{m.roundName}</span>
                   <button class="season-match-opp" onclick={() => store.viewOpponent(m.opponentId)}>{m.opponentName}</button>
                   <span class="season-match-result" class:won={m.won}>{m.won ? "W" : "L"} {setScoreLine(m.sets)}</span>
                 </div>
@@ -588,6 +588,7 @@
   .season-match-round {
     color: var(--muted);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .season-match-opp {
