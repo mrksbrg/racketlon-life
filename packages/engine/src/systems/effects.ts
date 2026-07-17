@@ -120,15 +120,29 @@ export function fatigueDeltaFromCounts(
   return delta;
 }
 
+/** Salary multiplier from the Career attribute (0..1) — see
+ * `BALANCE.economy.salaryFloor/salarySpan`. */
+export function salaryMultiplier(career: number): number {
+  const b = BALANCE.economy;
+  return b.salaryFloor + career * b.salarySpan;
+}
+
+/**
+ * `salaryMult` scales only `work`'s earnings (the player's salary) — it's
+ * the sole positive-money activity today, but the multiplier is applied
+ * per-activity rather than to the total so a future earning activity
+ * wouldn't silently inherit a salary scaling that isn't its own.
+ */
 export function moneyDeltaFromCounts(
   counts: ActivityCounts,
   content: ContentBundle,
+  salaryMult = 1,
 ): { earned: number; spent: number } {
   let earned = 0;
   let spent = 0;
   for (const [type, n] of countEntries(counts)) {
     const perSession = content.activities[type].money;
-    if (perSession >= 0) earned += perSession * n;
+    if (perSession >= 0) earned += perSession * n * (type === "work" ? salaryMult : 1);
     else spent += -perSession * n;
   }
   return { earned, spent };

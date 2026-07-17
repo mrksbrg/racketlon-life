@@ -73,7 +73,7 @@
       </div>
     </section>
 
-    <!-- Headline ratings: real FIR standing leads, Glicko is the secondary estimate -->
+    <!-- Headline ratings: real FIR standing leads, Rating is the secondary estimate -->
     <section class="rating-strip">
       <div class="rating-big">
         <div class="rating-num">{you.firStanding ? you.firStanding.points : "—"}</div>
@@ -88,12 +88,8 @@
       </div>
       <div class="rating-side">
         <div class="side-num">{you.combinedRating}</div>
-        <div class="side-cap">Glicko</div>
+        <div class="side-cap">Rating</div>
         <div class="side-sub">best {you.bestRating}</div>
-      </div>
-      <div class="rating-side">
-        <div class="side-num money" class:negative={you.money < 0}>{formatMoney(you.money)}</div>
-        <div class="side-cap">Balance</div>
       </div>
     </section>
 
@@ -577,10 +573,6 @@
     font-size: 16px;
     font-weight: 700;
     font-variant-numeric: tabular-nums;
-  }
-
-  .side-num.money.negative {
-    color: var(--danger);
   }
 
   .section-tabs {

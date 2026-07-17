@@ -30,7 +30,9 @@ import type {
   WeekSummary,
 } from "@racketlon/engine";
 import {
+  DEFAULT_START_MONDAY,
   Game,
+  PERIODS,
   SLOTS_PER_WEEK,
   SPORTS,
   aiChooseTactic,
@@ -167,7 +169,10 @@ export const TEMPLATES: Record<string, (ranked: Sport[]) => ActivityType[]> = {
     const slots = blankWeek();
     // A deload week: no racket sessions, but keep light PT. Gym/cardio
     // build attributes only, so sport skills cannot move while fatigue and
-    // injury risk come down hard.
+    // injury risk come down hard. Work the normal Mon-Fri job so a recovery
+    // week spends no vacation days — it's the "rest without burning leave"
+    // option.
+    for (const day of WEEKDAYS) { put(slots, day, "Mor", "work"); put(slots, day, "Aft", "work"); }
     put(slots, "Wed", "Eve", "cardio");
     put(slots, "Fri", "Eve", "social");
     put(slots, "Sat", "Aft", "gym");
@@ -372,6 +377,16 @@ class GameStore {
     return this.game ? this.game.tournamentSchedule(SEASON_HORIZON) : [];
   });
 
+  /** Whether the current balance covers this week's tournament trip (entry
+   * fee + flights/hotel), if there is one — drives the disabled state on
+   * "Play tournament"/"Play now". True (nothing to block) when there's no
+   * tournament this week. */
+  readonly canAffordTournamentThisWeek: boolean = $derived.by(() => {
+    const entry = this.tourEntries.find((e) => e.isThisWeek);
+    if (!entry || !this.you) return true;
+    return this.you.money >= entry.tournament.entryFee + entry.travelCost.total;
+  });
+
   /** Every tournament of the current in-game year, oldest first — the Tour
    * screen's full-year list. Unlike `tourEntries` (upcoming-only) or the
    * ephemeral live draw, this stays reachable for a played event long after
@@ -394,6 +409,23 @@ class GameStore {
   readonly trainedWeeks: TrainedWeekView[] = $derived.by(() => {
     this.version;
     return this.game ? this.game.trainedWeekDates() : [];
+  });
+
+  /** The human's national public holidays for the current calendar year —
+   * the season calendar marks these red. */
+  readonly holidays: { date: string; name: string }[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.humanPublicHolidays(this.game.year) : [];
+  });
+
+  /** Vacation days the currently-drafted week would spend — live "this week
+   * uses X days" feedback before the week is simulated. Uses the resolved
+   * plan (travel/tournament overrides applied), matching what Simulate
+   * actually submits — a disabled travel/tournament slot's hidden draft
+   * activity underneath must not be read as "work". */
+  readonly vacationCostThisWeek: number = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.vacationCostThisWeek({ slots: this.availableSlots() }) : 0;
   });
 
   readonly weekLabel: string = $derived.by(() => {
@@ -420,6 +452,14 @@ class GameStore {
   readonly weekIndex: number = $derived.by(() => {
     this.version;
     return this.game ? this.game.weekIndex : 0;
+  });
+
+  /** the 7 real ISO dates (Mon–Sun) of the week currently being planned —
+   * mirrors SeasonCalendar's own `DEFAULT_START_MONDAY + weekIndex*7` math,
+   * since weeks always advance by exactly 7 days. */
+  readonly weekDates: string[] = $derived.by(() => {
+    const monday = new Date(`${DEFAULT_START_MONDAY}T00:00:00Z`).getTime() + this.weekIndex * 7 * 86_400_000;
+    return Array.from({ length: 7 }, (_, i) => new Date(monday + i * 86_400_000).toISOString().slice(0, 10));
   });
 
   readonly forecast: Forecast | null = $derived.by(() => {
@@ -581,7 +621,11 @@ class GameStore {
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
   }
 
-  private availableSlots(): ActivityType[] {
+  /** The plan actually submitted on Simulate: the draft with travel/tournament
+   * overrides baked in (see `simulateWeek`) — the vacation-cost hint must use
+   * this, not the raw draft, since a travel/tournament slot's underlying
+   * (invisible, disabled) draft activity is never what actually happens. */
+  availableSlots(): ActivityType[] {
     const slots = [...this.slots];
     for (const block of this.travelBlocksThisWeek) {
       for (const index of block.slotIndices) slots[index] = "travel";
@@ -592,14 +636,68 @@ class GameStore {
     return slots;
   }
 
+  /** true when `index`'s day falls on a public holiday — work can't be
+   * scheduled there, in the picker or via a template. */
+  isHolidaySlot(index: number): boolean {
+    const date = this.weekDates[Math.floor(index / PERIODS.length)];
+    return !!date && this.holidays.some((h) => h.date === date);
+  }
+
+  /** true when `index` is a weekday Morning/Afternoon slot and this year's
+   * paid leave is used up (`remainingVacationDays <= 0`) — nothing but work
+   * can be scheduled there until the balance resets. A public holiday always
+   * wins over this (it's free time off, not leave, and doesn't draw down the
+   * balance either — see systems/vacation.ts), so it's checked first. */
+  isForcedWorkSlot(index: number): boolean {
+    const day = Math.floor(index / PERIODS.length);
+    const period = index % PERIODS.length;
+    if (day > 4 || period > 1) return false; // weekends & evenings are always free
+    if (this.isHolidaySlot(index)) return false;
+    return (this.you?.remainingVacationDays ?? 0) <= 0;
+  }
+
   setSlot(index: number, activity: ActivityType): void {
+    if (activity === "work" && this.isHolidaySlot(index)) return;
+    if (activity !== "work" && this.isForcedWorkSlot(index)) return;
     this.slots[index] = activity;
   }
 
-  applyTemplate(name: keyof typeof TEMPLATES): void {
+  /** A template's built week with the holiday (no work) and out-of-leave
+   * (must work) corrections already applied — the plan that would actually
+   * be adopted by `applyTemplate`. Null when there's nothing to build yet. */
+  private correctedTemplateSlots(name: keyof typeof TEMPLATES): ActivityType[] | null {
     const build = TEMPLATES[name];
-    if (!build || !this.you) return;
-    this.slots = build(rankSports(this.you.sports));
+    if (!build || !this.you) return null;
+    const built = build(rankSports(this.you.sports));
+    return built.map((activity, i) => {
+      if (activity === "work" && this.isHolidaySlot(i)) return "rest";
+      if (activity !== "work" && this.isForcedWorkSlot(i)) return "work";
+      return activity;
+    });
+  }
+
+  /** A fully income-free week (e.g. Training camp) is a discretionary trip
+   * away from paid work — like a tournament trip, it's blocked once the
+   * current balance can't cover it. A week with any work in it always earns
+   * toward the next payday, so it's never blocked by cash on hand. */
+  private canAffordSlots(slots: ActivityType[]): boolean {
+    if (!this.game || !this.you) return true;
+    if (slots.includes("work")) return true;
+    const cashDelta = this.game.previewPlan({ slots }).money;
+    return this.you.money + cashDelta >= 0;
+  }
+
+  /** Whether `name`'s template (after holiday/leave corrections) can be
+   * applied right now — drives the disabled state on its Planner button. */
+  canAffordTemplate(name: keyof typeof TEMPLATES): boolean {
+    const corrected = this.correctedTemplateSlots(name);
+    return corrected ? this.canAffordSlots(corrected) : true;
+  }
+
+  applyTemplate(name: keyof typeof TEMPLATES): void {
+    const corrected = this.correctedTemplateSlots(name);
+    if (!corrected || !this.canAffordSlots(corrected)) return;
+    this.slots = corrected;
   }
 
   async simulateWeek(): Promise<void> {
@@ -648,14 +746,24 @@ class GameStore {
     return section ? { roundName: section.roundName, isMainDraw: section.isMainDraw } : { roundName: `Round ${round}`, isMainDraw: true };
   }
 
-  /** Enters this week's tournament — only valid once registered for it. Opens
-   * the full-screen draw first (the "study the draw" moment); the player kicks
-   * off their match from there via `playPendingMatch`. */
+  /** Enters this week's tournament — only valid once registered for it, and
+   * only when the trip is affordable (the Planner/Tour button is disabled
+   * otherwise — see `canAffordTournamentThisWeek`). The engine throws if the
+   * balance can't cover the entry fee + travel; caught defensively here so a
+   * stale click never crashes the app. Opens the full-screen draw first (the
+   * "study the draw" moment); the player kicks off their match from there
+   * via `playPendingMatch`. */
   enterTournament(): void {
     if (!this.game) return;
     const def = this.game.registeredTournamentThisWeek();
     if (!def) return;
-    this.match = this.game.prepareAndEnterTournament({ slots: this.availableSlots() });
+    let match: MatchState;
+    try {
+      match = this.game.prepareAndEnterTournament({ slots: this.availableSlots() });
+    } catch {
+      return;
+    }
+    this.match = match;
     this.tournamentContext = {
       name: def.name,
       round: 1,

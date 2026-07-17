@@ -1,5 +1,5 @@
 import type { ContentBundle } from "./content.js";
-import { advanceWeek } from "./core/date.js";
+import { advanceWeek, ageOn, yearOfWeek } from "./core/date.js";
 import type { EventLog, GameEvent } from "./core/events.js";
 import { WeekLog, eventsForWeek } from "./core/events.js";
 import { Rng, childSeed } from "./core/rng.js";
@@ -17,6 +17,7 @@ import { ProgressionSystem } from "./systems/progression.js";
 import { RecoverySystem } from "./systems/recovery.js";
 import { SummarySystem } from "./systems/summary.js";
 import { TrainingSystem } from "./systems/training.js";
+import { annualAllowance, vacationDaysUsedBy } from "./systems/vacation.js";
 import type { GameSystem, HumanSnapshot, WeekOutputs } from "./systems/types.js";
 
 /**
@@ -143,6 +144,41 @@ export function simulateWeek(
         type: "tournament.noShowFee",
         subject: state.career.playerId,
         data: { name: def.name, fee: def.entryFee },
+      });
+    }
+  }
+
+  // Vacation accounting: reset the annual pot when a sim crosses into a new
+  // calendar year, then draw down this week's weekday time off (see
+  // systems/vacation.ts). Balance may go negative — a flavor note fires the
+  // first week it does, but there's no mechanical penalty yet.
+  {
+    const human = humanPlayer(state);
+    const { nationality, birthDate } = human.identity;
+    const year = yearOfWeek(state.calendar, week);
+    if (year !== state.career.vacationYear) {
+      state.career.vacationYear = year;
+      state.career.vacationDaysRemaining = annualAllowance(
+        nationality,
+        ageOn(state.calendar.mondayISO, birthDate),
+        content,
+      );
+    }
+    const before = state.career.vacationDaysRemaining;
+    const used = vacationDaysUsedBy(humanPlan, state.calendar.mondayISO, nationality, content);
+    state.career.vacationDaysRemaining = before - used;
+    if (before >= 0 && state.career.vacationDaysRemaining < 0) {
+      state.career.inbox.push({
+        id: `vacation-overdrawn-${year}`,
+        week,
+        category: "coach",
+        from: "HR Department",
+        subject: "You've run out of vacation days",
+        body:
+          `You've used up your paid leave for ${year}. You can still take time off to ` +
+          "train and travel, but the boss has noticed — keep an eye on the balance until it " +
+          "resets in the new year.",
+        read: false,
       });
     }
   }

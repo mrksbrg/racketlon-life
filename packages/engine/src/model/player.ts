@@ -33,8 +33,8 @@ export interface PlayerAttributes {
   endurance: number;
   /** 0..1 — gym-built trunk strength; foundation for future injury/power hooks */
   coreStrength: number;
-  /** 0..1 — gates the university-studies track; minor tactical-learning bonus */
-  intelligence: number;
+  /** 0..1 — successful civilian career track, higher salary; minor tactical-learning bonus */
+  career: number;
   /** 0..1 — win-rate on the deciding gummiarm point ("Vinnarskalle") */
   clutch: number;
   /** 0..1 — steadier form/confidence under pressure (Mental strength) */

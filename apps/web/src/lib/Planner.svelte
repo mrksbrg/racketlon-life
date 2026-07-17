@@ -1,7 +1,7 @@
 <script lang="ts">
   import { defaultContent } from "@racketlon/content";
   import type { ActivityType } from "@racketlon/engine";
-  import { DAYS, PERIODS, slotIndex } from "@racketlon/engine";
+  import { ACTIVITY_TYPES, DAYS, PERIODS, slotIndex } from "@racketlon/engine";
   import ActivityPicker from "./ActivityPicker.svelte";
   import ForecastBar from "./ForecastBar.svelte";
   import StatusBar from "./StatusBar.svelte";
@@ -15,6 +15,24 @@
   const travelSlots = $derived(new Set(store.travelBlocksThisWeek.flatMap((block) => block.slotIndices)));
   const tournamentSlots = $derived(new Set(store.tournamentBlocksThisWeek.flatMap((block) => block.slotIndices)));
   const activeTournamentThisWeek = $derived(store.registeredTournamentThisWeek ?? (tournamentSlots.size > 0 ? tournamentEntry?.tournament : null));
+  const holidayDates = $derived(new Set(store.holidays.map((h) => h.date)));
+
+  function dayLabel(dateISO: string): number {
+    return Number(dateISO.slice(8, 10));
+  }
+
+  const pickingUnavailable = $derived.by((): Partial<Record<ActivityType, string>> => {
+    if (picking === null) return {};
+    if (store.isHolidaySlot(picking)) return { work: "Closed — public holiday" };
+    if (store.isForcedWorkSlot(picking)) {
+      const reasons: Partial<Record<ActivityType, string>> = {};
+      for (const type of ACTIVITY_TYPES) {
+        if (type !== "work" && type !== "travel") reasons[type] = "No vacation days left";
+      }
+      return reasons;
+    }
+    return {};
+  });
 
   function openPicker(index: number) {
     if (travelSlots.has(index) || tournamentSlots.has(index)) return;
@@ -38,6 +56,11 @@
       {#if tournamentEntry.travelDays > 0}
         <span class="travel-note">Travel booked: {tournamentEntry.travelDays === 2 ? "two travel days" : "one travel day"} each way are blocked around the event.</span>
       {/if}
+      {#if !store.canAffordTournamentThisWeek}
+        <span class="travel-note over">
+          Can't afford this trip — you need {formatMoney(tournamentEntry.tournament.entryFee + tournamentEntry.travelCost.total)} on hand for the entry fee and travel.
+        </span>
+      {/if}
       <span class="travel-note">Check the draw email in your inbox, then tune any free sessions before the event.</span>
     </div>
   {:else if store.tournamentThisWeek}
@@ -49,22 +72,45 @@
 
   {#if store.you}
     <section class="home-hubs" aria-label="Home summaries">
-      <button class="hub-card" title="Finances will become a dedicated section in Home">
+      <button class="hub-card" title="Salary is paid out as one lump sum on the last week of each month">
         <span class="hub-label">Money</span>
         <strong class:negative={store.you.money < 0}>{formatMoney(store.you.money)}</strong>
+        {#if store.you.pendingSalary > 0}
+          <span class="hub-sub">+{formatMoney(store.you.pendingSalary)} payday</span>
+        {/if}
       </button>
       <button class="hub-card" title="Health will become a dedicated section in Home">
         <span class="hub-label">Health</span>
         <strong>⚡ {store.you.fatigue}</strong>
+      </button>
+      <button class="hub-card" title="Paid leave left this year — weekday time off draws it down">
+        <span class="hub-label">Vacation</span>
+        <strong class:negative={store.you.remainingVacationDays < 0}>🏖 {store.you.remainingVacationDays} / {store.you.annualVacationDays}</strong>
       </button>
     </section>
   {/if}
 
   <div class="templates">
     {#each Object.keys(TEMPLATES) as name (name)}
-      <button class="template" onclick={() => store.applyTemplate(name)}>{name}</button>
+      {@const affordable = store.canAffordTemplate(name)}
+      <button
+        class="template"
+        disabled={!affordable}
+        title={affordable ? undefined : "Not enough money for an income-free week — you'd go broke before payday"}
+        onclick={() => store.applyTemplate(name)}
+      >
+        {name}
+      </button>
     {/each}
   </div>
+
+  {#if store.you && store.you.remainingVacationDays <= 0}
+    <p class="vacation-hint over">🏖 Out of paid leave — weekdays default to work until it resets</p>
+  {:else if store.you && store.vacationCostThisWeek > 0}
+    <p class="vacation-hint" class:over={store.you.remainingVacationDays - store.vacationCostThisWeek < 0}>
+      🏖 This week uses <strong>{store.vacationCostThisWeek}</strong> vacation {store.vacationCostThisWeek === 1 ? "day" : "days"}
+    </p>
+  {/if}
 
   <div class="grid" role="grid" aria-label="Week planner">
     <div class="corner"></div>
@@ -72,7 +118,12 @@
       <div class="col-head">{period.slice(0, 3)}</div>
     {/each}
     {#each DAYS as day, d (day)}
-      <div class="row-head">{day}</div>
+      {@const date = store.weekDates[d]}
+      {@const isHoliday = date ? holidayDates.has(date) : false}
+      <div class="row-head" class:holiday={isHoliday}>
+        <span class="row-day">{day}</span>
+        {#if date}<span class="row-date">{dayLabel(date)}</span>{/if}
+      </div>
       {#each PERIODS as period, p (period)}
         {@const i = slotIndex(d, p)}
         {@const isTournament = tournamentSlots.has(i)}
@@ -97,7 +148,9 @@
   <ForecastBar />
   <div class="actions">
     {#if activeTournamentThisWeek}
-      <button class="simulate" onclick={() => store.enterTournament()}>Play tournament ▸</button>
+      <button class="simulate" disabled={!store.canAffordTournamentThisWeek} onclick={() => store.enterTournament()}>
+        {store.canAffordTournamentThisWeek ? "Play tournament ▸" : "Can't afford this trip"}
+      </button>
     {:else}
       <button class="simulate" onclick={() => void store.simulateWeek()}>Simulate week ▸</button>
     {/if}
@@ -105,7 +158,7 @@
 </footer>
 
 {#if picking !== null}
-  <ActivityPicker slotIndex={picking} onpick={pick} onclose={() => (picking = null)} />
+  <ActivityPicker slotIndex={picking} onpick={pick} onclose={() => (picking = null)} unavailable={pickingUnavailable} />
 {/if}
 
 <TabBar />
@@ -135,7 +188,7 @@
 
   .home-hubs {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 12px;
   }
@@ -162,16 +215,42 @@
   }
 
   .hub-card strong {
-    font-size: 17px;
+    font-size: 16px;
   }
 
   .hub-card strong.negative {
     color: var(--danger);
   }
 
+  .hub-sub {
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+
+  .vacation-hint {
+    margin: -4px 0 12px;
+    font-size: 12.5px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .vacation-hint strong {
+    color: var(--text);
+  }
+
+  .vacation-hint.over,
+  .vacation-hint.over strong {
+    color: var(--danger);
+  }
+
 
   .travel-note {
     display: block;
+  }
+
+  .travel-note.over {
+    color: var(--danger);
+    font-weight: 600;
   }
 
   .templates {
@@ -198,6 +277,10 @@
     border-color: var(--accent);
   }
 
+  .template:disabled {
+    opacity: 0.4;
+  }
+
   .grid {
     display: grid;
     grid-template-columns: 44px repeat(3, 1fr);
@@ -215,7 +298,24 @@
   }
 
   .row-head {
-    justify-content: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    line-height: 1.1;
+  }
+
+  .row-day {
+    font-size: 11px;
+  }
+
+  .row-date {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .row-head.holiday .row-date {
+    color: var(--danger);
   }
 
   .slot {
@@ -267,5 +367,10 @@
 
   .simulate:active {
     filter: brightness(1.15);
+  }
+
+  .simulate:disabled {
+    background: var(--card-2);
+    color: var(--muted);
   }
 </style>

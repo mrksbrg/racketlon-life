@@ -112,7 +112,27 @@ export const BALANCE = {
      * (starting money 8000, entry fees 200-900) read as an order of
      * magnitude too high once real entry fees and travel were in place. */
     weeklyExpenses: 280,
-    startingMoney: 1000,
+    /** salary now pays out monthly, not weekly (see systems/economy.ts) —
+     * a new career needs enough cushion to cover ~a month of weeklyExpenses
+     * (up to 5 weeks before the first payday lands) plus room for an early
+     * tournament trip, without going broke before ever seeing a paycheck. */
+    startingMoney: 3000,
+    /** salary = base work pay × (salaryFloor + career × salarySpan) — see
+     * `salaryMultiplier` in systems/effects.ts. A mid-build (career 0.5)
+     * lands back at 1.0×, matching the old flat rate; a maxed Career
+     * attribute pays 1.4×, a dumped one 0.6×. */
+    salaryFloor: 0.6,
+    salarySpan: 0.8,
+  },
+  vacation: {
+    /** annual paid-leave allowance when the player's country has no
+     * `vacationDays` in content — see systems/vacation.ts. */
+    defaultDays: 25,
+    /** age/seniority bonus: +1 day per full `bonusPerYears` years over
+     * `bonusFromAge`, capped at `bonusCap`. A 45-year-old gets +3. */
+    bonusFromAge: 30,
+    bonusPerYears: 5,
+    bonusCap: 5,
   },
   injuryRisk: {
     /** current fatigue adds fatigue/divisor to the weekly injury load */

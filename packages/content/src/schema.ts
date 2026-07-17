@@ -46,6 +46,13 @@ export const namesSchema = z.record(z.string().length(2), namePoolSchema);
 
 /** A country's travel inputs — coordinates for distance, and a relative
  * cost-of-living index (1.0 = baseline) for hotel/food pricing. */
+const holidayScheduleSchema = z.object({
+  /** same date every year, "MM-DD" */
+  fixed: z.array(z.string().regex(/^\d{2}-\d{2}$/)),
+  /** movable feasts as named offsets from Easter Sunday */
+  easter: z.array(z.string().min(1)),
+});
+
 const countrySchema = z.object({
   name: z.string().min(1),
   lat: z.number().min(-90).max(90),
@@ -53,6 +60,10 @@ const countrySchema = z.object({
   costIndex: z.number().positive(),
   /** national federation president, when known */
   president: z.string().min(1).optional(),
+  /** statutory annual paid-leave base (see systems/vacation.ts) */
+  vacationDays: z.number().nonnegative().optional(),
+  /** national public holidays (see systems/holidays.ts) */
+  holidays: holidayScheduleSchema.optional(),
 });
 
 export const countriesSchema = z.record(z.string().length(2), countrySchema);

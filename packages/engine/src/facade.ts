@@ -14,6 +14,7 @@ import type { WeekSummary } from "./model/summary.js";
 import type { Sport } from "./model/sport.js";
 import {
   SPORTS,
+  SPORT_LABELS,
   levelForSkill,
   levelProgress,
   levelRangeForSkill,
@@ -28,12 +29,15 @@ import {
   injuryLoad,
   injuryRiskBucket,
   moneyDeltaFromCounts,
+  salaryMultiplier,
 } from "./systems/effects.js";
+import { publicHolidays } from "./systems/holidays.js";
 import { combinedRating } from "./systems/ranking.js";
 import { firRacePointsTotal, firWorldRanking } from "./systems/ranking-points.js";
 import type { HumanSnapshot } from "./systems/types.js";
 import type { TravelCost, TravelDays } from "./systems/travel.js";
 import { travelCost, travelDays } from "./systems/travel.js";
+import { annualAllowance, vacationDaysUsedBy } from "./systems/vacation.js";
 import type {
   DivisionCode,
   DrawRound,
@@ -74,8 +78,15 @@ export type FatigueBucket = -2 | -1 | 0 | 1 | 2;
 export interface Forecast {
   sports: Record<Sport, GainBucket>;
   fatigue: FatigueBucket;
-  /** expected net EUR, rounded — the one number shown as-is */
+  /** expected cash change to the balance THIS week, rounded — spending and
+   * living expenses only. Work income doesn't land here anymore; it banks
+   * toward `salaryEarned` and pays out on the last week of the month (see
+   * systems/economy.ts), so this is usually zero or negative. */
   money: number;
+  /** expected addition to the pending salary pot this week, rounded — 0 for
+   * an income-free week (e.g. a training camp). Scales with the Career
+   * attribute — see `salaryMultiplier`. */
+  salaryEarned: number;
   injuryRisk: "low" | "medium" | "high";
 }
 
@@ -121,10 +132,10 @@ export interface InjuryView {
 export interface AttrsView {
   endurance: number;
   coreStrength: number;
-  intelligence: number;
+  career: number;
   clutch: number;
   composure: number;
-  resilience: number;
+  fastHealer: number;
 }
 
 /** A rolled personality trait, resolved from `content.traits` for display —
@@ -160,6 +171,13 @@ export interface HumanView {
   fatigue: number;
   soreness: number;
   money: number;
+  /** work income banked so far this month, paid out in one lump sum on the
+   * last week of the month — see systems/economy.ts */
+  pendingSalary: number;
+  /** paid-leave days left this calendar year; may be negative (over-drawn) */
+  remainingVacationDays: number;
+  /** this year's full paid-leave allowance (nationality + age), for "18 / 25" */
+  annualVacationDays: number;
   /** 0..20 per sport — see PlayerCondition.formBySport */
   formBySport: Record<Sport, number>;
   confidence: number;
@@ -727,10 +745,10 @@ export class Game {
       attrs: {
         endurance: levelFromUnit(human.attributes.endurance),
         coreStrength: levelFromUnit(human.attributes.coreStrength),
-        intelligence: levelFromUnit(human.attributes.intelligence),
+        career: levelFromUnit(human.attributes.career),
         clutch: levelFromUnit(human.attributes.clutch),
         composure: levelFromUnit(human.attributes.composure),
-        resilience: levelFromUnit(human.attributes.durability),
+        fastHealer: levelFromUnit(human.attributes.durability),
       },
       traits: human.attributes.traits
         .map((id) => traitView(this.content, id))
@@ -738,6 +756,13 @@ export class Game {
       fatigue: Math.round(human.condition.fatigue),
       soreness: Math.round(human.condition.soreness),
       money: this.state.career.money,
+      pendingSalary: this.state.career.pendingSalary,
+      remainingVacationDays: this.state.career.vacationDaysRemaining,
+      annualVacationDays: annualAllowance(
+        human.identity.nationality,
+        ageOn(this.state.calendar.mondayISO, human.identity.birthDate),
+        this.content,
+      ),
       formBySport: { ...human.condition.formBySport },
       confidence: human.condition.confidence,
       injury: human.condition.injury,
@@ -1057,6 +1082,31 @@ export class Game {
   }
 
   /**
+   * The human's national public holidays for a calendar year, as real dates
+   * — the season calendar marks these red. Derived from the player's
+   * nationality (see systems/holidays.ts); empty for a country with no
+   * modelled holidays.
+   */
+  humanPublicHolidays(year: number): { date: string; name: string }[] {
+    return publicHolidays(humanPlayer(this.state).identity.nationality, year, this.content);
+  }
+
+  /**
+   * Vacation days a drafted week would consume against this week's dates —
+   * live "this week uses X days" feedback in the planner, before it's
+   * committed. Mirrors the draw-down `simulateWeek` applies (see
+   * systems/vacation.ts).
+   */
+  vacationCostThisWeek(plan: PlayerPlan): number {
+    return vacationDaysUsedBy(
+      plan,
+      this.state.calendar.mondayISO,
+      humanPlayer(this.state).identity.nationality,
+      this.content,
+    );
+  }
+
+  /**
    * A public profile for any other player, by id — everything fair to show
    * (identity, a fuzzy per-sport level band, Glicko, FIR standing), nothing
    * hidden and no exact level. Null if the id doesn't resolve to a player in
@@ -1179,14 +1229,15 @@ export class Game {
 
     const fatigueDelta =
       fatigueDeltaFromCounts(counts, this.content, human.attributes.coreStrength) - BALANCE.recovery.weeklyBase * recoveryAgeMultiplier(age);
-    const { earned, spent } = moneyDeltaFromCounts(counts, this.content);
-    const net = earned - spent - BALANCE.economy.weeklyExpenses;
+    const { earned, spent } = moneyDeltaFromCounts(counts, this.content, salaryMultiplier(human.attributes.career));
+    const expenses = spent + BALANCE.economy.weeklyExpenses;
     const rounding = BALANCE.forecast.moneyRounding;
 
     return {
       sports,
       fatigue: fatigueBucket(fatigueDelta),
-      money: Math.round(net / rounding) * rounding,
+      money: -Math.round(expenses / rounding) * rounding,
+      salaryEarned: Math.round(earned / rounding) * rounding,
       injuryRisk: injuryRiskBucket(injuryLoad(counts, this.content, fatigue)),
     };
   }
@@ -1438,6 +1489,10 @@ export class Game {
   enterTournament(): MatchState {
     const def = this.registeredTournamentThisWeek();
     if (!def) throw new Error("Not registered for a tournament this week");
+    const travel = travelCost(humanPlayer(this.state).identity.nationality, def, this.content);
+    if (this.state.career.money < def.entryFee + travel.total) {
+      throw new Error("Insufficient funds for this trip");
+    }
     this.ensureWeekSnapshot();
     const returnSlots = returnTravelSlots(travelDays(humanPlayer(this.state).identity.nationality, def, this.content));
     if (returnSlots.length > 0 && !this.state.career.travelBlocks.some((b) => b.weekIndex === this.state.calendar.weekIndex + 1)) {
@@ -1503,12 +1558,76 @@ export class Game {
    */
   resolveTournamentMatch(finishedMatch: MatchState): TournamentAdvanceResult {
     if (!this.tournamentSession) throw new Error("No active tournament to advance");
+    const before = this.records();
     const result = advanceTournament(this.state, this.tournamentSession, finishedMatch, this.log);
     for (const sibling of this.siblingSessions.values()) advanceSiblingSession(this.state, sibling);
     if (result.status !== "nextRound") {
       for (const sibling of this.siblingSessions.values()) finishSiblingSession(this.state, sibling);
     }
+    this.emitBrokenRecordEmails(before, this.records());
     return result;
+  }
+
+  /**
+   * "FIR Stats Bot" inbox emails for personal bests broken by the match that
+   * just resolved — a diff between `records()` taken right before and right
+   * after this one match. Deliberately skips a category the first time it's
+   * ever set (`before`'s value is null): there's no previous record for a
+   * career's very first win/loss/etc. to "break", so nothing gets emailed
+   * until a later match genuinely improves on it.
+   */
+  private emitBrokenRecordEmails(before: RecordsView, after: RecordsView): void {
+    const notes: string[] = [];
+
+    if (before.biggestWin && after.biggestWin && after.biggestWin.margin > before.biggestWin.margin) {
+      notes.push(
+        `New biggest win: +${after.biggestWin.margin} vs ${after.biggestWin.opponentName} at ${after.biggestWin.tournamentName} (previous best +${before.biggestWin.margin}).`,
+      );
+    }
+    if (before.biggestLoss && after.biggestLoss && after.biggestLoss.margin > before.biggestLoss.margin) {
+      notes.push(
+        `New heaviest defeat: −${after.biggestLoss.margin} vs ${after.biggestLoss.opponentName} at ${after.biggestLoss.tournamentName} (previous worst −${before.biggestLoss.margin}).`,
+      );
+    }
+    for (const sport of SPORTS) {
+      const bw = before.biggestWinBySport[sport];
+      const aw = after.biggestWinBySport[sport];
+      if (bw && aw && aw.margin > bw.margin) {
+        notes.push(`New best ${SPORT_LABELS[sport]} set: ${aw.a}-${aw.b} vs ${aw.opponentName}.`);
+      }
+      const bl = before.biggestLossBySport[sport];
+      const al = after.biggestLossBySport[sport];
+      if (bl && al && al.margin > bl.margin) {
+        notes.push(`Heaviest ${SPORT_LABELS[sport]} set defeat: ${al.a}-${al.b} vs ${al.opponentName}.`);
+      }
+      const bo = before.bestOpponentBySport[sport];
+      const ao = after.bestOpponentBySport[sport];
+      if (bo && ao && ao.rating > bo.rating) {
+        notes.push(`Toughest ${SPORT_LABELS[sport]} opponent yet: ${ao.opponentName} (${ao.rating} rating).`);
+      }
+    }
+    if (
+      before.highestRankedWin &&
+      after.highestRankedWin &&
+      after.highestRankedWin.rank < before.highestRankedWin.rank
+    ) {
+      notes.push(
+        `Best win by ranking yet: beat World No. ${after.highestRankedWin.rank} ${after.highestRankedWin.opponentName}.`,
+      );
+    }
+
+    if (notes.length === 0) return;
+    const week = this.state.calendar.weekIndex;
+    const seq = this.state.career.inbox.filter((m) => m.category === "record" && m.week === week).length;
+    this.state.career.inbox.push({
+      id: `record:${week}:${seq}`,
+      week,
+      category: "record",
+      from: "FIR Stats Bot",
+      subject: notes.length === 1 ? "📈 New personal record" : "📈 New personal records",
+      body: notes.join(" "),
+      read: false,
+    });
   }
 
   /** Releases the concluded tournament's session (own + siblings) once the

@@ -57,6 +57,9 @@ export const SummarySystem: GameSystem = {
         notes.push(d.attribute === "endurance" ? "Cardio built your endurance." : "Gym work built your core strength.");
       } else if (event.type === "condition.warning") {
         notes.push("You are running on fumes — schedule some rest.");
+      } else if (event.type === "economy.salaryPaid") {
+        const d = event.data as { amount: number };
+        notes.push(`💶 Payday! ${eur(d.amount)} salary credited.`);
       } else if (event.type === "economy.broke") {
         notes.push("Your account is in the red. Time to pick up more work?");
       } else if (event.type === "tournament.registered") {

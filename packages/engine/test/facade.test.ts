@@ -450,6 +450,54 @@ describe("Game facade", () => {
     expect(records.biggestWinBySport.tn).toMatchObject({ a: 21, b: 19 });
   });
 
+  it("emails a FIR Stats Bot record-broken note only once a record is later beaten, never the first time it's set", () => {
+    const game = Game.newGame({ content: testContent, seed: "recmail-1" });
+
+    /** Registers, forces the opening match to the given final score (all 4
+     * sets marked done, no simulation involved so the margin is exact), then
+     * auto-plays out the rest of the tournament and submits the week — same
+     * shape as `playTournamentAt` above, but with a controlled first result
+     * so the "biggest win" margin is deterministic. Returns whatever
+     * "record" category inbox messages appeared from that opening match
+     * specifically (before the rest of the tournament could add its own). */
+    function forceOpeningWin(weekIndex: number, sets: [number, number][]) {
+      game.registerForTournament(weekIndex);
+      let guard = 0;
+      while (game.weekIndex < weekIndex && guard++ < 30) game.submitWeek(WORK);
+      const match: MatchState = game.enterTournament();
+      match.sets = sets.map(([a, b]) => ({ a, b, done: true }));
+      match.phase = "finished";
+      match.winner = "a";
+      // `game.inbox` is newest-first, so diff by id rather than assuming
+      // new entries land at either end of the array
+      const idsBefore = new Set(game.inbox.map((m) => m.id));
+      let result = game.resolveTournamentMatch(match);
+      const newRecordMail = game.inbox.filter((m) => m.category === "record" && !idsBefore.has(m.id));
+      while (result.status === "nextRound") {
+        simulateMatchAuto(result.match);
+        result = game.resolveTournamentMatch(result.match);
+      }
+      game.clearConcludedTournament();
+      game.submitWeek(WORK);
+      return newRecordMail;
+    }
+
+    // the very first win of the career — establishes the "biggest win"
+    // record for the first time, so there's nothing to have broken yet
+    const first = forceOpeningWin(3, [[21, 15], [21, 15], [21, 17], [21, 17]]);
+    expect(first).toHaveLength(0);
+
+    // a much bigger win margin — genuinely breaks the record just set above
+    const second = forceOpeningWin(7, [[21, 2], [21, 2], [21, 2], [21, 2]]);
+    expect(second).toHaveLength(1);
+    expect(second[0]).toMatchObject({ category: "record", from: "FIR Stats Bot", read: false });
+    expect(second[0]!.subject).toContain("record");
+    expect(second[0]!.body).toContain("New biggest win");
+
+    // and the inbox actually carries it going forward, not just the return value
+    expect(game.inbox.some((m) => m.category === "record")).toBe(true);
+  });
+
   it("firStanding is null until the human has a counted FIR result", () => {
     const game = Game.newGame({ content: testContent, seed: "f10" });
     expect(game.you.firStanding).toBeNull();

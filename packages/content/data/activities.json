@@ -67,7 +67,7 @@
     "id": "work",
     "label": "Work",
     "short": "Job",
-    "fatigue": 4,
+    "fatigue": 0,
     "money": 65,
     "injuryLoad": 0
   },

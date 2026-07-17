@@ -55,7 +55,7 @@ function raiseCost(key: StatKey, currentLevel: number): number {
 }
 
 /** The character attributes, in display order. */
-export type CharAttr = "endurance" | "coreStrength" | "intelligence" | "clutch" | "composure" | "resilience";
+export type CharAttr = "endurance" | "coreStrength" | "career" | "clutch" | "composure" | "fastHealer";
 
 /** Any stat the pool spends on — the four sports plus the character attributes. */
 export type StatKey = Sport | CharAttr;
@@ -63,10 +63,10 @@ export type StatKey = Sport | CharAttr;
 export const CHAR_ATTRS: readonly CharAttr[] = [
   "endurance",
   "coreStrength",
-  "intelligence",
+  "career",
   "clutch",
   "composure",
-  "resilience",
+  "fastHealer",
 ];
 
 export interface StatMeta {
@@ -87,10 +87,10 @@ export const SPORT_META: Record<Sport, StatMeta> = {
 export const ATTR_META: Record<CharAttr, StatMeta> = {
   endurance: { label: "Endurance", hint: "Fuel for long matches", color: "var(--cardio)" },
   coreStrength: { label: "Core strength", hint: "Built in the gym", color: "var(--gym)" },
-  intelligence: { label: "Intelligence", hint: "Unlocks university studies", color: "var(--tn)" },
+  career: { label: "Career", hint: "Successful civilian career, higher salary", color: "var(--tn)" },
   clutch: { label: "Clutch", hint: "Wins the deciding gummiarm", color: "var(--tt)" },
   composure: { label: "Composure", hint: "Shrugs off setbacks", color: "var(--sq)" },
-  resilience: { label: "Resilience", hint: "Heals fast (läkekött)", color: "var(--ok)" },
+  fastHealer: { label: "Fast Healer", hint: "Heals fast", color: "var(--ok)" },
 };
 
 /** Gendered first-name and shared last-name pools per nationality. */
@@ -316,10 +316,10 @@ export function randomDraft(): CharacterDraft {
     sports: { tt: STAT_MIN, bd: STAT_MIN, sq: STAT_MIN, tn: STAT_MIN },
     endurance: STAT_MIN,
     coreStrength: STAT_MIN,
-    intelligence: STAT_MIN,
+    career: STAT_MIN,
     clutch: STAT_MIN,
     composure: STAT_MIN,
-    resilience: STAT_MIN,
+    fastHealer: STAT_MIN,
     // rolled once here (not at world creation) so the creation screen can
     // preview the exact traits the career will start with
     traits: rollTraits(new Rng(`draft-${Math.random()}`), defaultContent),

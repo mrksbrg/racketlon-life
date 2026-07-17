@@ -26,6 +26,8 @@ export * from "./systems/division.js";
 export * from "./systems/injury.js";
 export * from "./systems/inbox.js";
 export * from "./systems/travel.js";
+export * from "./systems/holidays.js";
+export * from "./systems/vacation.js";
 export * from "./systems/progression.js";
 export * from "./systems/age.js";
 export * from "./orchestrator.js";

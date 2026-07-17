@@ -66,6 +66,7 @@
     entries={store.seasonTournaments}
     injurySpan={store.injurySpan}
     trainedWeeks={store.trainedWeeks}
+    holidays={store.holidays}
     weekIndex={store.weekIndex}
     onSelectWeek={onCalendarSelectWeek}
   />
@@ -168,7 +169,7 @@
             <span>Hotel & food ({t.nights}n)</span>
             <span>{formatMoney(entry.travelCost.stay)}</span>
           </div>
-          <div class="detail-row total">
+          <div class="detail-row total" class:insufficient={entry.isThisWeek && !store.canAffordTournamentThisWeek}>
             <span>Total to play</span>
             <span>{formatMoney(choice.def.entryFee + entry.travelCost.total)}</span>
           </div>
@@ -190,7 +191,9 @@
               {#if divisionFor(entry) !== t.division}
                 <button class="enter" onclick={() => void store.registerForTournament(entry.weekIndex, divisionFor(entry))}>Switch class ▸</button>
               {:else if canPlayNow}
-                <button class="enter" onclick={() => store.enterTournament()}>Play now ▸</button>
+                <button class="enter" disabled={!store.canAffordTournamentThisWeek} onclick={() => store.enterTournament()}>
+                  {store.canAffordTournamentThisWeek ? "Play now ▸" : "Can't afford this trip"}
+                </button>
               {/if}
             {/if}
           </div>
@@ -359,6 +362,10 @@
     font-weight: 800;
   }
 
+  .detail-row.total.insufficient span:last-child {
+    color: var(--danger);
+  }
+
   .detail-row .domestic {
     color: var(--ok);
     font-weight: 600;
@@ -478,6 +485,11 @@
     font-size: 13px;
     border-radius: 8px;
     padding: 8px 14px;
+  }
+
+  .enter:disabled {
+    background: var(--card-2);
+    color: var(--muted);
   }
 
   .season {

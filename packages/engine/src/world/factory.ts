@@ -1,6 +1,6 @@
 import { BALANCE } from "../balance.js";
 import type { ContentBundle, RealPlayerDef, TraitTone } from "../content.js";
-import { startCalendar } from "../core/date.js";
+import { ageOn, startCalendar, yearOfWeek } from "../core/date.js";
 import { Rng, childSeed } from "../core/rng.js";
 import type { GameState } from "../core/state.js";
 import { SAVE_VERSION } from "../core/state.js";
@@ -8,6 +8,7 @@ import type { Glicko, Player, Ratings, SimTier, Skills } from "../model/player.j
 import type { Sport } from "../model/sport.js";
 import { SPORTS, skillForLevel } from "../model/sport.js";
 import { generateInboxMessages } from "../systems/inbox.js";
+import { annualAllowance } from "../systems/vacation.js";
 import { combinedRating } from "../systems/ranking.js";
 
 const RARITY_WEIGHT = { common: 60, uncommon: 30, rare: 10 } as const;
@@ -102,7 +103,7 @@ interface PlayerSpec {
   professionalism: number;
   endurance: number;
   coreStrength: number;
-  intelligence: number;
+  career: number;
   clutch: number;
   composure: number;
   traits: string[];
@@ -130,7 +131,7 @@ function makePlayer(spec: PlayerSpec): Player {
       professionalism: spec.professionalism,
       endurance: spec.endurance,
       coreStrength: spec.coreStrength,
-      intelligence: spec.intelligence,
+      career: spec.career,
       clutch: spec.clutch,
       composure: spec.composure,
       traits: spec.traits,
@@ -170,11 +171,11 @@ export interface CharacterDraft {
   /** 1–20 each */
   endurance: number;
   coreStrength: number;
-  intelligence: number;
+  career: number;
   clutch: number;
   composure: number;
-  /** 1–20, "Läkekött" → durability */
-  resilience: number;
+  /** 1–20, maps to durability */
+  fastHealer: number;
   /** rolled once when the draft is created (see {@link rollTraits}) — carried
    * through as-is so what's previewed on the creation screen is what the
    * career actually gets, rather than re-rolled at world creation. */
@@ -201,12 +202,12 @@ function specFromDraft(draft: CharacterDraft, rng: Rng): PlayerSpec {
     skills,
     // potential is a hidden per-sport ceiling roll — not point-bought on the screen
     potential: rollPotential(rng, 0.45, 0.8),
-    durability: unitFromLevel(draft.resilience),
+    durability: unitFromLevel(draft.fastHealer),
     // the human plans manually, so professionalism (an AI-planning input) is neutral
     professionalism: 0.7,
     endurance: unitFromLevel(draft.endurance),
     coreStrength: unitFromLevel(draft.coreStrength),
-    intelligence: unitFromLevel(draft.intelligence),
+    career: unitFromLevel(draft.career),
     clutch: unitFromLevel(draft.clutch),
     composure: unitFromLevel(draft.composure),
     // rolled on the creation screen already — see CharacterDraft.traits
@@ -252,7 +253,7 @@ function specFromRealPlayer(def: RealPlayerDef, worldSeed: string): PlayerSpec {
     // RealPlayerDef.endurance (and its coreStrength/clutch/composure siblings)
     endurance: Math.max(0, Math.min(1, rng.normal(def.endurance, BALANCE.import.enduranceJitter))),
     coreStrength: Math.max(0, Math.min(1, rng.normal(def.coreStrength, BALANCE.import.coreStrengthJitter))),
-    intelligence: rng.range(0.2, 0.9),
+    career: rng.range(0.2, 0.9),
     clutch: Math.max(0, Math.min(1, rng.normal(def.clutch, BALANCE.import.clutchJitter))),
     composure: Math.max(0, Math.min(1, rng.normal(def.composure, BALANCE.import.composureJitter))),
     // real-player traits are M4 scope — see docs/06
@@ -290,7 +291,7 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
         professionalism: 0.7,
         endurance: 0.55,
         coreStrength: 0.55,
-        intelligence: 0.5,
+        career: 0.5,
         clutch: 0.5,
         composure: 0.5,
         traits: rollTraits(rng, content),
@@ -299,6 +300,10 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
       };
 
   const players: Player[] = [makePlayer(human)];
+
+  const startCal = startCalendar();
+  const startYear = yearOfWeek(startCal, 0);
+  const startAge = ageOn(startCal.mondayISO, human.birthDate);
 
   // Real racketlon players imported from scraped FIR ratings (see
   // packages/content/src/import/README.md) — the world-bundle roster is
@@ -340,6 +345,9 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
       travelBlocks: [],
       headToHeadSets: {},
       completedDraws: {},
+      vacationYear: startYear,
+      vacationDaysRemaining: annualAllowance(human.nationality, startAge, content),
+      pendingSalary: 0,
     },
   };
 

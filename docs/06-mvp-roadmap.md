@@ -56,22 +56,43 @@ The "one more week" test.
   else), plus a real TravelSystem cost (see M2) makes tournaments a genuine
   expense, not pocket change. This closes out M1.
 
-## M2 — Real world
+## M2 — Real world ✅ (done)
 
-- FIR import pipeline: CSV/JSON interchange → `world-bundle.json`
-  (Glicko → skill mapping, RD-based sampling, deterministic hidden attributes)
-- Season calendar of real-style tournaments (Copenhagen Open, Swedish Open…)
-- ~~TravelSystem: distance, cost, hotel tier, travel fatigue~~ ⚠️ *distance +
-  cost pulled forward, hotel tier + travel fatigue still open:* `systems/travel.ts`
-  — haversine flight cost (home ⇄ host city, `countries.json` coordinates) +
-  hotel/food (`nights` × host country `costIndex`), charged alongside the
-  entry fee at tournament entry, forecast on Tour/TournamentDay/the inbox
-  invitation. Domestic events (host country = home) are a deliberate
-  simplification at zero cost — no intra-country modeling yet. Still open:
-  hotel *tier* choice (currently one fixed rate) and travel *fatigue* (a trip
-  costs money only, no energy/condition effect yet).
-- Tournament entry UI (browse calendar, enter, plan the travel week)
-- Goal-based autofill ("Prepare for Copenhagen Open", "Save money", "Build tennis")
+- ~~FIR import pipeline: CSV/JSON interchange → `world-bundle.json`
+  (Glicko → skill mapping, RD-based sampling, deterministic hidden
+  attributes)~~ ✅ done — `packages/content/src/import/`: a private FIR
+  scraper's CSVs (gitignored inputs) get parsed, joined, and mapped
+  (Glicko → 0–1000 skill, IOC-3 → ISO-2 country codes, FIR ranking points
+  bridged via `guid`) into the committed `data/world-bundle.json`. At world
+  creation, `world/factory.ts` samples each real player's exact per-sport
+  skill and hidden attributes from a deterministic per-world RNG stream
+  around that base rating, so the same player differs slightly career to
+  career without contradicting the real data. See
+  `packages/content/src/import/README.md`.
+- ~~Season calendar of real-style tournaments (Copenhagen Open, Swedish
+  Open…)~~ ✅ done — `SeasonCalendar.svelte` lays out the whole current year
+  (past, present, future) from `store.seasonTournaments`, sourced from the
+  real `world-bundle.json` events.
+- ~~TravelSystem: distance, cost, hotel tier, travel fatigue~~ ✅ good enough
+  for now — `systems/travel.ts`: haversine flight cost (home ⇄ host city,
+  `countries.json` coordinates) + hotel/food (`nights` × host country
+  `costIndex`), charged alongside the entry fee at tournament entry, forecast
+  on Tour/TournamentDay/the inbox invitation. Domestic events (host country =
+  home) are a deliberate simplification at zero cost — no intra-country
+  modeling yet. Hotel *tier* choice (one fixed rate) and travel *fatigue*
+  (money cost only, no energy/condition effect) are deliberately parked, not
+  missing — revisit only if playtesting says the single rate feels wrong.
+- ~~Tournament entry UI (browse calendar, enter, plan the travel week)~~ ✅
+  done — `Tour.svelte` (browse/enter, travel + entry-fee forecast) and
+  `TournamentDay.svelte` (play it out) cover the flow end to end.
+- ~~Goal-based autofill ("Prepare for Copenhagen Open", "Save money", "Build
+  tennis")~~ ✅ decided against — the static quick-plan templates
+  (`TEMPLATES` in `store.svelte.ts`: Balanced, Focus on work, Recovery,
+  Training camp) already cover the "just fill my week" need. A dynamic
+  autofill that reacts to game state risks deciding *for* the player on
+  things (which sport to focus, when to rest, how hard to push before a
+  tournament) that are meant to be their calls to make, not the game's.
+  Revisit only if the fixed templates prove insufficient in play.
 
 ## M3 — Living world
 
@@ -100,4 +121,4 @@ The "one more week" test.
 - `npm test` — engine + content suites green
 - `npm run check` — tsc + svelte-check clean
 - `npm run dev` — playable weekly loop on a phone-sized screen
-- Docs 01–06 describe the target design; code matches docs for everything marked M0
+- Docs 01–06 describe the target design; code matches docs for everything marked M0–M2 done

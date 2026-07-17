@@ -15,6 +15,18 @@ export interface NamePool {
   last: string[];
 }
 
+/** Public-holiday schedule for a country, resolved per calendar year by
+ * systems/holidays.ts. `fixed` dates repeat every year; `easter` names are
+ * offsets from Easter Sunday (movable feasts), so both stay correct across a
+ * multi-year career without per-year data. */
+export interface HolidaySchedule {
+  /** same date every year, as "MM-DD" (e.g. "12-25") */
+  fixed: string[];
+  /** movable feasts as named offsets from Easter Sunday — see
+   * systems/holidays.ts's EASTER_OFFSETS (e.g. "good-friday", "easter-monday") */
+  easter: string[];
+}
+
 /** A country's TravelSystem inputs — coordinates for distance, and a relative
  * cost-of-living index (1.0 = baseline) for hotel/food pricing. */
 export interface CountryDef {
@@ -26,6 +38,14 @@ export interface CountryDef {
    * to this country (e.g. a player's own nationality). Not every federation
    * has a name on file yet, so this is optional. */
   president?: string;
+  /** statutory annual paid-leave base for a player based here — the vacation
+   * allowance (plus an age bonus) reset each Jan (see systems/vacation.ts).
+   * Optional: falls back to BALANCE.vacation.defaultDays. */
+  vacationDays?: number;
+  /** national public holidays — days off that don't cost vacation and show
+   * red on the calendar (see systems/holidays.ts). Optional: no entry means
+   * no modelled holidays for that country yet. */
+  holidays?: HolidaySchedule;
 }
 
 /** A named person holding an international FIR role — flavor source for the

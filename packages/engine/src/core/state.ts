@@ -83,7 +83,14 @@ import type { Calendar } from "./date.js";
 // stays viewable afterward instead of vanishing with the ephemeral
 // `TournamentSession`. A new required field an old save's career lacks, so
 // it's discarded like the other shape changes above.
-export const SAVE_VERSION = 21;
+// v22: Career gained `vacationDaysRemaining` and `vacationYear` (the annual
+// paid-leave pot that weekday non-work draws down — see systems/vacation.ts),
+// new required fields an old save's career lacks, so it's discarded.
+// v23: Career gained `pendingSalary` — work income now banks here weekly and
+// pays out as one lump sum on the last week of each calendar month (see
+// systems/economy.ts) rather than landing in `money` every week. A new
+// required field an old save's career lacks, so it's discarded.
+export const SAVE_VERSION = 23;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
@@ -121,7 +128,7 @@ export interface InboxMessage {
   id: string;
   /** week the message arrived */
   week: number;
-  category: "welcome" | "invitation" | "ranking" | "result" | "coach" | "draw";
+  category: "welcome" | "invitation" | "ranking" | "result" | "coach" | "draw" | "record";
   from: string;
   subject: string;
   body: string;
@@ -228,6 +235,18 @@ export interface Career {
    * `weekIndex` — see `CompletedDraw`. Bounded by the season's own size
    * (currently ~16 tournament weeks total), not pruned. */
   completedDraws: Record<number, CompletedDraw>;
+  /** paid-leave days left in the current calendar year; every Mon–Fri
+   * Morning/Afternoon slot not spent working (and not a public holiday) draws
+   * this down by 0.5. May go negative (over-drawn leave), shown red. Resets
+   * each Jan to the nationality + age allowance — see systems/vacation.ts. */
+  vacationDaysRemaining: number;
+  /** the calendar year `vacationDaysRemaining` currently applies to; a sim
+   * crossing into a new year triggers a reset. */
+  vacationYear: number;
+  /** work income banked so far this calendar month — paid out into `money`
+   * in one lump sum on the last week of the month, then reset to 0. See
+   * systems/economy.ts. */
+  pendingSalary: number;
 }
 
 export interface GameState {

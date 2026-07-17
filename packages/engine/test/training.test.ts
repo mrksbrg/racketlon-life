@@ -131,7 +131,11 @@ describe("training", () => {
 
     expect(summary.sports.tt.skillDelta).toBe(0);
     expect(summary.sports.bd.skillDelta).toBeGreaterThan(0);
-    expect(summary.money.delta).toBe(1640);
+    // the 3 soreness-blocked trainTT sessions cost nothing (they didn't
+    // happen); work income banks toward payday instead of landing here —
+    // see systems/economy.ts
+    expect(summary.money.delta).toBe(-760);
+    expect(soreGame.you.pendingSalary).toBe(3 * 800);
     expect(after.condition.soreness).toBe(0);
     expect(after.condition.sorenessStartedWeek).toBeNull();
   });

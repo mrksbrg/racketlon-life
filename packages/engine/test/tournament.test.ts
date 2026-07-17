@@ -137,7 +137,7 @@ describe("bracket seeding", () => {
         professionalism: 0.5,
         endurance: 0.5,
         coreStrength: 0.5,
-        intelligence: 0.5,
+        career: 0.5,
         clutch: 0.5,
         composure: 0.5,
         traits: [],
@@ -258,10 +258,13 @@ describe("tournament registration", () => {
     game.registerForTournament(3);
     const rightAfterRegistering = game.you.money;
     advanceUntil(game, () => game.weekIndex === 3);
-    // three weeks of WORK_PLAN earn money regardless of the tournament; the
-    // point is that none of that delta is the -300 entry fee yet
+    // three weeks of WORK_PLAN drain only living expenses immediately — the
+    // salary itself banks toward payday (see systems/economy.ts), not yet
+    // paid at week 3's arrival; the point is none of this delta is the -300
+    // entry fee yet
     const arrived = game.you.money;
-    expect(arrived).toBeGreaterThan(rightAfterRegistering); // plain weekly income, not a fee deduction
+    expect(arrived).toBe(rightAfterRegistering - 3 * BALANCE.economy.weeklyExpenses);
+    expect(game.you.pendingSalary).toBe(3 * 5 * 800);
     game.enterTournament();
     expect(game.you.money).toBe(arrived - 300);
   });
@@ -301,21 +304,28 @@ describe("tournament registration", () => {
     game.registerForTournament(3);
     advanceUntil(game, () => game.weekIndex === 3); // arrive at the tournament week...
     const before = game.you.money;
+    const pendingBefore = game.you.pendingSalary;
     game.submitWeek(WORK_PLAN); // ...and let it pass without calling enterTournament()
     const def = testContent.tournaments["monthly-open-1-m"]!;
-    const workDelta = 5 * 800 - BALANCE.economy.weeklyExpenses;
-    expect(game.you.money).toBe(before - def.entryFee + workDelta);
+    // week 3 (Jan 26) is the last week of January, so this week's own salary
+    // plus everything banked so far pays out as one lump sum — see
+    // systems/economy.ts
+    const paidOut = pendingBefore + 5 * 800;
+    expect(game.you.money).toBe(before - def.entryFee - BALANCE.economy.weeklyExpenses + paidOut);
+    expect(game.you.pendingSalary).toBe(0);
   });
 
   it("does not double-charge a no-show fee if the tournament was actually played", () => {
     const game = Game.newGame({ content: testContent, seed: "reg-12" });
     registerAndAdvanceTo(game, 3);
     const before = game.you.money;
+    const pendingBefore = game.you.pendingSalary;
     const { result } = playTournamentToWeekEnd(game, WORK_PLAN);
     const def = testContent.tournaments["monthly-open-1-m"]!;
-    const workDelta = 5 * 800 - BALANCE.economy.weeklyExpenses;
+    const paidOut = pendingBefore + 5 * 800;
     // exactly one fee deduction (the normal entry fee), not two
-    expect(game.you.money).toBe(before - def.entryFee + result.prizeMoney + workDelta);
+    expect(game.you.money).toBe(before - def.entryFee + result.prizeMoney - BALANCE.economy.weeklyExpenses + paidOut);
+    expect(game.you.pendingSalary).toBe(0);
   });
 
   describe("class choice (playing up)", () => {
@@ -403,6 +413,7 @@ describe("tournament facade flow", () => {
     const game = Game.newGame({ content: testContent, seed: "tour-prep" });
     registerAndAdvanceTo(game, 3);
     const before = game.you.money;
+    const pendingBefore = game.you.pendingSalary;
     const ttBefore = game.you.sports.tt.level + game.you.sports.tt.progress;
     const prepPlan = emptyPlan();
     prepPlan.slots[slotIndex(2, 0)] = "trainTT";
@@ -411,7 +422,10 @@ describe("tournament facade flow", () => {
 
     game.prepareAndEnterTournament(prepPlan);
 
-    expect(game.you.money).toBe(before - 3 * 60 - BALANCE.economy.weeklyExpenses - 300);
+    // week 3 (Jan 26) is the last week of January — the prep pass runs the
+    // full economy (including payday) before the entry fee is charged
+    expect(game.you.money).toBe(before - 3 * 60 - BALANCE.economy.weeklyExpenses + pendingBefore - 300);
+    expect(game.you.pendingSalary).toBe(0);
     expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBeGreaterThan(ttBefore);
   });
 
@@ -481,10 +495,10 @@ describe("tournament facade flow", () => {
       sports: { tt: 10, bd: 10, sq: 10, tn: 10 },
       endurance: 10,
       coreStrength: 10,
-      intelligence: 10,
+      career: 10,
       clutch: 10,
       composure: 10,
-      resilience: 10,
+      fastHealer: 10,
       traits: [],
     };
     const game = Game.newGame({ content, character, seed: "tour-long-haul" });
@@ -498,7 +512,11 @@ describe("tournament facade flow", () => {
       slotIndex(3, 0), slotIndex(3, 1), slotIndex(3, 2),
     ]);
 
-    game.enterTournament();
+    // week 3 (Jan 26) is the last week of January — go through the real
+    // entry path (prepareAndEnterTournament) so that month's banked salary
+    // pays out before the entry fee + long-haul travel cost is charged,
+    // exactly like the Planner's "Play tournament" button does
+    game.prepareAndEnterTournament(emptyPlan());
     game.submitWeek(WORK_PLAN);
     expect(game.travelBlocksThisWeek()[0]?.slotIndices).toEqual([
       slotIndex(0, 0), slotIndex(0, 1), slotIndex(0, 2),
@@ -537,12 +555,15 @@ describe("tournament facade flow", () => {
     const game = Game.newGame({ content: testContent, seed: "tour-5" });
     registerAndAdvanceTo(game, 3);
     const before = game.you.money;
+    const pendingBefore = game.you.pendingSalary;
     // playTournamentToWeekEnd loops until the bracket concludes, so `result`
     // is always "eliminated" or "won" here — never "nextRound"
     const { result } = playTournamentToWeekEnd(game, WORK_PLAN);
 
-    const workDelta = 5 * 800 - BALANCE.economy.weeklyExpenses;
-    expect(game.you.money).toBe(before - 300 + result.prizeMoney + workDelta);
+    // week 3 (Jan 26) is the last week of January — this week's salary plus
+    // everything banked so far pays out during submitWeek
+    const paidOut = pendingBefore + 5 * 800;
+    expect(game.you.money).toBe(before - 300 + result.prizeMoney - BALANCE.economy.weeklyExpenses + paidOut);
   });
 
   it("produces a WeekSummary note naming the tournament", () => {
@@ -665,10 +686,10 @@ describe("monrad placement bracket", () => {
     sports: { tt: 20, bd: 20, sq: 20, tn: 20 },
     endurance: 20,
     coreStrength: 20,
-    intelligence: 20,
+    career: 20,
     clutch: 20,
     composure: 20,
-    resilience: 20,
+    fastHealer: 20,
     traits: [],
   };
 

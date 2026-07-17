@@ -11,12 +11,14 @@
     entries,
     injurySpan,
     trainedWeeks,
+    holidays,
     weekIndex,
     onSelectWeek,
   }: {
     entries: SeasonTournamentEntry[];
     injurySpan: InjurySpanView | null;
     trainedWeeks: TrainedWeekView[];
+    holidays: { date: string; name: string }[];
     weekIndex: number;
     onSelectWeek: (weekIndex: number) => void;
   } = $props();
@@ -54,6 +56,8 @@
   const trainedSpans = $derived(
     trainedWeeks.map((w) => ({ start: w.date, end: addDays(w.date, 6), sports: w.sports })),
   );
+
+  const holidayByDate = $derived(new Map(holidays.map((h) => [h.date, h.name])));
 
   // seeds the initial month from the prop directly (not the `todayISO`
   // derived value) so this only runs once at mount, not every time the
@@ -93,6 +97,7 @@
     tournament: (typeof tournamentSpans)[number] | null;
     injured: boolean;
     trained: Sport[];
+    holidayName: string | null;
   }
 
   const cells: Cell[] = $derived.by(() => {
@@ -120,6 +125,7 @@
         tournament,
         injured,
         trained: trainedWeek ? trainedWeek.sports : [],
+        holidayName: c.date ? (holidayByDate.get(c.date) ?? null) : null,
       };
     });
   });
@@ -132,7 +138,7 @@
 
   const agenda = $derived.by(() => {
     const monthPrefix = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
-    const items: { key: string; weekIndex: number | null; label: string; sub: string; kind: "tournament" | "injury" }[] = [];
+    const items: { key: string; weekIndex: number | null; label: string; sub: string; kind: "tournament" | "injury" | "holiday" }[] = [];
     const seen = new Set<number>();
     for (const t of tournamentSpans) {
       if (seen.has(t.weekIndex)) continue;
@@ -154,6 +160,16 @@
         label: `🤕 ${label} injury`,
         sub: `Blocks training until ${fmt(injurySpan.endDate)}`,
         kind: "injury",
+      });
+    }
+    for (const h of holidays) {
+      if (!h.date.startsWith(monthPrefix)) continue;
+      items.push({
+        key: `h${h.date}`,
+        weekIndex: null,
+        label: `🔴 ${h.name}`,
+        sub: fmt(h.date),
+        kind: "holiday",
       });
     }
     return items;
@@ -200,8 +216,8 @@
           <span class="marker">{c.tournament.status === "played" ? "✓" : "🏆"}</span>
         </button>
       {:else}
-        <div class="cell" class:injured={c.injured} class:dim={!c.inMonth} class:today={c.isToday}>
-          <span class="num">{c.dayNum}</span>
+        <div class="cell" class:injured={c.injured} class:dim={!c.inMonth} class:today={c.isToday} title={c.holidayName ?? undefined}>
+          <span class="num" class:holiday={c.holidayName}>{c.dayNum}</span>
           <span class="marker">
             {#if c.injured}
               <span class="dot danger"></span>
@@ -364,6 +380,11 @@
   .num {
     font-size: 12px;
     color: var(--text);
+  }
+
+  .num.holiday {
+    color: var(--danger);
+    font-weight: 700;
   }
 
   .marker {

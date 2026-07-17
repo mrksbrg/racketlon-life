@@ -302,6 +302,14 @@ pattern as Ranking): `trainingAgeMultiplier` (effects.ts's
   natural recovery stays modest (`recovery.weeklyBase` 10) while dedicated `rest`
   slots are strong enough to carry the deload (`rest` activity fatigue −6 in
   content). Still a numeric nudge, not a redesign — wants real playtesting.
+- `work` carries no fatigue (content `work.fatigue` 0): it's ordinary desk-job
+  office work, not physical exertion, so a working week still lets the body
+  recover — only the day's physical activities (training, gym, cardio, travel)
+  should cost fatigue. This is why the in-app "Recovery" template (all-week
+  `work` + a token cardio/gym/social) now actually sheds most fatigue instead
+  of roughly cancelling out against it. A future pass could give `work` its
+  own small *mental*-fatigue track distinct from physical fatigue — out of
+  scope for now.
 - Diminishing returns are visible in forecasts (best sport shows `+` while weaker
   sports show `++` for the same session count) — good, keep.
 - Money pressure (entry fees vs. work vs. training costs) is still untouched from M0 —

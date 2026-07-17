@@ -28,6 +28,9 @@
     <span class="chip" class:bad={f.money < 0} class:good={f.money > 0}>
       {formatSignedMoney(f.money)}
     </span>
+    {#if f.salaryEarned > 0}
+      <span class="chip good">💰 {formatSignedMoney(f.salaryEarned)} payday</span>
+    {/if}
     <span class="chip risk-{f.injuryRisk}">✚ {f.injuryRisk}</span>
   </div>
 {/if}

@@ -8,10 +8,15 @@
     slotIndex,
     onpick,
     onclose,
+    unavailable = {},
   }: {
     slotIndex: number;
     onpick: (activity: ActivityType) => void;
     onclose: () => void;
+    /** activity types that can't be picked for this slot, mapped to the
+     * reason shown in place of the usual effect hint — e.g. work is closed
+     * on a public holiday. */
+    unavailable?: Partial<Record<ActivityType, string>>;
   } = $props();
 
   const PICKABLE_ACTIVITY_TYPES = ACTIVITY_TYPES.filter((type) => type !== "travel");
@@ -39,10 +44,11 @@
   <h3>{day} {period}</h3>
   <div class="grid">
     {#each PICKABLE_ACTIVITY_TYPES as type (type)}
-      <button class="option" onclick={() => onpick(type)}>
+      {@const blockedReason = unavailable[type]}
+      <button class="option" class:blocked={!!blockedReason} disabled={!!blockedReason} onclick={() => onpick(type)}>
         <span class="dot" style:background={ACTIVITY_COLORS[type]}></span>
         <span class="label">{defaultContent.activities[type].label}</span>
-        <span class="hint">{hint(type)}</span>
+        <span class="hint">{blockedReason ?? hint(type)}</span>
       </button>
     {/each}
   </div>
@@ -103,6 +109,19 @@
 
   .option:active {
     background: var(--border);
+  }
+
+  .option.blocked {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .option.blocked:active {
+    background: var(--card-2);
+  }
+
+  .option.blocked .hint {
+    color: var(--danger);
   }
 
   .dot {

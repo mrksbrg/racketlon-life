@@ -59,7 +59,9 @@ export const testContent: ContentBundle = {
   // Game.newGame is called without a `character`) — NO is a foreign
   // destination for travel-cost tests.
   countries: {
-    SE: { name: "Sweden", lat: 60, lon: 15, costIndex: 1, president: "Test President" },
+    // A single fixed holiday on 2026-06-10 (a Wednesday) lets vacation tests
+    // check the holiday exemption deterministically; 25-day base matches SE.
+    SE: { name: "Sweden", lat: 60, lon: 15, costIndex: 1, president: "Test President", vacationDays: 25, holidays: { fixed: ["06-10"], easter: [] } },
     NO: { name: "Norway", lat: 60, lon: 5, costIndex: 1.5 },
   },
   firOfficials: {
