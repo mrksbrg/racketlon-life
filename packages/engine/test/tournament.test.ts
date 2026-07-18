@@ -828,14 +828,17 @@ describe("monrad placement bracket", () => {
     );
   });
 
-  it("bands a 16-draw into 1st, 2nd, and seven tied pairs once the 3-game cap bites", () => {
+  it("bands a 16-draw into 1st, 2nd, 3rd, 4th, and six tied pairs once the 3-game cap bites", () => {
     // The 3-game plate cap can't be satisfied for a 16-draw (log2(16) = 4
     // rounds, one more than the cap), so unlike an 8-draw this DOES produce
-    // ties. The shape is fully determined by the cap + bracket size alone
-    // (see the module doc comment's worked example), regardless of who
-    // actually wins which match:
+    // ties below the podium. The shape is fully determined by the cap +
+    // bracket size alone (see the module doc comment's worked example),
+    // regardless of who actually wins which match:
     //   - the champion and runner-up are always distinct (the unbeaten
     //     lineage is never capped, so the final is always played out)
+    //   - 3rd and 4th are likewise always distinct — the true semifinal's
+    //     losers are exempt from the cap too, so the bronze match is always
+    //     played (see buildNextGroups)
     //   - every other lineage freezes the instant it would need a 4th game,
     //     which — for exactly this bracket size — always happens at group
     //     size 2, never larger and never smaller
@@ -857,7 +860,7 @@ describe("monrad placement bracket", () => {
     expect(session.groups.every((g) => g.frozen || g.participants.length === 1)).toBe(true);
 
     const sizes = session.groups.map((g) => g.participants.length).sort((a, b) => a - b);
-    expect(sizes).toEqual([1, 1, 2, 2, 2, 2, 2, 2, 2]); // 2 distinct + 7 tied pairs
+    expect(sizes).toEqual([1, 1, 1, 1, 2, 2, 2, 2, 2, 2]); // 4 distinct (1st-4th) + 6 tied pairs
     expect(sizes.reduce((a, b) => a + b, 0)).toBe(16);
 
     // every entrant appears in exactly one group
@@ -1518,6 +1521,39 @@ describe("sibling division sessions", () => {
     for (const id of session.bracketBySeed) {
       expect(getPlayer(state, id).recentResults).toHaveLength(1);
     }
+  });
+
+  it("plays a real Bronze Medal Match for 3rd/4th on a 16-field draw, not just a tied band", () => {
+    // Regression: reaching the semifinal in anything bigger than an 8-field
+    // draw already costs the losers their 3 allotted plate games, so without
+    // the bronze exemption in buildNextGroups they'd get frozen into a tied
+    // 3rd/4th band with no match ever played — exactly the bug reported from
+    // playtesting a real (16-field) tournament.
+    const def = testContent.tournaments["intl-open-2-a-m"]!;
+    expect(def.fieldSize).toBe(16);
+    const game = Game.newGame({ content: testContent, seed: "sib-bronze-1" });
+    const state = game.serialize().state;
+    const session = startSiblingSession(state, def, 30, testContent);
+    finishSiblingSession(state, session);
+    expect(isSiblingConcluded(session)).toBe(true);
+
+    const rounds = drawRounds(state, session);
+    const last = rounds[rounds.length - 1]!;
+    const bronze = last.sections.find((s) => s.roundName === "Bronze Medal Match");
+    expect(bronze).toBeDefined();
+    expect(bronze!.positionFrom).toBe(3);
+    expect(bronze!.positionTo).toBe(4);
+    expect(bronze!.matchups).toHaveLength(1);
+    // a genuinely played match, not a placeholder: real winner and set scores
+    expect(bronze!.matchups[0]!.winnerId).not.toBeNull();
+    expect(bronze!.matchups[0]!.sets).toHaveLength(4);
+
+    // and the two contenders end up at distinct positions 3 and 4, not tied
+    const seenPositions = new Set(
+      session.bracketBySeed.map((id) => getPlayer(state, id).recentResults[0]!.finishingPosition),
+    );
+    expect(seenPositions.has(3)).toBe(true);
+    expect(seenPositions.has(4)).toBe(true);
   });
 });
 

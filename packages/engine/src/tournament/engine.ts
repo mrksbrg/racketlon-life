@@ -33,18 +33,21 @@ import { distanceKm, travelCost } from "../systems/travel.js";
  *
  * The single lineage that has never lost — the "main draw" — always plays on
  * to a genuine final: 1st and 2nd are always decided by an actual match,
- * however many rounds that takes (`log2(fieldSize)`). The moment a player
- * loses for the first time, they drop into a plate lineage and keep getting
- * real matches against fellow losers until they've played 3 games total (or
- * the plate lineage itself shrinks to a single player, whichever comes
- * first). If there's still room for one more real match when it's a plate
- * group's turn, it's played — a genuine decisive result, exactly like a
- * bronze-medal match. Only when the *next* match would be a 4th game does
- * that group stop instead, sharing a tied position band (best position used
- * for ranking points — see `rankingPointsFor`). For an 8-player draw this
- * never actually bites (3 rounds total == the cap), so every entrant still
- * gets a fully distinct place 1..8; bigger draws progressively band deeper
- * losers together the further they are from the final. See `buildNextGroups`
+ * however many rounds that takes (`log2(fieldSize)`). Likewise, the losers of
+ * the true semifinal — the other podium spot — always play a genuine
+ * bronze-medal match for 3rd/4th, regardless of the 3-game cap below; a
+ * podium needs a real bronze match exactly as much as it needs a real final.
+ * The moment any other player loses, they drop into a plate lineage and keep
+ * getting real matches against fellow losers until they've played 3 games
+ * total (or the plate lineage itself shrinks to a single player, whichever
+ * comes first). If there's still room for one more real match when it's a
+ * plate group's turn, it's played — a genuine decisive result. Only when the
+ * *next* match would be a 4th game does that group stop instead, sharing a
+ * tied position band (best position used for ranking points — see
+ * `rankingPointsFor`). For an 8-player draw this never actually bites (3
+ * rounds total == the cap), so every entrant still gets a fully distinct
+ * place 1..8; bigger draws progressively band deeper losers together the
+ * further they are from the final. See `buildNextGroups`
  * for the mechanics and `advanceTournament` for how a player's own result is
  * known the moment their lineage is decided, independent of the rest of the
  * field.
@@ -64,10 +67,15 @@ import { distanceKm, travelCost } from "../systems/travel.js";
  * until the week concludes — a deliberate M1 simplification.
  */
 
-/** Cap on `Player.recentResults` — the newest few tournaments only, so save
- * size stays bounded across a long career (every division's field, not just
- * the human's, gains an entry each time a sibling session concludes). */
-const MAX_RECENT_RESULTS = 5;
+/** Cap on `Player.recentResults` — the newest several tournaments only, so
+ * save size stays bounded across a long career (every division's field, not
+ * just the human's, gains an entry each time a sibling session concludes).
+ * 20 covers multiple seasons at the current content calendar's pace (~16
+ * events/year) — generous enough for the opponent profile's tournament
+ * history to feel like a real record, not a rolling window that visibly
+ * forgets last year. Revisit if a much denser future calendar makes this a
+ * real save-size concern. */
+const MAX_RECENT_RESULTS = 20;
 
 export type FieldSize = 8 | 16 | 32 | 64;
 
@@ -718,12 +726,23 @@ function resolveRound(state: GameState, session: TournamentSession): void {
  * on, their whole lineage) are capped at 3 total games. See the module doc
  * comment for why this produces a real final for 1st/2nd but ties deeper
  * losers together once continuing would need a 4th game.
+ *
+ * One exemption from that cap: the losers of the true semifinal (the size-4
+ * group split off an undefeated lineage) are always the bronze-medal
+ * contenders for 3rd/4th place, and always get that match regardless of how
+ * many games it costs them — a podium needs a real bronze match, the same
+ * way it needs a real final, not a tied 3rd/4th band. For an 8-field draw
+ * this happens to fall within the ordinary 3-game cap anyway; for 16+ it
+ * would not, without this exemption. It never cascades: this group has only
+ * 2 participants (one pair), so once it plays, both resulting sub-groups are
+ * single players and already decided regardless of `frozen`.
  */
 function buildNextGroups(groups: Group[], roundPairsByGroup: (RoundPair[] | null)[]): Group[] {
   return groups.flatMap((group, i): Group[] => {
     const pairs = roundPairsByGroup[i];
     if (!pairs) return [group];
     const gamesPlayed = group.gamesPlayed + 1;
+    const isTrueSemifinal = group.undefeated && group.participants.length === 4;
     // The winners' subgroup only stays undefeated if its parent was — losing
     // even once ends that forever. Each subgroup's own `frozen` must use ITS
     // OWN `undefeated`, not the parent's: a winners' subgroup of an
@@ -742,7 +761,7 @@ function buildNextGroups(groups: Group[], roundPairsByGroup: (RoundPair[] | null
       participants: pairs.map((p) => (p.winner === p.a ? p.b : p.a)),
       undefeated: false,
       gamesPlayed,
-      frozen: gamesPlayed >= 3,
+      frozen: isTrueSemifinal ? false : gamesPlayed >= 3,
     };
     return [winners, losers];
   });

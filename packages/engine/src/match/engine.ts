@@ -2,7 +2,7 @@ import { BALANCE } from "../balance.js";
 import { Rng, childSeed } from "../core/rng.js";
 import type { Player, Skills } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
-import { SPORTS } from "../model/sport.js";
+import { SKILL_MAX, SPORTS } from "../model/sport.js";
 import { matchAgeModifier } from "../systems/age.js";
 import { enduranceEnergyMult } from "../systems/effects.js";
 
@@ -90,6 +90,22 @@ export interface MatchState {
   breakReason: BreakReason | null;
   winner: Side | null;
   gummiarm: boolean;
+  /**
+   * Who won the racket-spin/coin-toss for the gummiarm, set the instant the
+   * tie is reached (deterministic from the match seed, so it replays). The
+   * toss winner then *chooses to serve or receive* — see `gummiarmServe`,
+   * `chooseGummiarmServe`, `gummiarmServeValue`. Null until the gummiarm.
+   */
+  gummiarmToss: Side | null;
+  /**
+   * Who ends up serving the single sudden-death gummiarm serve, after the
+   * toss winner's choose-serve-or-receive call. Null until resolved — either
+   * explicitly (the human's call, via `chooseGummiarmServe`) or by the AI
+   * heuristic fallback (`resolveGummiarmServe`, also used for headless sim).
+   * Because it's a single serve played like a second serve, and nerves bite,
+   * most toss winners choose to receive and hand the pressure over.
+   */
+  gummiarmServe: Side | null;
   /** true when play stopped before all sets finished (uncatchable lead) */
   decidedEarly: boolean;
   /**
@@ -172,6 +188,8 @@ export function createMatch(a: MatchPlayerRef, b: MatchPlayerRef, seed: string):
     breakReason: "matchStart",
     winner: null,
     gummiarm: false,
+    gummiarmToss: null,
+    gummiarmServe: null,
     decidedEarly: false,
     momentum: 0,
     sharpness: { a: 100, b: 100 },
@@ -292,6 +310,51 @@ export function clutchMoment(m: MatchState): ClutchMoment {
   return null;
 }
 
+/**
+ * Net eff value to `side` of choosing to SERVE the gummiarm rather than
+ * receive: the muted single-serve edge (their tennis skill) minus the nerve
+ * tax (scaled by 1 − clutch). Positive → serving is worth it; negative — the
+ * common case for average-or-shaky nerves — → receive and hand the pressure
+ * to the opponent, which is why "most players choose to receive". Pure; the
+ * same value is added to the server's eff during the point (see
+ * `effectiveStrength`). See BALANCE.match.gummiarm.
+ */
+export function gummiarmServeValue(m: MatchState, side: Side): number {
+  const g = BALANCE.match.gummiarm;
+  const ref = m.players[side];
+  return g.serveEdgeMax * (ref.skills.tn / SKILL_MAX) - g.serveNerveTax * (1 - ref.clutch);
+}
+
+/** Whether `side`, having won the toss, would rather serve than receive —
+ * the AI's call, and the recommended default for the human. True only when
+ * serving is a net eff gain (`gummiarmServeValue > 0`). */
+export function gummiarmPrefersServe(m: MatchState, side: Side): boolean {
+  return gummiarmServeValue(m, side) > 0;
+}
+
+/**
+ * Apply the toss winner's serve/receive call. `serve` true → the toss winner
+ * serves; false → they receive and the opponent serves. No-op unless the
+ * match is at the gummiarm with a toss already decided.
+ */
+export function chooseGummiarmServe(m: MatchState, serve: boolean): void {
+  if (!m.gummiarm || m.gummiarmToss === null) return;
+  const winner = m.gummiarmToss;
+  const opponent: Side = winner === "a" ? "b" : "a";
+  m.gummiarmServe = serve ? winner : opponent;
+}
+
+/**
+ * Fallback serve resolution: the toss winner follows the AI heuristic
+ * (`gummiarmPrefersServe`). Used for headless AI-vs-AI sim and any time play
+ * reaches the gummiarm point without an explicit human call. No-op if serve
+ * is already resolved or there's no toss yet.
+ */
+export function resolveGummiarmServe(m: MatchState): void {
+  if (m.gummiarmServe !== null || m.gummiarmToss === null) return;
+  chooseGummiarmServe(m, gummiarmPrefersServe(m, m.gummiarmToss));
+}
+
 /** Fraction of true skill that shows up on court at this form level — see
  * BALANCE.form.matchFloor/matchSpan. 1.0 at full form, never below the floor. */
 function formFactor(form: number): number {
@@ -308,6 +371,8 @@ function effectiveStrength(
   tactic: Tactic,
   rng: Rng,
   decisive: boolean,
+  gummiarm: boolean,
+  serving: boolean,
 ): number {
   const b = BALANCE.match;
   const t = b.tactics[tactic];
@@ -320,6 +385,18 @@ function effectiveStrength(
     t.eff +
     matchAgeModifier(ref.age);
   if (decisive) eff += (ref.clutch - 0.5) * 2 * b.clutchWeight;
+  if (gummiarm) {
+    // The whole match on one point — clutch dominates here (on top of the
+    // decisive clutchWeight already added above), and the server carries the
+    // extra nerve of a single "second serve": a muted skill edge minus a
+    // nerve tax that, for average nerves, makes serving a net loss. See
+    // BALANCE.match.gummiarm and `gummiarmServeValue`.
+    const g = b.gummiarm;
+    eff += (ref.clutch - 0.5) * 2 * g.clutchWeight;
+    if (serving) {
+      eff += g.serveEdgeMax * (ref.skills.tn / SKILL_MAX) - g.serveNerveTax * (1 - ref.clutch);
+    }
+  }
   if (t.chaos > 0) eff += rng.range(-t.chaos, t.chaos);
   return eff;
 }
@@ -341,6 +418,8 @@ export function pointWinProbability(m: MatchState, rng: Rng): number {
     m.tactics.a,
     rng,
     decisive,
+    m.gummiarm,
+    m.gummiarmServe === "a",
   );
   const effB = effectiveStrength(
     m.players.b,
@@ -351,6 +430,8 @@ export function pointWinProbability(m: MatchState, rng: Rng): number {
     m.tactics.b,
     rng,
     decisive,
+    m.gummiarm,
+    m.gummiarmServe === "b",
   );
   const momentumBonus = m.momentum * BALANCE.match.momentumWeight;
   return 1 / (1 + Math.exp(-(effA - effB + momentumBonus) / BALANCE.match.scales[sport]));
@@ -382,6 +463,9 @@ export function playPoint(m: MatchState): PointOutcome | null {
   if (m.phase !== "playing") return null;
   const set = m.sets[m.setIndex];
   if (!set) return null;
+  // Guarantee a server for the sudden-death point even when nobody made an
+  // explicit call (headless AI-vs-AI, or a resume that skipped the ceremony).
+  if (m.gummiarm && m.gummiarmServe === null) resolveGummiarmServe(m);
   const sport = currentSport(m);
   const rng = new Rng(childSeed(m.seed, "pt", m.pointCount));
 
@@ -453,8 +537,12 @@ export function playPoint(m: MatchState): PointOutcome | null {
   if (setDone) {
     set.done = true;
     if (m.setIndex === 3) {
-      // four sets played, totals level (otherwise matchDecided had fired)
+      // four sets played, totals level (otherwise matchDecided had fired).
+      // Spin the racket now: a deterministic coin toss off the match seed
+      // decides who gets to choose serve or receive for the single
+      // sudden-death point. See `chooseGummiarmServe`/`resolveGummiarmServe`.
       m.gummiarm = true;
+      m.gummiarmToss = new Rng(childSeed(m.seed, "gummi-toss")).chance(0.5) ? "a" : "b";
       m.phase = "break";
       m.breakReason = "gummiarm";
       coolDownSoreness(m);

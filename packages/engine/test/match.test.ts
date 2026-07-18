@@ -7,7 +7,10 @@ import {
   aiChooseTactic,
   clutchMoment,
   createMatch,
+  chooseGummiarmServe,
   fatigueTell,
+  gummiarmPrefersServe,
+  gummiarmServeValue,
   luckTell,
   mentalStrength,
   mentalTell,
@@ -15,6 +18,7 @@ import {
   playPoint,
   pointWinProbability,
   pointsToWin,
+  resolveGummiarmServe,
   resumeMatch,
   setTactic,
   totalPoints,
@@ -187,6 +191,103 @@ describe("match engine", () => {
     const winner = m.winner as "a" | "b";
     const loser = winner === "a" ? "b" : "a";
     expect(totalPoints(m, winner)).toBe(totalPoints(m, loser) + 1);
+  });
+
+  describe("gummiarm serve — coin toss, choice, and the single 'second serve'", () => {
+    // A four-sets-level break state, ready for the sudden-death point.
+    // Totals: a = 75, b = 75.
+    function gummiBreak(a: MatchPlayerRef, b: MatchPlayerRef, seed: string): MatchState {
+      const m = createMatch(a, b, seed);
+      m.sets = [
+        { a: 21, b: 15, done: true },
+        { a: 15, b: 21, done: true },
+        { a: 21, b: 18, done: true },
+        { a: 18, b: 21, done: true },
+      ];
+      m.setIndex = 3;
+      m.gummiarm = true;
+      m.phase = "break";
+      m.breakReason = "gummiarm";
+      return m;
+    }
+
+    it("starts a match with no toss or server assigned", () => {
+      const m = createMatch(ref("a", 500), ref("b", 500), "fresh");
+      expect(m.gummiarmToss).toBeNull();
+      expect(m.gummiarmServe).toBeNull();
+    });
+
+    it("values receiving over serving for an average player, but serving for a clutch big server", () => {
+      const avg = ref("avg", 500, { clutch: 0.5 });
+      const specialist = ref("spec", 500, { skills: { tt: 500, bd: 500, sq: 500, tn: 950 }, clutch: 0.85 });
+      const m = gummiBreak(avg, specialist, "value");
+      // average nerves/serve: the single-serve nerve tax outweighs the edge
+      expect(gummiarmServeValue(m, "a")).toBeLessThan(0);
+      expect(gummiarmPrefersServe(m, "a")).toBe(false);
+      // a big tennis game with a cool head: serving is worth it
+      expect(gummiarmServeValue(m, "b")).toBeGreaterThan(0);
+      expect(gummiarmPrefersServe(m, "b")).toBe(true);
+    });
+
+    it("maps the toss winner's serve/receive call to the actual server", () => {
+      const m = gummiBreak(ref("a", 500), ref("b", 500), "map");
+      m.gummiarmToss = "a";
+      chooseGummiarmServe(m, true);
+      expect(m.gummiarmServe).toBe("a");
+      chooseGummiarmServe(m, false);
+      expect(m.gummiarmServe).toBe("b"); // receive → opponent serves
+
+      m.gummiarmToss = "b";
+      chooseGummiarmServe(m, false);
+      expect(m.gummiarmServe).toBe("a"); // b receives → a is handed the serve
+    });
+
+    it("resolves an unmade choice by the toss winner's own preference", () => {
+      const m = gummiBreak(ref("a", 500, { clutch: 0.5 }), ref("b", 500), "resolve");
+      m.gummiarmToss = "a"; // average player wins the toss → chooses to receive
+      resolveGummiarmServe(m);
+      expect(m.gummiarmServe).toBe("b");
+    });
+
+    it("auto-resolves the server when a headless point is played without a choice", () => {
+      const m = gummiBreak(ref("a", 500), ref("b", 500), "headless");
+      m.gummiarmToss = "b";
+      resumeMatch(m);
+      expect(m.gummiarmServe).toBeNull();
+      playPoint(m);
+      expect(m.gummiarmServe).not.toBeNull();
+      expect(m.phase).toBe("finished");
+    });
+
+    it("lets clutch dominate the sudden-death point", () => {
+      const iceCold = ref("ice", 500, { clutch: 1 });
+      const nervous = ref("nrv", 500, { clutch: 0 });
+      let iceWins = 0;
+      const N = 300;
+      for (let i = 0; i < N; i++) {
+        const m = gummiBreak(iceCold, nervous, `clutch-${i}`);
+        // no toss/serve set → resolveGummiarmServe no-ops, isolating clutch
+        resumeMatch(m);
+        playPoint(m);
+        if (m.winner === "a") iceWins++;
+      }
+      expect(iceWins / N).toBeGreaterThan(0.58);
+    });
+
+    it("makes serving an average single serve a net disadvantage (why players receive)", () => {
+      let receiverWins = 0;
+      const N = 300;
+      for (let i = 0; i < N; i++) {
+        // identical average players; a is forced to serve the single serve
+        const m = gummiBreak(ref("a", 500), ref("b", 500), `serve-${i}`);
+        m.gummiarmToss = "a";
+        chooseGummiarmServe(m, true); // a serves
+        resumeMatch(m);
+        playPoint(m);
+        if (m.winner === "b") receiverWins++;
+      }
+      expect(receiverWins / N).toBeGreaterThan(0.5);
+    });
   });
 
   it("AI presses when behind, protects a big lead, and goes for quick winners when gassed", () => {

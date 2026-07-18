@@ -13,6 +13,7 @@ import type {
   OpponentMatchCountView,
   OpponentProfileView,
   OtherDivisionDraw,
+  PlayerMatchView,
   RankingRowView,
   RecentMatchView,
   RecordsView,
@@ -36,6 +37,7 @@ import {
   SLOTS_PER_WEEK,
   SPORTS,
   aiChooseTactic,
+  chooseGummiarmServe,
   emptyPlan,
   resumeMatch,
   setTactic,
@@ -293,6 +295,21 @@ class GameStore {
   mostPlayedOpponents(): OpponentMatchCountView[] {
     if (!this.game) return [];
     return this.game.mostPlayedOpponents();
+  }
+
+  /** Every match the human has played against one specific opponent, newest
+   * first, no cap — the opponent profile screen's "Head-to-head" card. */
+  headToHead(opponentId: string): RecentMatchView[] {
+    if (!this.game) return [];
+    return this.game.matchesAgainst(opponentId);
+  }
+
+  /** Every match a given player (human or NPC) has been in, across every
+   * tournament bracket the human's session has touched — the opponent
+   * profile screen's "Match history" card. */
+  matchesForPlayer(playerId: string): PlayerMatchView[] {
+    if (!this.game) return [];
+    return this.game.matchesForPlayer(playerId);
   }
 
   /** Which gender's ladder the Rankings screen shows — defaults to the
@@ -870,6 +887,16 @@ class GameStore {
     if (!this.match || this.match.phase !== "break") return;
     setTactic(this.match, "b", aiChooseTactic(this.match, "b"));
     resumeMatch(this.match);
+  }
+
+  /**
+   * The human's serve/receive call at the gummiarm coin toss (they're always
+   * side "a"). Only meaningful when the human actually won the toss; when the
+   * AI won it, the engine's own heuristic (`resolveGummiarmServe`) has already
+   * set the server, and this is a no-op for a losing toss anyway.
+   */
+  chooseGummiarmServe(serve: boolean): void {
+    if (this.match) chooseGummiarmServe(this.match, serve);
   }
 
   exitMatch(): void {

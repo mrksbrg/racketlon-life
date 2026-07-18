@@ -533,11 +533,36 @@ export interface OpponentSportView {
 export interface OpponentResultView {
   week: number;
   weekLabel: string;
+  year: number;
   name: string;
   division: string;
   finishingPosition: number;
   tiedCount: number;
   matchesPlayed: number;
+}
+
+/** One individual match any player (human or NPC) was in, mined from
+ * `career.completedDraws` rather than the event log — see
+ * `Game.matchesForPlayer`. Unlike `RecentMatchView` (the human-only,
+ * event-log-derived equivalent) this has no `opponentRank`/`opponentRatings`
+ * snapshot or `gummiarm`/set `done` flag, since the draw snapshot a
+ * completed tournament leaves behind doesn't carry those — it exists purely
+ * to answer "who did this player actually play, and what was the score",
+ * for anyone in the field, not just the human's own history. */
+export interface PlayerMatchView {
+  week: number;
+  weekLabel: string;
+  year: number;
+  tournamentName: string;
+  tournamentTier: string;
+  division: string;
+  roundName: string;
+  opponentId: string;
+  opponentName: string;
+  won: boolean;
+  totalA: number;
+  totalB: number;
+  sets: { sport: Sport; a: number; b: number }[];
 }
 
 export interface OpponentProfileView {
@@ -907,6 +932,73 @@ export class Game {
     return this.matchViews().filter((m) => m.week === weekIndex);
   }
 
+  /** Every match the human has played against one specific opponent, newest
+   * first, no cap — the opponent profile screen's "Head-to-head" card. Same
+   * source as `matchesForYear`, just filtered by `opponentId` instead of
+   * year; naturally bounded by how many times the two have actually met, so
+   * unlike `Player.recentResults` this needs no retention cap of its own. */
+  matchesAgainst(opponentId: string): RecentMatchView[] {
+    return this.matchViews().filter((m) => m.opponentId === opponentId);
+  }
+
+  /**
+   * Every match `playerId` has been in — human or NPC — newest first, no
+   * cap. Mined from `career.completedDraws`: every tournament bracket the
+   * human's own session has ever fully resolved (their own division plus
+   * every sibling division simulated alongside it), which is the only place
+   * NPC-vs-NPC results exist at all (there's no full-world background
+   * simulation yet — see docs/06's M2 notes). So this is complete for any
+   * player who has shared a tournament week with the human, and empty for
+   * anyone who hasn't, not "empty because they've never played" — the
+   * opponent profile screen's "Match history" card.
+   */
+  matchesForPlayer(playerId: string): PlayerMatchView[] {
+    const matches: PlayerMatchView[] = [];
+    for (const [weekStr, draw] of Object.entries(this.state.career.completedDraws)) {
+      const week = Number(weekStr);
+      const brackets = [
+        { tournamentId: draw.tournamentId, rounds: draw.rounds },
+        ...draw.otherDivisions.map((o) => ({ tournamentId: o.tournamentId, rounds: o.rounds })),
+      ];
+      for (const bracket of brackets) {
+        const def = this.content.tournaments[bracket.tournamentId];
+        if (!def) continue;
+        for (const round of bracket.rounds) {
+          for (const section of round.sections) {
+            for (const m of section.matchups) {
+              if (m.winnerId === null) continue; // not actually played (bye or unresolved)
+              const isA = m.a.id === playerId;
+              if (!isA && m.b.id !== playerId) continue;
+              const opponent = isA ? m.b : m.a;
+              const sets = (m.sets ?? []).map((s, i) => ({
+                sport: SPORTS[i]!,
+                a: isA ? s.a : s.b,
+                b: isA ? s.b : s.a,
+              }));
+              matches.push({
+                week,
+                weekLabel: weekLabelAt(this.state.calendar, week),
+                year: yearOfWeek(this.state.calendar, week),
+                tournamentName: def.name,
+                tournamentTier: def.tier,
+                division: def.division,
+                roundName: section.roundName,
+                opponentId: opponent.id,
+                opponentName: opponent.name,
+                won: m.winnerId === playerId,
+                totalA: sets.reduce((sum, s) => sum + s.a, 0),
+                totalB: sets.reduce((sum, s) => sum + s.b, 0),
+                sets,
+              });
+            }
+          }
+        }
+      }
+    }
+    matches.sort((a, b) => b.week - a.week);
+    return matches;
+  }
+
   /** Every opponent the human has faced, tallied by how many matches were
    * played against them, most-played first — the Me screen's "Most played
    * opponents" card. See `OpponentMatchCountView`. */
@@ -1149,6 +1241,7 @@ export class Game {
       recentResults: [...p.recentResults].reverse().map((r) => ({
         week: r.weekIndex,
         weekLabel: weekLabelAt(this.state.calendar, r.weekIndex),
+        year: yearOfWeek(this.state.calendar, r.weekIndex),
         name: r.name,
         division: r.division,
         finishingPosition: r.finishingPosition,

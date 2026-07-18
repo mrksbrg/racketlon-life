@@ -15,6 +15,29 @@
       .toUpperCase(),
   );
   const countryName = $derived(p ? (NATIONALITIES[p.nationality]?.name ?? p.nationality) : "");
+
+  // Tournament history, year-scoped the same way as the Me screen's "Recent
+  // matches" — most recent year with data by default, selectable if there's
+  // more than one.
+  let resultYear = $state<number | null>(null);
+  const availableResultYears = $derived(p ? [...new Set(p.recentResults.map((r) => r.year))].sort((a, b) => b - a) : []);
+  const effectiveResultYear = $derived(resultYear ?? availableResultYears[0] ?? null);
+  const yearResults = $derived(p ? p.recentResults.filter((r) => r.year === effectiveResultYear) : []);
+
+  // Every match the human has personally played against this opponent —
+  // meaningless (and unset) for the human's own profile.
+  const headToHead = $derived(p && !p.isYou ? store.headToHead(p.id) : []);
+
+  // Every match this player has been in at all — human or NPC opponents
+  // alike — across every tournament bracket the human's own session has
+  // ever touched. Year-scoped via a dropdown (not the segmented buttons
+  // used elsewhere) since a well-traveled player's match log can run long.
+  let matchYear = $state<number | null>(null);
+  const allMatches = $derived(p && !p.isYou ? store.matchesForPlayer(p.id) : []);
+  const availableMatchYears = $derived([...new Set(allMatches.map((m) => m.year))].sort((a, b) => b - a));
+  const effectiveMatchYear = $derived(matchYear ?? availableMatchYears[0] ?? null);
+  const yearMatches = $derived(allMatches.filter((m) => m.year === effectiveMatchYear));
+  const humanId = $derived(store.you?.id ?? null);
 </script>
 
 <div class="opponent">
@@ -88,11 +111,97 @@
         {/each}
       </section>
 
+      {#if !p.isYou}
+        <section class="card">
+          <h2>Head-to-head</h2>
+          {#if headToHead.length > 0}
+            {@const wins = headToHead.filter((m) => m.won).length}
+            <div class="h2h-tally">
+              <span class="h2h-record">{wins}–{headToHead.length - wins}</span>
+              <span class="h2h-caption">{headToHead.length} match{headToHead.length === 1 ? "" : "es"} played</span>
+            </div>
+            <div class="matches">
+              {#each headToHead as m (m.week + m.round)}
+                <div class="match">
+                  <div class="m-main">
+                    <span class="m-meta">{m.tournamentName} · {m.roundName} · {m.weekLabel}</span>
+                  </div>
+                  <div class="m-right">
+                    <span class="m-result" class:win={m.won}>{m.won ? "W" : "L"} {m.totalA}–{m.totalB}</span>
+                    <div class="m-sets">
+                      {#each m.sets as s (s.sport)}
+                        <span class="m-set" style="color: {SPORT_COLORS[s.sport]}">{SPORT_SHORT[s.sport]} {s.a}-{s.b}</span>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="empty">You haven't played {p.name} yet.</p>
+          {/if}
+        </section>
+      {/if}
+
+      {#if !p.isYou}
+        <section class="card">
+          <div class="results-head">
+            <h2>Match history</h2>
+            {#if availableMatchYears.length > 1}
+              <select
+                class="year-select"
+                value={effectiveMatchYear}
+                onchange={(e) => (matchYear = Number(e.currentTarget.value))}
+              >
+                {#each availableMatchYears as y (y)}
+                  <option value={y}>{y}</option>
+                {/each}
+              </select>
+            {/if}
+          </div>
+          {#if allMatches.length > 0}
+            <div class="matches">
+              {#each yearMatches as m (m.week + m.opponentId + m.roundName)}
+                <div class="match">
+                  <div class="m-main">
+                    {#if m.opponentId === humanId}
+                      <button class="m-opponent" onclick={() => humanId && store.viewOpponent(humanId)}>You</button>
+                    {:else}
+                      <button class="m-opponent" onclick={() => store.viewOpponent(m.opponentId)}>{m.opponentName}</button>
+                    {/if}
+                    <span class="m-meta">{m.tournamentName} · {m.roundName} · {m.weekLabel}</span>
+                  </div>
+                  <div class="m-right">
+                    <span class="m-result" class:win={m.won}>{m.won ? "W" : "L"} {m.totalA}–{m.totalB}</span>
+                    <div class="m-sets">
+                      {#each m.sets as s (s.sport)}
+                        <span class="m-set" style="color: {SPORT_COLORS[s.sport]}">{SPORT_SHORT[s.sport]} {s.a}-{s.b}</span>
+                      {/each}
+                    </div>
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {:else}
+            <p class="empty">No matches recorded yet — only tournaments the human has shared count here.</p>
+          {/if}
+        </section>
+      {/if}
+
       <section class="card">
-        <h2>Recent tournaments</h2>
+        <div class="results-head">
+          <h2>Tournament history</h2>
+          {#if availableResultYears.length > 1}
+            <div class="year-seg">
+              {#each availableResultYears as y (y)}
+                <button class:on={effectiveResultYear === y} onclick={() => (resultYear = y)}>{y}</button>
+              {/each}
+            </div>
+          {/if}
+        </div>
         {#if p.recentResults.length > 0}
           <div class="results">
-            {#each p.recentResults as r (r.week)}
+            {#each yearResults as r (r.week)}
               <button class="result" onclick={() => store.viewTournamentDetail(r.week)}>
                 <div class="r-main">
                   <span class="r-name">{r.name}</span>
@@ -365,6 +474,141 @@
   .sr-rd {
     font-size: 11px;
     color: var(--muted);
+  }
+
+  .results-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .results-head h2 {
+    margin: 0;
+  }
+
+  /* Year selector for tournament history — horizontally scrollable since a
+   * long-lived opponent can accumulate several seasons' worth. */
+  .year-seg {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    background: var(--card-2);
+    border-radius: 8px;
+    padding: 2px;
+  }
+
+  .year-seg button {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  .year-seg button.on {
+    background: var(--card);
+    color: var(--text);
+  }
+
+  /* Dropdown year picker for match history — a plain <select> rather than
+   * .year-seg's segmented buttons, since a well-traveled player's log can
+   * span many more seasons than fit comfortably as a button row. */
+  .year-select {
+    background: var(--card-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+  }
+
+  .h2h-tally {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .h2h-record {
+    font-size: 20px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .h2h-caption {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .matches {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .match {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+  }
+
+  .match + .match {
+    border-top: 1px solid var(--border);
+  }
+
+  .m-main {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .m-opponent {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--accent);
+    text-align: left;
+  }
+
+  .m-meta {
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .m-right {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .m-result {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .m-result.win {
+    color: var(--ok);
+  }
+
+  .m-sets {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+    margin-top: 2px;
+    flex-wrap: wrap;
+  }
+
+  .m-set {
+    font-size: 10.5px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
   }
 
   .results {

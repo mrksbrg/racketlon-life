@@ -272,6 +272,46 @@ export const BALANCE = {
      */
     clutchWeight: 12,
     /**
+     * The sudden-death gummiarm — one nerve-jangling point for the whole
+     * match, played as a *single* serve (a "second serve": no first-serve
+     * bomb, no fault to fall back on). These constants make that point feel
+     * like real racketlon, where `clutch` (Player.attributes.clutch —
+     * "Vinnarskalle", the win-rate-on-the-gummiarm attribute) dominates and
+     * most players choose to *receive* rather than serve under the pressure.
+     * All first-pass values, easy to retune. See `gummiarmServeValue`,
+     * `effectiveStrength`'s gummiarm branch, and `pointWinProbability`.
+     */
+    gummiarm: {
+      /**
+       * Extra clutch eff swing applied ONLY on the gummiarm point, ON TOP of
+       * the normal decisive `clutchWeight` (12) that every set/match point
+       * already gets. The entire match riding on one point is where a cool
+       * head matters most, so clutch genuinely dominates here — same
+       * (clutch − 0.5) × 2 centering: clutch 1 → +this eff, clutch 0 → −this.
+       * Large relative to the tennis scale (400) so it's a real swing (a
+       * clutch-1 vs clutch-0 gap of ~2×this eff), without being deterministic.
+       */
+      clutchWeight: 110,
+      /**
+       * Serve advantage handed to whoever serves the gummiarm, as eff, scaled
+       * by the server's tennis skill (skills.tn / SKILL_MAX). Deliberately
+       * muted: it's ONE serve played like a second serve, so even a big
+       * tennis game only nets a fraction of a normal service game's edge.
+       */
+      serveEdgeMax: 45,
+      /**
+       * Nerve tax on the *server only*, as eff, scaled by (1 − clutch): a
+       * shaky (clutch 0) server hands back this much to a jittery single
+       * serve, a stone-cold (clutch 1) server none. Larger than
+       * `serveEdgeMax` on purpose — for an average-or-lower-clutch player the
+       * tax outweighs the edge, so serving is a net loss and receiving is the
+       * right call. That asymmetry is exactly why "most players choose to
+       * receive" and hand the nerves to the other guy; only a genuinely
+       * clutch player with a real serve comes out ahead by choosing to serve.
+       */
+      serveNerveTax: 70,
+    },
+    /**
      * Baseline in-match energy burned per point, per sport — relative endurance
      * need TT=1, BA=4, SQ=5, TE=3 (table tennis rallies are short and cheap;
      * squash is the grind).

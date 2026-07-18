@@ -1,15 +1,18 @@
 <script lang="ts">
-  import type { ClutchMoment, Sport, Tactic } from "@racketlon/engine";
+  import type { ClutchMoment, MatchState, Sport, Tactic } from "@racketlon/engine";
   import {
     SPORTS,
     SPORT_LABELS,
     clutchMoment,
     currentSport,
     fatigueTell,
+    gummiarmPrefersServe,
     luckTell,
     mentalStrength,
     mentalTell,
     playPoint,
+    pointsToWin,
+    resolveGummiarmServe,
     tacticsForSport,
     totalPoints,
   } from "@racketlon/engine";
@@ -28,6 +31,117 @@
   } from "./ui";
 
   const DELAYS: Record<MatchSpeed, number> = { 1: 320, 2: 130, 3: 35 };
+  // Match point (one point from winning it all) — slow enough to actually
+  // watch the decisive point land, not just flash past it.
+  const MATCH_POINT_DELAY = 1200;
+  // Set point / deuce (both sides ≥ 20 — racketlon has no separate tiebreak,
+  // "tight set" means deuce) — a notch below match point.
+  const SET_POINT_DELAY = 850;
+  // The single sudden-death gummiarm point itself, once serving actually
+  // starts (see GUMMIARM_SUSPENSE_MS/GUMMIARM_REVEAL_MS below for the
+  // ceremony around it — this is only the point's own autoplay pacing).
+  const GUMMIARM_POINT_DELAY = 1600;
+  // A ramp for the last few points before the match is mathematically
+  // decided (pointsToWin() ≤ 5, excluding the match point itself, which
+  // MATCH_POINT_DELAY already covers) — so the closing stretch audibly
+  // *builds*, not just a single anomalous tick a player can blink past.
+  // Indexed by points-to-go (2..5); index 0/1 unused (0 impossible, 1 is
+  // match point, handled separately).
+  const CLOSING_RAMP: Record<number, number> = { 2: 700, 3: 550, 4: 420, 5: 300 };
+
+  // The player can punch through a slowdown with the speed-up button; this
+  // re-arms itself every time the drama passes (see the autoplay effect).
+  let rush = $state(false);
+
+  // Gummiarm ceremony staging beyond the normal break/playing/finished
+  // phases — see `playGummiarmPoint` and the autoplay effect below.
+  //   idle     → nothing gummiarm-specific overriding the normal render
+  //   suspense → serve chosen, point not yet live: the "stepping up" beat
+  //   reveal   → the point just resolved: hold on the outcome before the
+  //              normal finished/result panel is allowed to show
+  //   revealed → reveal's hold has elapsed; renders identically to idle
+  let gummiarmStage = $state<"idle" | "suspense" | "reveal" | "revealed">("idle");
+  const GUMMIARM_SUSPENSE_MS = 2400;
+  const GUMMIARM_REVEAL_MS = 1800;
+
+  // Holds the just-played point's score on screen for a beat before the UI
+  // moves on to the next thing — without this, a set or match conclusion
+  // updates the score and swaps to the next panel in the very same tick,
+  // which reads as the game blowing straight past its own biggest moments.
+  // setEndHold covers a non-final set finishing (match continues);
+  // matchEndHold covers the match itself finishing (any way but the
+  // gummiarm, which already gets its own, longer "reveal" hold above).
+  let setEndHold = $state(false);
+  let matchEndHold = $state(false);
+  const SET_END_HOLD_MS = 1800;
+  const MATCH_END_HOLD_MS = 1400;
+
+  /**
+   * Running point-by-point score differential (you minus opponent), one
+   * entry per point played plus a leading 0 for "before the match started" —
+   * purely a presentation trace for the post-match summary chart, not
+   * engine state (MatchState only keeps cumulative set scores, not the
+   * trajectory that produced them). Recorded by `stepPoint` alongside every
+   * `playPoint` call so it stays in lockstep regardless of autoplay speed or
+   * the ⏭ skip button. Reset whenever `store.match` becomes a new match
+   * object (see the identity-reset effect below).
+   */
+  let pointHistory = $state<number[]>([0]);
+
+  let lastMatchRef: MatchState | null = null;
+  $effect(() => {
+    const m = store.match;
+    if (m && m !== lastMatchRef) {
+      lastMatchRef = m;
+      pointHistory = [0];
+      setEndHold = false;
+      matchEndHold = false;
+    }
+  });
+
+  /**
+   * Autoplay delay if we let the drama breathe (before the speed-up button is
+   * applied): the deciding beats slow toward rally pace so the big moments are
+   * felt, never blinked past — even at ×3. Match point is slowest of the
+   * per-point tiers; a set point or deuce a touch quicker; the last few
+   * points before the match is mathematically decided ramp down gradually
+   * (see CLOSING_RAMP) so the closing stretch as a whole feels tense, not
+   * just its very last tick. The gummiarm's own single point is paced
+   * separately (GUMMIARM_POINT_DELAY) — its surrounding ceremony (suspense/
+   * reveal) is handled outside the per-point autoplay loop entirely, since a
+   * one-point sudden death can't be "ramped into" the way a normal set can.
+   * Never faster than the player's own ×1/×2/×3 pick.
+   */
+  function dramaDelay(m: MatchState): number {
+    const base = DELAYS[store.matchSpeed];
+    if (m.gummiarm) return Math.max(base, GUMMIARM_POINT_DELAY);
+    const moment = clutchMoment(m);
+    if (moment === "match") return Math.max(base, MATCH_POINT_DELAY);
+    const set = m.sets[m.setIndex];
+    const deuce = !!set && set.a >= 20 && set.b >= 20;
+    if (moment === "set" || deuce) return Math.max(base, SET_POINT_DELAY);
+    const ptw = pointsToWin(m);
+    const ramp = ptw && CLOSING_RAMP[ptw.points];
+    if (ramp) return Math.max(base, ramp);
+    return base;
+  }
+
+  /** `m.phase` behind a function call — TS narrows the `MatchState["phase"]`
+   * literal type across mutation-in-place calls like `playPoint`, so a direct
+   * comparison right after one is (wrongly) flagged as unreachable. Routing
+   * the read through a function severs that narrowing. */
+  function currentPhase(m: MatchState): MatchState["phase"] {
+    return m.phase;
+  }
+
+  /** `playPoint` plus recording the resulting differential into
+   * `pointHistory` — the single choke point every autoplay/skip path should
+   * call through so the summary chart never misses a point. */
+  function stepPoint(m: MatchState) {
+    const outcome = playPoint(m);
+    if (outcome) pointHistory.push(totalPoints(m, "a") - totalPoints(m, "b"));
+    return outcome;
+  }
 
   const TACTIC_LABELS: Record<Tactic, string> = {
     conserve: "Conserve",
@@ -71,22 +185,85 @@
     gummiarm: "⚡ Winner takes all",
   };
 
-  // autoplay: one point per tick while the match is in the playing phase
+  // autoplay: one point per tick while the match is in the playing phase,
+  // paced by tension (see dramaDelay) so the deciding points slow down. For
+  // the gummiarm specifically, the instant that single point resolves the
+  // match, we hand off to the "reveal" hold (see gummiarmStage) right here —
+  // synchronously, in the same tick as playPoint() — rather than reacting to
+  // the phase change afterward, so there's no frame where the raw "finished"
+  // panel can flash before the reveal beat takes over.
   $effect(() => {
     const m = store.match;
     if (!m || m.phase !== "playing") return;
     m.pointCount; // re-run this effect after every point
+    const base = DELAYS[store.matchSpeed];
+    const drama = dramaDelay(m);
+    if (drama <= base) rush = false; // drama passed — re-arm the slowdown
+    const delay = rush ? base : drama;
     const timer = setTimeout(() => {
-      if (m.phase === "playing") playPoint(m);
-    }, DELAYS[store.matchSpeed]);
+      if (m.phase !== "playing") return;
+      const wasGummiarm = m.gummiarm;
+      stepPoint(m);
+      const phaseNow = currentPhase(m);
+      if (wasGummiarm && phaseNow === "finished") {
+        gummiarmStage = "reveal";
+        setTimeout(() => {
+          gummiarmStage = "revealed";
+        }, GUMMIARM_REVEAL_MS);
+      } else if (phaseNow === "finished") {
+        matchEndHold = true;
+        setTimeout(() => {
+          matchEndHold = false;
+        }, MATCH_END_HOLD_MS);
+      } else if (phaseNow === "break" && m.breakReason === "setEnd") {
+        setEndHold = true;
+        setTimeout(() => {
+          setEndHold = false;
+        }, SET_END_HOLD_MS);
+      }
+    }, delay);
     return () => clearTimeout(timer);
   });
 
+  // At the gummiarm, if the OPPONENT won the coin toss, reveal their
+  // serve/receive call straight away so the ceremony can show it. When the
+  // human won the toss we leave it to their own button press instead.
+  $effect(() => {
+    const m = store.match;
+    if (m && m.gummiarm && m.gummiarmToss === "b" && m.gummiarmServe === null) {
+      resolveGummiarmServe(m);
+    }
+  });
+
+  // Re-arm the ceremony staging for the next match the moment we're not at
+  // (or past) a gummiarm — covers both a fresh match and the very start of
+  // this one, before the four-sets-level tie is even possible.
+  $effect(() => {
+    const m = store.match;
+    if (m && !m.gummiarm && gummiarmStage !== "idle") gummiarmStage = "idle";
+  });
+
+  /** The ceremony's "Play the point ▸" button — a deliberate pause (the
+   * "stepping up to serve" beat) before the point actually goes live, since
+   * a bare `continueMatch()` would let the single sudden-death point start
+   * (and, via GUMMIARM_POINT_DELAY, finish) with no anticipation at all. */
+  function playGummiarmPoint() {
+    gummiarmStage = "suspense";
+    setTimeout(() => {
+      gummiarmStage = "idle";
+      store.continueMatch();
+    }, GUMMIARM_SUSPENSE_MS);
+  }
+
+  /** The ⏭ skip button — deliberately bypasses every pacing/hold beat above
+   * (dramaDelay, setEndHold, matchEndHold, the gummiarm ceremony); skipping
+   * is the impatience escape hatch, so it should actually be instant. Still
+   * routes through stepPoint so the summary chart stays accurate. */
   function skipToBreak() {
     const m = store.match;
     if (!m) return;
     let guard = 0;
-    while (m.phase === "playing" && ++guard < 500) playPoint(m);
+    while (m.phase === "playing" && ++guard < 500) stepPoint(m);
   }
 
   function breakTitle(reason: string, sport: string): string {
@@ -245,9 +422,61 @@
       </p>
     {/if}
 
-    {#if m.phase === "finished"}
+    {#if gummiarmStage === "suspense"}
+      {@const servingIsYou = m.gummiarmServe === "a"}
+      <div class="panel gummiarm-panel suspense">
+        <div class="gummi-emblem">⚡</div>
+        <h3 class="gummi-title">{servingIsYou ? "YOUR SERVE" : `${m.players.b.name.toUpperCase()} TO SERVE`}</h3>
+        <p class="gummi-sub">This is it. One point decides the whole match.</p>
+        <div class="suspense-dots">
+          <span></span><span></span><span></span>
+        </div>
+      </div>
+    {:else if gummiarmStage === "reveal"}
+      {@const pointWonByYou = m.winner === "a"}
+      <div class="panel gummiarm-panel reveal" class:won={pointWonByYou}>
+        <div class="gummi-emblem">{pointWonByYou ? "🏆" : "💔"}</div>
+        <h3 class="gummi-title">{pointWonByYou ? "YOU WIN THE POINT!" : `${m.players.b.name.toUpperCase()} WINS THE POINT`}</h3>
+        <p class="gummi-sub">{pointWonByYou ? "The nerve held." : "So close."}</p>
+      </div>
+    {:else if matchEndHold}
+      <div class="panel live tense">
+        <div class="sport-label" style:color={SPORT_COLORS[sport]}>{SPORT_LABELS[sport]}</div>
+        <div class="score">{m.sets[m.setIndex]?.a ?? 0} – {m.sets[m.setIndex]?.b ?? 0}</div>
+        <p class="hold-caption">That's match point landed…</p>
+      </div>
+    {:else if m.phase === "finished"}
       {@const won = m.winner === "a"}
-      <div class="panel result">
+      {@const history = pointHistory}
+      {@const chartW = 300}
+      {@const chartH = 110}
+      {@const chartPad = 8}
+      {@const maxAbs = Math.max(1, ...history.map(Math.abs))}
+      {@const pts = history
+        .map((d, i) => {
+          const x = history.length > 1 ? (i / (history.length - 1)) * chartW : chartW / 2;
+          const y = chartH / 2 - (d / maxAbs) * (chartH / 2 - chartPad);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ")}
+      {@const boundaries = (() => {
+        let cum = 0;
+        return SPORTS.map((s, i) => {
+          const set = m.sets[i];
+          const played = set ? set.a + set.b : 0;
+          cum += played;
+          return { sport: s, index: cum, played };
+        }).filter((b) => b.played > 0);
+      })()}
+      {@const biggestLeadYou = Math.max(0, ...history)}
+      {@const biggestLeadOpp = Math.max(0, ...history.map((d) => -d))}
+      {@const leadChanges = history.reduce((acc, d, i) => {
+        if (i === 0) return acc;
+        const prevSign = Math.sign(history[i - 1] ?? 0);
+        const sign = Math.sign(d);
+        return acc + (prevSign !== 0 && sign !== 0 && prevSign !== sign ? 1 : 0);
+      }, 0)}
+      <div class="panel result summary">
         <div class="verdict" class:won>
           {won ? "You win!" : `${m.players.b.name} wins`}
         </div>
@@ -257,9 +486,107 @@
         {:else if m.decidedEarly}
           <p class="note">Match decided early — the lead was uncatchable.</p>
         {/if}
+
+        <div class="chart-wrap">
+          <svg class="chart" viewBox="0 0 {chartW} {chartH}" preserveAspectRatio="none">
+            <line x1="0" y1={chartH / 2} x2={chartW} y2={chartH / 2} class="chart-zero" />
+            {#each boundaries.slice(0, -1) as b (b.sport)}
+              {@const x = history.length > 1 ? (b.index / (history.length - 1)) * chartW : 0}
+              <line x1={x} y1="0" x2={x} y2={chartH} class="chart-boundary" />
+            {/each}
+            <polyline points={pts} class="chart-line" />
+          </svg>
+          <div class="chart-sport-row">
+            {#each boundaries as b (b.sport)}
+              <span class="chart-sport-label" style:color={SPORT_COLORS[b.sport]}>{SPORT_SHORT[b.sport]}</span>
+            {/each}
+          </div>
+          <div class="chart-legend">
+            <span class="chart-legend-item you">You</span>
+            <span class="chart-legend-item opp">{m.players.b.name}</span>
+          </div>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat">
+            <span class="stat-val">+{biggestLeadYou}</span>
+            <span class="stat-label">your biggest lead</span>
+          </div>
+          <div class="stat">
+            <span class="stat-val">+{biggestLeadOpp}</span>
+            <span class="stat-label">{m.players.b.name}'s biggest lead</span>
+          </div>
+          <div class="stat">
+            <span class="stat-val">{leadChanges}</span>
+            <span class="stat-label">lead changes</span>
+          </div>
+        </div>
+
         <button class="primary" onclick={() => void store.finishMatch()}>
           {store.tournamentContext ? "Continue ▸" : "Back to planning"}
         </button>
+      </div>
+    {:else if setEndHold}
+      {@const finishedSport = SPORTS[m.setIndex - 1] ?? sport}
+      {@const finishedSet = m.sets[m.setIndex - 1]}
+      <div class="panel live tense">
+        <div class="sport-label" style:color={SPORT_COLORS[finishedSport]}>{SPORT_LABELS[finishedSport]}</div>
+        <div class="score">{finishedSet?.a ?? 0} – {finishedSet?.b ?? 0}</div>
+        <p class="hold-caption">Set won!</p>
+      </div>
+    {:else if m.phase === "break" && m.breakReason === "gummiarm"}
+      {@const humanWonToss = m.gummiarmToss === "a"}
+      {@const serveDecided = m.gummiarmServe !== null}
+      {@const humanServes = m.gummiarmServe === "a"}
+      <div class="panel gummiarm-panel">
+        <div class="gummi-emblem">⚡</div>
+        <h3 class="gummi-title">GUMMIARM</h3>
+        <p class="gummi-sub">
+          Four sets, dead level. One sudden-death point — a single serve, no second chance — takes the
+          whole match.
+        </p>
+
+        <div class="coin">🪙</div>
+        <p class="toss">
+          {humanWonToss ? "You won the spin" : `${m.players.b.name} won the spin`}
+        </p>
+
+        {#if humanWonToss && !serveDecided}
+          {@const prefersServe = gummiarmPrefersServe(m, "a")}
+          <p class="choose-label">Serve, or receive?</p>
+          <div class="serve-choice">
+            <button class="serve-opt" onclick={() => store.chooseGummiarmServe(true)}>
+              <span>Serve {#if prefersServe}<em class="rec">your call</em>{/if}</span>
+              <small>one serve, no safety net — all on your nerve</small>
+            </button>
+            <button class="serve-opt" onclick={() => store.chooseGummiarmServe(false)}>
+              <span>Receive {#if !prefersServe}<em class="rec">most players do</em>{/if}</span>
+              <small>hand them the serve, and the nerves that come with it</small>
+            </button>
+          </div>
+        {:else if serveDecided}
+          <p class="serve-verdict" class:serving={humanServes}>
+            {#if humanServes}
+              You serve{humanWonToss ? "" : ` — ${m.players.b.name} handed you the pressure`}. Hold your
+              nerve.
+            {:else}
+              {m.players.b.name} serves{humanWonToss ? " — you passed the nerves over" : ""}.
+            {/if}
+          </p>
+          <div class="tactics">
+            {#each tacticsForSport(sport) as tactic (tactic)}
+              <button
+                class="tactic"
+                class:selected={m.tactics.a === tactic}
+                onclick={() => store.chooseTactic(tactic)}
+              >
+                <span>{TACTIC_LABELS[tactic]}</span>
+                <small>{tacticHint(sport, tactic)}</small>
+              </button>
+            {/each}
+          </div>
+          <button class="primary" onclick={playGummiarmPoint}>Play the point ▸</button>
+        {/if}
       </div>
     {:else if m.phase === "break"}
       <div class="panel">
@@ -279,13 +606,20 @@
         <button class="primary" onclick={() => store.continueMatch()}>Play ▸</button>
       </div>
     {:else}
-      <div class="panel live">
+      {@const slowing = dramaDelay(m) > DELAYS[store.matchSpeed] && !rush}
+      <div class="panel live" class:tense={slowing}>
         <div class="sport-label" style:color={SPORT_COLORS[sport]}>
           {SPORT_LABELS[sport]}{m.gummiarm ? " — gummiarm" : ""}
         </div>
-        <div class="score">{m.sets[m.setIndex]?.a ?? 0} – {m.sets[m.setIndex]?.b ?? 0}</div>
+        <div class="score" class:tense={slowing}>{m.sets[m.setIndex]?.a ?? 0} – {m.sets[m.setIndex]?.b ?? 0}</div>
+        {#if m.gummiarm && m.gummiarmServe}
+          <p class="serve-live">{m.gummiarmServe === "a" ? "Your serve" : `${m.players.b.name} to serve`}</p>
+        {/if}
         {#if moment}
           <div class="clutch-flash" class:gummiarm={moment === "gummiarm"}>{CLUTCH_LABEL[moment]}</div>
+        {/if}
+        {#if slowing}
+          <button class="rush-btn" onclick={() => (rush = true)}>⏩ Speed through</button>
         {/if}
         <div class="speeds">
           {#each [1, 2, 3] as s (s)}
@@ -635,6 +969,29 @@
     line-height: 1;
   }
 
+  /* the persistent "this is getting tense" visual, independent of the
+     autoplay timing itself — a single slowed tick among many normal ones is
+     easy to miss, this isn't */
+  .score.tense {
+    color: var(--warn);
+    animation: score-tense-pulse 0.9s ease-in-out infinite;
+  }
+
+  @keyframes score-tense-pulse {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.06);
+    }
+  }
+
+  .panel.live.tense {
+    border-color: color-mix(in srgb, var(--warn) 50%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--warn) 30%, transparent);
+  }
+
   .clutch-flash {
     font-size: 12px;
     font-weight: 800;
@@ -661,6 +1018,210 @@
     50% {
       opacity: 1;
     }
+  }
+
+  .serve-live {
+    margin: -6px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--warn);
+    letter-spacing: 0.02em;
+  }
+
+  .rush-btn {
+    margin-top: 4px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  /* --- gummiarm ceremony --- */
+  .gummiarm-panel {
+    gap: 10px;
+    border-color: color-mix(in srgb, var(--danger, #d66) 45%, var(--border));
+    background: color-mix(in srgb, var(--danger, #d66) 7%, var(--card));
+  }
+
+  .gummi-emblem {
+    font-size: 40px;
+    line-height: 1;
+    animation: gummi-throb 1.3s ease-in-out infinite;
+  }
+
+  @keyframes gummi-throb {
+    0%,
+    100% {
+      transform: scale(1);
+      filter: drop-shadow(0 0 0 transparent);
+    }
+    50% {
+      transform: scale(1.12);
+      filter: drop-shadow(0 0 10px color-mix(in srgb, var(--danger, #d66) 60%, transparent));
+    }
+  }
+
+  .gummi-title {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: 0.14em;
+    color: var(--danger, #d66);
+    margin: 0;
+  }
+
+  .gummi-sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+    max-width: 34ch;
+    line-height: 1.4;
+  }
+
+  .coin {
+    font-size: 34px;
+    line-height: 1;
+    margin-top: 4px;
+    animation: coin-flip 0.9s ease-out 1;
+  }
+
+  @keyframes coin-flip {
+    0% {
+      transform: rotateY(0) translateY(-14px);
+      opacity: 0.2;
+    }
+    100% {
+      transform: rotateY(1440deg) translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .toss {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  /* --- gummiarm suspense (the "stepping up to serve" pause) --- */
+  .gummiarm-panel.suspense .gummi-title {
+    font-size: 22px;
+  }
+
+  .suspense-dots {
+    display: flex;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  .suspense-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--danger, #d66);
+    animation: suspense-dot 1.2s ease-in-out infinite;
+  }
+
+  .suspense-dots span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  .suspense-dots span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes suspense-dot {
+    0%,
+    80%,
+    100% {
+      opacity: 0.25;
+      transform: scale(0.8);
+    }
+    40% {
+      opacity: 1;
+      transform: scale(1.15);
+    }
+  }
+
+  /* --- gummiarm reveal (holds on the point outcome before the result panel) --- */
+  .gummiarm-panel.reveal {
+    border-color: color-mix(in srgb, var(--danger, #d66) 55%, var(--border));
+  }
+
+  .gummiarm-panel.reveal.won {
+    border-color: color-mix(in srgb, var(--ok) 55%, var(--border));
+    background: color-mix(in srgb, var(--ok) 8%, var(--card));
+  }
+
+  .gummiarm-panel.reveal .gummi-emblem {
+    font-size: 52px;
+    animation: gummi-throb 0.7s ease-in-out infinite;
+  }
+
+  .gummiarm-panel.reveal .gummi-title {
+    color: var(--text);
+  }
+
+  .gummiarm-panel.reveal.won .gummi-title {
+    color: var(--ok);
+  }
+
+  .choose-label {
+    margin: 4px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  .serve-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .serve-opt {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-weight: 800;
+    text-align: left;
+  }
+
+  .serve-opt small {
+    color: var(--muted);
+    font-weight: 400;
+    font-size: 11.5px;
+  }
+
+  .serve-opt .rec {
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 800;
+    color: var(--danger, #d66);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-left: 4px;
+  }
+
+  .serve-verdict {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    max-width: 32ch;
+    line-height: 1.4;
+  }
+
+  .serve-verdict.serving {
+    color: var(--danger, #d66);
   }
 
   .speeds {
@@ -741,5 +1302,127 @@
     color: var(--muted);
     font-size: 13px;
     margin: 0;
+  }
+
+  /* --- set/match-end holds: reuses the live-panel look, frozen a beat --- */
+  .hold-caption {
+    margin: 6px 0 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--warn);
+    letter-spacing: 0.02em;
+  }
+
+  /* --- match summary (chart + stats), replaces the plain result panel --- */
+  .panel.summary {
+    justify-content: flex-start;
+    gap: 10px;
+    padding-top: 18px;
+    overflow-y: auto;
+  }
+
+  .chart-wrap {
+    width: 100%;
+    margin-top: 4px;
+  }
+
+  .chart {
+    width: 100%;
+    height: 90px;
+    display: block;
+    overflow: visible;
+  }
+
+  .chart-zero {
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+
+  .chart-boundary {
+    stroke: var(--border);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+  }
+
+  .chart-line {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+
+  .chart-sport-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 2px;
+  }
+
+  .chart-sport-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+  }
+
+  .chart-legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+
+  .chart-legend-item::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+
+  .chart-legend-item.you::before {
+    background: var(--accent);
+  }
+
+  .chart-legend-item.opp::before {
+    background: var(--muted);
+  }
+
+  .stat-row {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 4px;
+  }
+
+  .stat-val {
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    color: var(--muted);
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
   }
 </style>
