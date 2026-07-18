@@ -4,7 +4,7 @@ import type { Calendar } from "./core/date.js";
 import { ageOn, dateForWeek, weekLabel, weekLabelAt, yearOfWeek } from "./core/date.js";
 import type { EventLog, GameEvent } from "./core/events.js";
 import { eventsForWeek } from "./core/events.js";
-import type { GameState, InboxMessage, TravelBlock } from "./core/state.js";
+import type { CompletedDraw, GameState, InboxMessage, PersistedOtherDivisionDraw, TravelBlock } from "./core/state.js";
 import { SAVE_VERSION, getPlayer, humanPlayer } from "./core/state.js";
 import type { ActivityCounts, PlayerPlan } from "./model/plan.js";
 import { countsFromSlots, slotIndex } from "./model/plan.js";
@@ -55,7 +55,7 @@ import {
   humanEligibleDivisions,
   isSiblingConcluded,
   previewFirstRoundDraw,
-  projectedField,
+  projectedFieldAsOf,
   startSiblingSession,
   startTournament,
   tournamentCalendar,
@@ -599,14 +599,14 @@ export interface InboxView extends InboxMessage {
  * `firResults` ledger — see `Player.firResults`) — genuinely 0 for everyone
  * at the start of a career (or of any new year) and climbs only as counted
  * results are actually earned that season, for NPCs and the human alike
- * (every entrant of a simulated tournament earns points, not just the
- * human — see tournament/engine.ts's `recordEntrantResults`). Points earned
- * outside any tournament the human's own session actually simulates (their
- * own division, or a sibling division running alongside it) still don't
- * exist — there's no full-world background simulation yet, so an NPC's Race
- * points stay 0 until they've actually shared a session with the human.
- * `rating` is the combined Glicko-2 estimate, explicitly a companion stat,
- * never the ranking itself.
+ * (every entrant of every scheduled tournament earns points, not just the
+ * human's own division/siblings — see tournament/engine.ts's
+ * `recordEntrantResults` and `Game.submitWeek`'s headless world-tournament
+ * simulation for the divisions the human's own session doesn't cover). Stays
+ * 0 only for a player who hasn't been drawn into a tournament field yet this
+ * season (a `simTier !== 1` player, or simply unlucky in the weighted draw —
+ * see `sampleDivisionField`). `rating` is the combined Glicko-2 estimate,
+ * explicitly a companion stat, never the ranking itself.
  */
 export interface RankingRowView {
   rank: number;
@@ -943,14 +943,24 @@ export class Game {
 
   /**
    * Every match `playerId` has been in — human or NPC — newest first, no
-   * cap. Mined from `career.completedDraws`: every tournament bracket the
-   * human's own session has ever fully resolved (their own division plus
-   * every sibling division simulated alongside it), which is the only place
-   * NPC-vs-NPC results exist at all (there's no full-world background
-   * simulation yet — see docs/06's M2 notes). So this is complete for any
-   * player who has shared a tournament week with the human, and empty for
-   * anyone who hasn't, not "empty because they've never played" — the
-   * opponent profile screen's "Match history" card.
+   * cap. Two sources, both walked by `matchesFromBrackets`: `career.completedDraws`
+   * (every tournament bracket fully resolved for a past week, whether that
+   * was the human's own session, its siblings, or the headless world
+   * simulation `submitWeek` runs for every division the human's own session
+   * didn't touch — see `Game.submitWeek`'s `simulateUnplayedWorldTournaments`)
+   * *and* the currently in-progress session, if any (`this.tournamentSession`
+   * plus `this.siblingSessions`) — so a match shows up here the moment its
+   * round resolves, not only once the whole event concludes and
+   * `clearConcludedTournament` commits it to `completedDraws`. AI-vs-AI pairs
+   * resolve instantly each round, so this can genuinely be ahead of the
+   * human's own still-unfinished match. Complete for every tier-1 player
+   * from the week they were first drawn into a field onward, not just
+   * players who happened to share a tournament with the human. Stays empty
+   * only for a player who's never been sampled into any division's field yet
+   * (a `simTier !== 1` player, or simply unlucky so far — see
+   * `sampleDivisionField`'s weighted draw), or for weeks played before this
+   * simulation existed on an old save — the opponent profile screen's
+   * "Match history" card.
    */
   matchesForPlayer(playerId: string): PlayerMatchView[] {
     const matches: PlayerMatchView[] = [];
@@ -960,42 +970,75 @@ export class Game {
         { tournamentId: draw.tournamentId, rounds: draw.rounds },
         ...draw.otherDivisions.map((o) => ({ tournamentId: o.tournamentId, rounds: o.rounds })),
       ];
-      for (const bracket of brackets) {
-        const def = this.content.tournaments[bracket.tournamentId];
-        if (!def) continue;
-        for (const round of bracket.rounds) {
-          for (const section of round.sections) {
-            for (const m of section.matchups) {
-              if (m.winnerId === null) continue; // not actually played (bye or unresolved)
-              const isA = m.a.id === playerId;
-              if (!isA && m.b.id !== playerId) continue;
-              const opponent = isA ? m.b : m.a;
-              const sets = (m.sets ?? []).map((s, i) => ({
-                sport: SPORTS[i]!,
-                a: isA ? s.a : s.b,
-                b: isA ? s.b : s.a,
-              }));
-              matches.push({
-                week,
-                weekLabel: weekLabelAt(this.state.calendar, week),
-                year: yearOfWeek(this.state.calendar, week),
-                tournamentName: def.name,
-                tournamentTier: def.tier,
-                division: def.division,
-                roundName: section.roundName,
-                opponentId: opponent.id,
-                opponentName: opponent.name,
-                won: m.winnerId === playerId,
-                totalA: sets.reduce((sum, s) => sum + s.a, 0),
-                totalB: sets.reduce((sum, s) => sum + s.b, 0),
-                sets,
-              });
-            }
+      matches.push(...this.matchesFromBrackets(playerId, week, brackets));
+    }
+    // Every already-decided round of the *live* tournament in progress, if
+    // any — AI-vs-AI pairs resolve instantly (see tournament/engine.ts's
+    // `resolveRound`), so a round the human hasn't finished yet can still
+    // hold plenty of real results for everyone else in it. Without this, a
+    // player's match history stayed empty for the whole event until the
+    // human finished browsing the final bracket and called
+    // `clearConcludedTournament` — a real lag, not just "the week isn't
+    // simulated yet" (this session's own week is never in `completedDraws`
+    // while it's still active, so there's no risk of double-counting here).
+    if (this.tournamentSession) {
+      const week = this.tournamentSession.weekIndex;
+      const brackets = [
+        { tournamentId: this.tournamentSession.def.id, rounds: drawRounds(this.state, this.tournamentSession) },
+        ...[...this.siblingSessions.values()].map((sibling) => ({
+          tournamentId: sibling.def.id,
+          rounds: drawRounds(this.state, sibling),
+        })),
+      ];
+      matches.push(...this.matchesFromBrackets(playerId, week, brackets));
+    }
+    matches.sort((a, b) => b.week - a.week);
+    return matches;
+  }
+
+  /** Shared by `matchesForPlayer`'s persisted (`completedDraws`) and live
+   * (in-progress session) sources — walks a week's brackets and pulls out
+   * every already-decided matchup `playerId` was in. */
+  private matchesFromBrackets(
+    playerId: string,
+    week: number,
+    brackets: { tournamentId: string; rounds: DrawRound[] }[],
+  ): PlayerMatchView[] {
+    const matches: PlayerMatchView[] = [];
+    for (const bracket of brackets) {
+      const def = this.content.tournaments[bracket.tournamentId];
+      if (!def) continue;
+      for (const round of bracket.rounds) {
+        for (const section of round.sections) {
+          for (const m of section.matchups) {
+            if (m.winnerId === null) continue; // not actually played (bye or unresolved)
+            const isA = m.a.id === playerId;
+            if (!isA && m.b.id !== playerId) continue;
+            const opponent = isA ? m.b : m.a;
+            const sets = (m.sets ?? []).map((s, i) => ({
+              sport: SPORTS[i]!,
+              a: isA ? s.a : s.b,
+              b: isA ? s.b : s.a,
+            }));
+            matches.push({
+              week,
+              weekLabel: weekLabelAt(this.state.calendar, week),
+              year: yearOfWeek(this.state.calendar, week),
+              tournamentName: def.name,
+              tournamentTier: def.tier,
+              division: def.division,
+              roundName: section.roundName,
+              opponentId: opponent.id,
+              opponentName: opponent.name,
+              won: m.winnerId === playerId,
+              totalA: sets.reduce((sum, s) => sum + s.a, 0),
+              totalB: sets.reduce((sum, s) => sum + s.b, 0),
+              sets,
+            });
           }
         }
       }
     }
-    matches.sort((a, b) => b.week - a.week);
     return matches;
   }
 
@@ -1426,12 +1469,15 @@ export class Game {
         tournament: def,
         isThisWeek: weekIndex === thisWeekIndex,
         status,
-        entrants: rankedEntrants(projectedField(this.state, def, weekIndex, this.content), standings),
+        entrants: rankedEntrants(projectedFieldAsOf(this.state, def, weekIndex, this.content, thisWeekIndex), standings),
         travelCost: travelCost(homeCountry, def, this.content),
         travelDays: travelDays(homeCountry, def, this.content),
         eligibleDivisions: eligible.map((eligibleDef) => ({
           def: eligibleDef,
-          entrants: rankedEntrants(safeProjectedField(this.state, eligibleDef, weekIndex, this.content), standings),
+          entrants: rankedEntrants(
+            safeProjectedField(this.state, eligibleDef, weekIndex, this.content, thisWeekIndex),
+            standings,
+          ),
         })),
       };
     });
@@ -1652,12 +1698,28 @@ export class Game {
   resolveTournamentMatch(finishedMatch: MatchState): TournamentAdvanceResult {
     if (!this.tournamentSession) throw new Error("No active tournament to advance");
     const before = this.records();
+    // Snapshotted before `advanceTournament` logs *this* result, so a title
+    // won right now doesn't count as its own prior history — see
+    // `emitBrokenRecordEmails` and `emitMilestoneEmails`.
+    const humanId = this.state.career.playerId;
+    const priorConclusions = this.log.filter(
+      (e) => e.subject === humanId && (e.type === "tournament.won" || e.type === "tournament.eliminated"),
+    );
+    const isFirstTournament = priorConclusions.length === 0;
+    const hadPodiumBefore = priorConclusions.some(
+      (e) => Number((e.data as { finishingPosition?: number } | undefined)?.finishingPosition ?? Infinity) <= 3,
+    );
+    const hadGoldBefore = priorConclusions.some((e) => e.type === "tournament.won");
     const result = advanceTournament(this.state, this.tournamentSession, finishedMatch, this.log);
-    for (const sibling of this.siblingSessions.values()) advanceSiblingSession(this.state, sibling);
+    for (const sibling of this.siblingSessions.values()) advanceSiblingSession(this.state, sibling, this.log);
     if (result.status !== "nextRound") {
-      for (const sibling of this.siblingSessions.values()) finishSiblingSession(this.state, sibling);
+      for (const sibling of this.siblingSessions.values()) finishSiblingSession(this.state, sibling, this.log);
     }
-    this.emitBrokenRecordEmails(before, this.records());
+    // Skip: the human's very first tournament ever has no real baseline —
+    // every placement trivially "breaks" a null record, which would flood
+    // the inbox with meaningless firsts. See `emitBrokenRecordEmails`.
+    if (!isFirstTournament) this.emitBrokenRecordEmails(before, this.records());
+    this.emitMilestoneEmails(result, hadPodiumBefore, hadGoldBefore);
     return result;
   }
 
@@ -1721,6 +1783,52 @@ export class Game {
       body: notes.join(" "),
       read: false,
     });
+  }
+
+  /**
+   * Two one-time congratulation emails for the human's own career-defining
+   * firsts, fired the moment a tournament concludes — the weeks between
+   * tournaments otherwise feel like pure transit, so these land as a bit of
+   * living-world texture rather than another stats readout. `hadPodiumBefore`
+   * / `hadGoldBefore` are snapshotted by `resolveTournamentMatch` *before*
+   * this conclusion was logged, so the tournament that actually earns the
+   * milestone still counts as "first".
+   */
+  private emitMilestoneEmails(result: TournamentAdvanceResult, hadPodiumBefore: boolean, hadGoldBefore: boolean): void {
+    if (result.status === "nextRound" || !this.tournamentSession) return;
+    const def = this.tournamentSession.def;
+    const human = humanPlayer(this.state);
+    const week = this.state.calendar.weekIndex;
+
+    if (!hadPodiumBefore && result.finishingPosition <= 3) {
+      this.state.career.inbox.push({
+        id: `family-podium:${week}`,
+        week,
+        category: "family",
+        from: "Mom",
+        subject: "So proud of you!",
+        body:
+          `I just saw the results from ${def.name} — a podium finish! I always knew you had it in you. ` +
+          `Call me tonight, I want to hear everything. Love, Mom.`,
+        read: false,
+      });
+    }
+
+    if (!hadGoldBefore && result.status === "won") {
+      const country = this.content.countries[human.identity.nationality];
+      const presidentName = country?.president ?? "the federation president";
+      this.state.career.inbox.push({
+        id: `official-gold:${week}`,
+        week,
+        category: "official",
+        from: `${country?.name ?? human.identity.nationality} Federation President, ${presidentName}`,
+        subject: "Congratulations on your first title",
+        body:
+          `On behalf of the entire federation, congratulations on winning the ${def.name} — a fantastic ` +
+          `achievement, and I'm sure the first of many. We're proud to have you flying our flag.`,
+        read: false,
+      });
+    }
   }
 
   /** Releases the concluded tournament's session (own + siblings) once the
@@ -1818,11 +1926,76 @@ export class Game {
   }
 
   submitWeek(plan: PlayerPlan): WeekSummary {
+    this.simulateUnplayedWorldTournaments();
     const snapshot = this.ensureWeekSnapshot();
     const outcome = simulateWeek(this.state, plan, this.content, this.log, snapshot);
     this.weekSnapshot = null;
     this.tournamentPreparationDone = false;
     return outcome.summary;
+  }
+
+  /**
+   * The "living world" fix: any tournament division scheduled for this week
+   * that the human's own session never touched — because they weren't
+   * entered at all, no-showed, or aren't eligible for that gender/division —
+   * still needs to happen. Real racketlon doesn't pause for one amateur
+   * skipping a week: every other entrant plays their bracket out regardless,
+   * and their ratings/FIR points/`recentResults` need to keep moving for the
+   * world to feel alive (and for `Game.matchesForPlayer`'s opponent-profile
+   * match history to ever show anything for a player the human hasn't shared
+   * a tournament with yet).
+   *
+   * Reuses `startSiblingSession`/`finishSiblingSession` — the exact same
+   * fully-AI mechanism already used to simulate another division alongside
+   * the human's own live tournament — just run to completion headlessly for
+   * every division `completedDraws[week]` doesn't already cover, gender
+   * included (the human's own live session only ever covers their own
+   * gender's siblings — see `enterTournament`). Called from `submitWeek`
+   * *before* `simulateWeek` advances the calendar, so `weekIndex` here is
+   * still the week actually concluding.
+   */
+  private simulateUnplayedWorldTournaments(): void {
+    const week = this.state.calendar.weekIndex;
+    if (this.tournamentSession && this.tournamentSession.weekIndex === week) return;
+    const defs = tournamentForWeek(this.content, week);
+    if (!defs) return;
+
+    const existing = this.state.career.completedDraws[week];
+    const covered = new Set<string>(
+      existing ? [existing.tournamentId, ...existing.otherDivisions.map((o) => o.tournamentId)] : [],
+    );
+    const remaining = defs.filter((d) => !covered.has(d.id));
+    if (remaining.length === 0) return;
+
+    // For a fully-skipped week (no `existing` entry yet), whichever def ends
+    // up "primary" is the one the UI's `tournamentDetail`/`Draw.svelte` shows
+    // under the hardcoded "Your draw" tab — so pick the human's own division
+    // (same resolution `tournamentThisWeek()` uses) rather than an arbitrary
+    // first def, which could just as easily be the opposite gender's class.
+    // The human still never played it, but "your draw" should at least mean
+    // "the class you'd have been in," not a random bracket.
+    const preferredId = existing ? null : humanDivisionDef(this.state, defs).id;
+    const orderedRemaining = preferredId
+      ? [...remaining].sort((a, b) => (a.id === preferredId ? -1 : b.id === preferredId ? 1 : 0))
+      : remaining;
+
+    const newDraws: PersistedOtherDivisionDraw[] = orderedRemaining.map((def) => {
+      const session = startSiblingSession(this.state, def, week, this.content);
+      finishSiblingSession(this.state, session, this.log);
+      return { tournamentId: session.def.id, rounds: drawRounds(this.state, session) };
+    });
+
+    if (existing) {
+      existing.otherDivisions.push(...newDraws);
+    } else {
+      const [primary, ...rest] = newDraws;
+      if (!primary) return;
+      this.state.career.completedDraws[week] = {
+        tournamentId: primary.tournamentId,
+        rounds: primary.rounds,
+        otherDivisions: rest,
+      } satisfies CompletedDraw;
+    }
   }
 
   eventsForWeek(week: number): GameEvent[] {
@@ -1864,15 +2037,21 @@ function traitView(content: ContentBundle, id: string): TraitView | null {
 }
 
 /**
- * `projectedField`, but tolerant of a tougher played-up class not having
+ * `projectedFieldAsOf`, but tolerant of a tougher played-up class not having
  * enough tier-1 NPCs to fill its draw right now — the same shape a
  * genuinely under-subscribed real class would present, rather than a crash.
  * Only used for `eligibleDivisions`' non-default choices; the primary
  * (registered or own-division) field is never expected to hit this.
  */
-function safeProjectedField(state: GameState, def: TournamentDef, weekIndex: number, content: ContentBundle): Player[] {
+function safeProjectedField(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+  asOfWeek: number,
+): Player[] {
   try {
-    return projectedField(state, def, weekIndex, content);
+    return projectedFieldAsOf(state, def, weekIndex, content, asOfWeek);
   } catch {
     return [];
   }

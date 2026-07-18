@@ -183,7 +183,7 @@
               {/each}
             </div>
           {:else}
-            <p class="empty">No matches recorded yet — only tournaments the human has shared count here.</p>
+            <p class="empty">No matches recorded yet — this player hasn't been drawn into a tournament field.</p>
           {/if}
         </section>
       {/if}

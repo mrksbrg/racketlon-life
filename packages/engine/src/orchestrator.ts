@@ -1,5 +1,5 @@
 import type { ContentBundle } from "./content.js";
-import { advanceWeek, ageOn, yearOfWeek } from "./core/date.js";
+import { advanceWeek, ageOn, monthKeyForWeek, yearOfWeek } from "./core/date.js";
 import type { EventLog, GameEvent } from "./core/events.js";
 import { WeekLog, eventsForWeek } from "./core/events.js";
 import { Rng, childSeed } from "./core/rng.js";
@@ -14,6 +14,7 @@ import { generateInboxMessages, InboxSystem } from "./systems/inbox.js";
 import { InjurySystem } from "./systems/injury.js";
 import { PlanningSystem } from "./systems/planning.js";
 import { ProgressionSystem } from "./systems/progression.js";
+import { publishPendingFirResults } from "./systems/ranking-points.js";
 import { RecoverySystem } from "./systems/recovery.js";
 import { SummarySystem } from "./systems/summary.js";
 import { TrainingSystem } from "./systems/training.js";
@@ -184,6 +185,17 @@ export function simulateWeek(
   }
 
   state.calendar = advanceWeek(state.calendar);
+
+  // Real FIR ranking points aren't live the moment a tournament ends — the
+  // federation batches a month's results and publishes them together on the
+  // 1st of the next month (Glicko ratings have no such delay — see
+  // tournament/engine.ts's `recordEntrantResults`). Publish before
+  // generating this week's inbox messages so the monthly ranking digest, if
+  // one fires below, reflects the just-published totals.
+  if (monthKeyForWeek(state.calendar, state.calendar.weekIndex) !== monthKeyForWeek(state.calendar, state.calendar.weekIndex - 1)) {
+    publishPendingFirResults(state);
+  }
+
   state.career.inbox.push(...generateInboxMessages(state, content, state.calendar.weekIndex));
 
   const summary = outputs.summary;

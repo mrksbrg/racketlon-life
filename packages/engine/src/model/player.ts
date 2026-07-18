@@ -150,8 +150,19 @@ export interface Player {
    * snapshot exists for a created character). */
   firPoints: number | null;
   /** newest last — this player's own in-game FIR ranking-points ledger, for
-   * every player, not just the human. See {@link FirResult}. */
+   * every player, not just the human. See {@link FirResult}. Only *published*
+   * results land here — a concluded tournament's points sit in
+   * `pendingFirResults` first (real FIR ranking points aren't live the
+   * instant a tournament ends; the federation batches a month's results and
+   * publishes them on the 1st of the next month). */
   firResults: FirResult[];
+  /** FIR ranking-points results earned but not yet published — moved into
+   * `firResults` in one batch on the next calendar-month crossing (see
+   * `systems/ranking-points.ts`'s `publishPendingFirResults`, called from
+   * `orchestrator.ts`'s `simulateWeek`). Glicko ratings are unaffected by
+   * this delay — `tournament/engine.ts`'s `recordEntrantResults` still
+   * applies those immediately, only FIR points wait. */
+  pendingFirResults: FirResult[];
   simTier: SimTier;
   /** newest last, capped — see {@link PlayerTournamentResult} */
   recentResults: PlayerTournamentResult[];

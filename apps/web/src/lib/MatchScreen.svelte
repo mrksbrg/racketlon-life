@@ -255,6 +255,27 @@
     }, GUMMIARM_SUSPENSE_MS);
   }
 
+  /**
+   * How many times the lead actually swapped sides across a point-diff
+   * trace — the number of times a *new* nonzero sign appears that differs
+   * from the last nonzero sign seen, ignoring exact 0 (tied) entries in
+   * between. A naive adjacent-pair sign comparison undercounts: a trace
+   * that runs ...+1, 0, −1... never has two *adjacent* opposite-nonzero
+   * points, so it misses the swap entirely even though the lead plainly
+   * changed hands. Tracking the last nonzero side instead catches it.
+   */
+  function countLeadChanges(history: number[]): number {
+    let lastSide = 0;
+    let changes = 0;
+    for (const d of history) {
+      const side = Math.sign(d);
+      if (side === 0) continue;
+      if (lastSide !== 0 && side !== lastSide) changes++;
+      lastSide = side;
+    }
+    return changes;
+  }
+
   /** The ⏭ skip button — deliberately bypasses every pacing/hold beat above
    * (dramaDelay, setEndHold, matchEndHold, the gummiarm ceremony); skipping
    * is the impatience escape hatch, so it should actually be instant. Still
@@ -470,12 +491,7 @@
       })()}
       {@const biggestLeadYou = Math.max(0, ...history)}
       {@const biggestLeadOpp = Math.max(0, ...history.map((d) => -d))}
-      {@const leadChanges = history.reduce((acc, d, i) => {
-        if (i === 0) return acc;
-        const prevSign = Math.sign(history[i - 1] ?? 0);
-        const sign = Math.sign(d);
-        return acc + (prevSign !== 0 && sign !== 0 && prevSign !== sign ? 1 : 0);
-      }, 0)}
+      {@const leadChanges = countLeadChanges(history)}
       <div class="panel result summary">
         <div class="verdict" class:won>
           {won ? "You win!" : `${m.players.b.name} wins`}
@@ -489,12 +505,20 @@
 
         <div class="chart-wrap">
           <svg class="chart" viewBox="0 0 {chartW} {chartH}" preserveAspectRatio="none">
-            <line x1="0" y1={chartH / 2} x2={chartW} y2={chartH / 2} class="chart-zero" />
+            <clipPath id="chart-clip-above">
+              <rect x="0" y="0" width={chartW} height={chartH / 2} />
+            </clipPath>
+            <clipPath id="chart-clip-below">
+              <rect x="0" y={chartH / 2} width={chartW} height={chartH / 2} />
+            </clipPath>
             {#each boundaries.slice(0, -1) as b (b.sport)}
               {@const x = history.length > 1 ? (b.index / (history.length - 1)) * chartW : 0}
               <line x1={x} y1="0" x2={x} y2={chartH} class="chart-boundary" />
             {/each}
-            <polyline points={pts} class="chart-line" />
+            <line x1="0" y1={chartH / 2} x2={chartW} y2={chartH / 2} class="chart-zero" />
+            <text x="4" y={chartH / 2 - 3} class="chart-zero-label">0</text>
+            <polyline points={pts} class="chart-line chart-line-above" clip-path="url(#chart-clip-above)" />
+            <polyline points={pts} class="chart-line chart-line-below" clip-path="url(#chart-clip-below)" />
           </svg>
           <div class="chart-sport-row">
             {#each boundaries as b (b.sport)}
@@ -502,8 +526,8 @@
             {/each}
           </div>
           <div class="chart-legend">
-            <span class="chart-legend-item you">You</span>
-            <span class="chart-legend-item opp">{m.players.b.name}</span>
+            <span class="chart-legend-item you">You (ahead)</span>
+            <span class="chart-legend-item opp">{m.players.b.name} (ahead)</span>
           </div>
         </div>
 
@@ -1333,9 +1357,19 @@
     overflow: visible;
   }
 
+  /* solid and higher-contrast than the (dashed) sport-boundary lines — this
+     is the one reference line every reading of the chart hangs off, so it
+     needs to read as the baseline at a glance, not just another gridline */
   .chart-zero {
-    stroke: var(--border);
-    stroke-width: 1;
+    stroke: var(--muted);
+    stroke-width: 1.5;
+    opacity: 0.7;
+  }
+
+  .chart-zero-label {
+    font-size: 8px;
+    font-weight: 700;
+    fill: var(--muted);
   }
 
   .chart-boundary {
@@ -1346,10 +1380,20 @@
 
   .chart-line {
     fill: none;
-    stroke: var(--accent);
     stroke-width: 2;
     stroke-linejoin: round;
     stroke-linecap: round;
+  }
+
+  /* two copies of the same polyline, each clipped to one half of the chart
+     — cheaper and more robust than computing exact zero-crossing points to
+     split the path into per-segment colors, and looks identical */
+  .chart-line-above {
+    stroke: var(--ok);
+  }
+
+  .chart-line-below {
+    stroke: var(--danger, #d66);
   }
 
   .chart-sport-row {
@@ -1385,11 +1429,11 @@
   }
 
   .chart-legend-item.you::before {
-    background: var(--accent);
+    background: var(--ok);
   }
 
   .chart-legend-item.opp::before {
-    background: var(--muted);
+    background: var(--danger, #d66);
   }
 
   .stat-row {

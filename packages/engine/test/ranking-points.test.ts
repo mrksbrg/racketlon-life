@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RankingMatrix } from "../src/index.js";
-import { firPointsTotal, firRacePointsTotal, rankingPointsFor } from "../src/index.js";
+import { Game, firPointsTotal, firRacePointsTotal, publishPendingFirResults, rankingPointsFor } from "../src/index.js";
 import { advanceWeek, startCalendar } from "../src/core/date.js";
+import { testContent } from "./fixtures.js";
 
 const MATRIX: RankingMatrix = {
   SAT: { A: [100, 60, 40, 20], B: [50, 30, 20, 10] },
@@ -120,5 +121,39 @@ describe("firRacePointsTotal", () => {
 
   it("is zero for an empty ledger", () => {
     expect(firRacePointsTotal([], calAt(10))).toBe(0);
+  });
+});
+
+describe("publishPendingFirResults", () => {
+  it("moves a player's pending FIR results into their real ledger, then clears the queue", () => {
+    const game = Game.newGame({ content: testContent, seed: "publish-1" });
+    const state = game.serialize().state;
+    const npc = state.players.find((p) => p.identity.id !== state.career.playerId)!;
+    npc.pendingFirResults = [{ weekIndex: 3, tournamentId: "t-1", tier: "SAT", points: 40 }];
+    expect(npc.firResults).toHaveLength(0);
+
+    publishPendingFirResults(state);
+
+    expect(npc.firResults).toEqual([{ weekIndex: 3, tournamentId: "t-1", tier: "SAT", points: 40 }]);
+    expect(npc.pendingFirResults).toHaveLength(0);
+  });
+
+  it("is a no-op for a player with nothing pending", () => {
+    const game = Game.newGame({ content: testContent, seed: "publish-2" });
+    const state = game.serialize().state;
+    publishPendingFirResults(state); // must not throw
+    for (const p of state.players) expect(p.firResults).toHaveLength(0);
+  });
+
+  it("appends to already-published results rather than overwriting them", () => {
+    const game = Game.newGame({ content: testContent, seed: "publish-3" });
+    const state = game.serialize().state;
+    const npc = state.players.find((p) => p.identity.id !== state.career.playerId)!;
+    npc.firResults = [{ weekIndex: 1, tournamentId: "t-0", tier: "SAT", points: 10 }];
+    npc.pendingFirResults = [{ weekIndex: 3, tournamentId: "t-1", tier: "SAT", points: 40 }];
+
+    publishPendingFirResults(state);
+
+    expect(npc.firResults.map((r) => r.tournamentId)).toEqual(["t-0", "t-1"]);
   });
 });

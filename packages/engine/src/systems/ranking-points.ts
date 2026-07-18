@@ -2,7 +2,6 @@ import type { RankingMatrix } from "../content.js";
 import type { Calendar } from "../core/date.js";
 import { yearOfWeek } from "../core/date.js";
 import type { GameState } from "../core/state.js";
-import { getPlayer } from "../core/state.js";
 import type { FirResult } from "../model/player.js";
 import { fullName } from "../model/player.js";
 
@@ -96,16 +95,15 @@ export function firPointsTotal(ledger: readonly FirResult[], currentWeek: number
 }
 
 /**
- * The human's World Tour Race points: results from the current calendar
- * year only (an Order-of-Merit view, not the rolling World Ranking window),
+ * A player's World Tour Race points: results from the current calendar year
+ * only (an Order-of-Merit view, not the rolling World Ranking window),
  * applying the same best-N counting rules via {@link countedTotal}. Resets
- * to 0 every January, same as the real FIR race.
- *
- * Only meaningful for the human — NPCs don't carry a per-tournament result
- * ledger (only a static real-world `firPoints` snapshot, see docs/07's
- * Layer 3 note), so there is no way to compute a genuine season-to-date
- * total for them; `facade.ts`'s ranking table reports 0 for every NPC's
- * race column rather than misleadingly mirroring their lifetime `firPoints`.
+ * to 0 every January, same as the real FIR race. Every player carries their
+ * own `firResults` ledger (`Player.firResults`, populated by
+ * `tournament/engine.ts`'s `recordEntrantResults` for every entrant of every
+ * scheduled tournament, human and NPC alike — see `facade.ts`'s
+ * `simulateUnplayedWorldTournaments`), so this is genuinely meaningful for
+ * anyone, not human-only.
  */
 export function firRacePointsTotal(ledger: readonly FirResult[], cal: Calendar): number {
   const currentYear = yearOfWeek(cal, cal.weekIndex);
@@ -122,6 +120,32 @@ export interface FirRankingStanding {
 }
 
 /**
+ * A player's rolling-24-month "official" points: their static, real-world
+ * `firPoints` snapshot if they have one (an already-established real
+ * ranking — never overwritten by in-game results, matching FIR's real
+ * ranking staying anchored to a player's actual competitive history), else
+ * their own growing total from `firPointsTotal` over their in-game
+ * `firResults` ledger — see `Player.firResults`. Null only if neither
+ * exists yet (no real-world snapshot *and* no counted in-game result),
+ * meaning this player has genuinely never appeared on any ranking.
+ *
+ * This fallback is what lets a purely fictional player (never real-world
+ * ranked, `firPoints: null` from birth — see `world/factory.ts`) climb onto
+ * the World Ranking the same way a human career does, once they've actually
+ * won FIR ranking points in-game (`tournament/engine.ts`'s
+ * `recordEntrantResults`, which now runs for every scheduled tournament's
+ * whole field, not just sessions the human shares — see `facade.ts`'s
+ * `simulateUnplayedWorldTournaments`). Before this, an NPC's in-game
+ * tournament wins were structurally invisible on this ladder — they'd earn
+ * `firResults` entries but never surface here, since only `p.firPoints` was
+ * ever read for anyone but the human.
+ */
+function officialPointsFor(player: { firPoints: number | null; firResults: readonly FirResult[] }, currentWeek: number): number | null {
+  if (player.firPoints !== null) return player.firPoints;
+  return player.firResults.length === 0 ? null : firPointsTotal(player.firResults, currentWeek);
+}
+
+/**
  * The real FIR World Ranking — every player of the given gender who has a
  * counted result, ordered by points, best first. FIR keeps entirely separate
  * men's and women's rankings (never a combined list — see
@@ -132,17 +156,14 @@ export interface FirRankingStanding {
  * unofficial "how strong are they" estimate used to describe players, never
  * to rank them.
  *
- * NPCs use their static, real-world `firPoints` snapshot; the human uses
- * their own growing total (`firPointsTotal` over their own `firResults`
- * ledger — see `Player.firResults`), or is omitted entirely if they haven't
- * played a single counted tournament yet — same as any other player with no
- * result on file. Deterministic tie-break on id, matching `glickoRanking`'s
- * and `divisionAssignments`' convention.
+ * Every player's points come from `officialPointsFor` — a real-world
+ * snapshot if they have one, else their own earned ledger total (human and
+ * NPC alike) — and a player is omitted entirely only if neither exists,
+ * same as any other player with no result on file. Deterministic tie-break
+ * on id, matching `glickoRanking`'s and `divisionAssignments`' convention.
  */
 export function firWorldRanking(state: GameState, gender: "m" | "f"): FirRankingStanding[] {
-  const humanId = state.career.playerId;
-  const humanLedger = getPlayer(state, humanId).firResults;
-  const humanPoints = humanLedger.length === 0 ? null : firPointsTotal(humanLedger, state.calendar.weekIndex);
+  const week = state.calendar.weekIndex;
 
   return state.players
     .filter((p) => p.identity.gender === gender)
@@ -150,9 +171,29 @@ export function firWorldRanking(state: GameState, gender: "m" | "f"): FirRanking
       playerId: p.identity.id,
       name: fullName(p),
       nationality: p.identity.nationality,
-      points: p.identity.id === humanId ? humanPoints : p.firPoints,
+      points: officialPointsFor(p, week),
     }))
     .filter((row): row is { playerId: string; name: string; nationality: string; points: number } => row.points !== null)
     .sort((a, b) => b.points - a.points || (a.playerId < b.playerId ? -1 : 1))
     .map((row, i) => ({ rank: i + 1, ...row }));
+}
+
+/**
+ * Publishes every player's queued FIR ranking points (`Player.pendingFirResults`
+ * — populated the instant a tournament concludes, see `tournament/engine.ts`'s
+ * `recordEntrantResults`) into their real ledger (`Player.firResults`), which
+ * `officialPointsFor`/`firWorldRanking`/`firPointsTotal`/`firRacePointsTotal`
+ * all read. Called exactly once per calendar-month crossing, from
+ * `orchestrator.ts`'s `simulateWeek` — real FIR points aren't live the moment
+ * a tournament ends; the federation batches a month's worth of results and
+ * publishes them together on the 1st of the next month. Glicko ratings have
+ * no such delay (`recordEntrantResults` applies those immediately) — only
+ * the official points wait.
+ */
+export function publishPendingFirResults(state: GameState): void {
+  for (const p of state.players) {
+    if (p.pendingFirResults.length === 0) continue;
+    p.firResults.push(...p.pendingFirResults);
+    p.pendingFirResults = [];
+  }
 }

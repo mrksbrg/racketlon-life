@@ -6,6 +6,7 @@ import {
   SAVE_VERSION,
   advanceTournament,
   dateForWeek,
+  firPointsTotal,
   levelForSkill,
   simulateMatchAuto,
   startTournament,
@@ -86,6 +87,166 @@ describe("Game facade", () => {
 
     const restored = Game.fromSave(game.serialize(), testContent);
     expect(restored.completedDraw(3)).toEqual(draw);
+  });
+
+  it("simulates every tournament the human skips — NPC ratings/FIR points move and the draw becomes browsable", () => {
+    const game = Game.newGame({ content: testContent, seed: "world-sim-1" });
+    const beforeState = game.serialize().state;
+    const ratingsBefore = new Map(beforeState.players.map((p) => [p.identity.id, JSON.stringify(p.ratings)]));
+    expect(game.completedDraw(3)).toBeNull();
+
+    // advance straight past week 3's tournament — never registered, never entered
+    let guard = 0;
+    while (game.weekIndex <= 3 && guard++ < 10) game.submitWeek(WORK);
+
+    const draw = game.completedDraw(3);
+    expect(draw).not.toBeNull();
+    expect(draw!.otherDivisions.length).toBeGreaterThan(0);
+    // both genders' divisions are simulated, not just whichever one the
+    // human would have played
+    const genders = new Set([draw!.tournament.gender, ...draw!.otherDivisions.map((o) => o.tournament.gender)]);
+    expect(genders).toEqual(new Set(["m", "f"]));
+
+    const state = game.serialize().state;
+    const npcsWithResults = state.players.filter(
+      (p) => p.identity.id !== state.career.playerId && p.firResults.length > 0,
+    );
+    expect(npcsWithResults.length).toBeGreaterThan(0);
+    // ratings actually moved, not just the FIR ledger — see the Glicko
+    // application fix in tournament/engine.ts's recordEntrantResults
+    const npcsWithRatingChange = npcsWithResults.filter(
+      (p) => JSON.stringify(p.ratings) !== ratingsBefore.get(p.identity.id),
+    );
+    expect(npcsWithRatingChange.length).toBeGreaterThan(0);
+
+    // a tournament-director podium mail went out even though the human
+    // never played
+    const podiumMail = state.career.inbox.find((m) => m.category === "podium" && m.tournamentWeek === 3);
+    expect(podiumMail).toBeDefined();
+    expect(podiumMail!.podiumMen?.length).toBeGreaterThan(0);
+    expect(podiumMail!.podiumWomen?.length).toBeGreaterThan(0);
+  });
+
+  it("labels the human's own gender/division as the 'primary' draw for a fully-skipped week", () => {
+    // Regression: the UI's Draw.svelte hardcodes its first tab as "Your
+    // draw" — for a skipped week, `completedDraw().tournament` must resolve
+    // to the human's own division, not an arbitrary first def (which could
+    // just as easily be the opposite gender's class).
+    const game = Game.newGame({ content: testContent, seed: "world-sim-primary-1" });
+    const humanGender = game.you.gender;
+    let guard = 0;
+    while (game.weekIndex <= 3 && guard++ < 10) game.submitWeek(WORK);
+
+    const draw = game.completedDraw(3)!;
+    expect(draw.tournament.gender).toBe(humanGender);
+  });
+
+  it("also fills in the opposite-gender divisions of an event the human actually played", () => {
+    const game = Game.newGame({ content: testContent, seed: "world-sim-2" });
+    const humanGender = game.you.gender;
+    playTournamentAt(game, 3);
+
+    const draw = game.completedDraw(3)!;
+    expect(draw).not.toBeNull();
+    const genders = new Set([draw.tournament.gender, ...draw.otherDivisions.map((o) => o.tournament.gender)]);
+    expect(genders).toEqual(new Set(["m", "f"]));
+    // sanity: the human's own division really is in there under their own gender
+    const ownGenderDefs = [draw.tournament, ...draw.otherDivisions.map((o) => o.tournament)].filter(
+      (d) => d.gender === humanGender,
+    );
+    expect(ownGenderDefs.length).toBeGreaterThan(0);
+  });
+
+  it("a purely fictional NPC (no real-world FIR points) shows up on the Rankings screen once they've actually won a division", () => {
+    // Regression: firWorldRanking used to read only `player.firPoints` — the
+    // frozen real-world snapshot — for every NPC, so a generated player with
+    // no real-world ranking (firPoints: null, the common case for most of
+    // the roster) was structurally invisible on the Rankings screen even
+    // after winning tournaments in-game. Fixed via officialPointsFor's
+    // fallback to the player's own firResults ledger.
+    const game = Game.newGame({ content: testContent, seed: "npc-fir-visibility-1" });
+    const before = game.serialize().state;
+
+    let guard = 0;
+    while (game.weekIndex <= 3 && guard++ < 10) game.submitWeek(WORK);
+
+    const state = game.serialize().state;
+    const champion = state.players.find((p) => {
+      if (p.identity.id === state.career.playerId) return false;
+      const beforePlayer = before.players.find((bp) => bp.identity.id === p.identity.id)!;
+      // a player with no real-world FIR points before, and at least one
+      // counted in-game result now
+      return beforePlayer.firPoints === null && p.firResults.length > 0;
+    });
+    expect(champion).toBeDefined();
+
+    const rows = game.rankings(champion!.identity.gender);
+    const row = rows.find((r) => r.playerId === champion!.identity.id);
+    expect(row).toBeDefined();
+    expect(row!.points).toBe(firPointsTotal(champion!.firResults, state.calendar.weekIndex));
+    expect(row!.points).toBeGreaterThan(0);
+  });
+
+  it("holds FIR ranking points as pending until submitWeek's next month crossing — not the instant a tournament concludes", () => {
+    // Real FIR points aren't live immediately; the federation batches and
+    // publishes on the 1st of the next month. Glicko ratings have no such
+    // delay. Deliberately does NOT call submitWeek after the tournament
+    // concludes, so this checks state exactly at the moment
+    // resolveTournamentMatch finishes — before any weekly pipeline (and
+    // therefore any publish) has had a chance to run.
+    const game = Game.newGame({ content: testContent, seed: "fir-delay-1" });
+    game.registerForTournament(3);
+    let guard = 0;
+    while (game.weekIndex < 3 && guard++ < 10) game.submitWeek(WORK);
+
+    const beforeRatings = JSON.stringify(game.serialize().state.players.find((p) => p.identity.id === game.serialize().state.career.playerId)!.ratings);
+
+    let match = game.enterTournament();
+    for (;;) {
+      simulateMatchAuto(match);
+      const result = game.resolveTournamentMatch(match);
+      if (result.status !== "nextRound") break;
+      match = result.match;
+    }
+
+    const state = game.serialize().state;
+    const human = state.players.find((p) => p.identity.id === state.career.playerId)!;
+    expect(human.pendingFirResults.length).toBeGreaterThan(0);
+    expect(human.firResults).toHaveLength(0); // not yet published
+    // ratings, by contrast, already moved — no waiting period for those
+    expect(JSON.stringify(human.ratings)).not.toBe(beforeRatings);
+  });
+
+  it("shows a player's match the moment their round resolves, not only once the whole tournament concludes", () => {
+    // Regression: matchesForPlayer used to be mined only from
+    // career.completedDraws, written once by clearConcludedTournament — so
+    // any already-decided AI-vs-AI match (they resolve instantly each
+    // round, see tournament/engine.ts's resolveRound) stayed invisible on
+    // an opponent's profile for the whole event, even mid-tournament.
+    const game = Game.newGame({ content: testContent, seed: "mid-tourney-history-1" });
+    game.registerForTournament(3);
+    let guard = 0;
+    while (game.weekIndex < 3 && guard++ < 10) game.submitWeek(WORK);
+    game.enterTournament(); // round 0 is already resolved for every AI-vs-AI pair
+
+    // the tournament hasn't concluded — completedDraws has nothing yet
+    expect(game.completedDraw(3)).toBeNull();
+
+    const rounds = game.tournamentDraw()!;
+    expect(rounds).toHaveLength(1);
+    const decidedPair = rounds[0]!.sections
+      .flatMap((s) => s.matchups)
+      .find((m) => !m.isYouA && !m.isYouB && m.winnerId !== null)!;
+    expect(decidedPair).toBeDefined();
+
+    const aMatches = game.matchesForPlayer(decidedPair.a.id);
+    const found = aMatches.find((m) => m.opponentId === decidedPair.b.id && m.week === 3);
+    expect(found).toBeDefined();
+    expect(found!.won).toBe(decidedPair.winnerId === decidedPair.a.id);
+
+    // symmetric from the loser's own profile too
+    const bMatches = game.matchesForPlayer(decidedPair.b.id);
+    expect(bMatches.some((m) => m.opponentId === decidedPair.a.id && m.week === 3)).toBe(true);
   });
 
   it("exposes level view models, not raw skill numbers", () => {
@@ -496,6 +657,100 @@ describe("Game facade", () => {
 
     // and the inbox actually carries it going forward, not just the return value
     expect(game.inbox.some((m) => m.category === "record")).toBe(true);
+  });
+
+  it("suppresses record-broken emails for the human's very first tournament, even across its later rounds", () => {
+    const game = Game.newGame({ content: testContent, seed: "recmail-first" });
+
+    /** Forces every one of the human's matches in `weekIndex`'s tournament to
+     * a win by the given (escalating) margins, so a later round's "biggest
+     * win" trivially beats an earlier round's — the exact shape of the "first
+     * tournament ever floods the inbox with meaningless firsts" bug. Returns
+     * every inbox message that landed as a result. */
+    function forceFullWin(weekIndex: number, marginsSets: [number, number][][]) {
+      game.registerForTournament(weekIndex);
+      let guard = 0;
+      while (game.weekIndex < weekIndex && guard++ < 30) game.submitWeek(WORK);
+      let match: MatchState = game.enterTournament();
+      const idsBefore = new Set(game.inbox.map((m) => m.id));
+      let result: TournamentAdvanceResult;
+      let round = 0;
+      for (;;) {
+        match.sets = marginsSets[round]!.map(([a, b]) => ({ a, b, done: true }));
+        match.phase = "finished";
+        match.winner = "a";
+        result = game.resolveTournamentMatch(match);
+        round++;
+        if (result.status !== "nextRound") break;
+        match = result.match;
+      }
+      const newMail = game.inbox.filter((m) => !idsBefore.has(m.id));
+      game.clearConcludedTournament();
+      game.submitWeek(WORK);
+      return { result, newMail };
+    }
+
+    // three rounds (8-player division A), each a bigger blowout than the
+    // last — every round after the first would ordinarily beat the "biggest
+    // win" record just set, but this is the human's first tournament ever.
+    const firstRun = forceFullWin(3, [
+      [[21, 15], [21, 15], [21, 15], [21, 15]],
+      [[21, 5], [21, 5], [21, 5], [21, 5]],
+      [[21, 2], [21, 2], [21, 2], [21, 2]],
+    ]);
+    expect(firstRun.result.status).toBe("won");
+    expect(firstRun.newMail.some((m) => m.category === "record")).toBe(false);
+
+    // a second tournament, opening with a margin bigger than anything above —
+    // now that the career has a real baseline, this genuinely breaks a record
+    // and must email about it.
+    const secondRun = forceFullWin(7, [
+      [[21, 1], [21, 1], [21, 1], [21, 1]],
+      [[21, 5], [21, 5], [21, 5], [21, 5]],
+      [[21, 2], [21, 2], [21, 2], [21, 2]],
+    ]);
+    expect(secondRun.newMail.some((m) => m.category === "record")).toBe(true);
+  });
+
+  it("congratulates the human's first podium (Mom) and first title (the national federation president), each only once", () => {
+    const game = Game.newGame({ content: testContent, seed: "milestone-1" });
+
+    function forceFullWin(weekIndex: number) {
+      game.registerForTournament(weekIndex);
+      let guard = 0;
+      while (game.weekIndex < weekIndex && guard++ < 30) game.submitWeek(WORK);
+      let match: MatchState = game.enterTournament();
+      const idsBefore = new Set(game.inbox.map((m) => m.id));
+      let result: TournamentAdvanceResult;
+      for (;;) {
+        const sets: [number, number][] = [[21, 15], [21, 15], [21, 15], [21, 15]];
+        match.sets = sets.map(([a, b]) => ({ a, b, done: true }));
+        match.phase = "finished";
+        match.winner = "a";
+        result = game.resolveTournamentMatch(match);
+        if (result.status !== "nextRound") break;
+        match = result.match;
+      }
+      const newMail = game.inbox.filter((m) => !idsBefore.has(m.id));
+      game.clearConcludedTournament();
+      game.submitWeek(WORK);
+      return newMail;
+    }
+
+    // first-ever title: also the first-ever podium, so both fire together
+    const first = forceFullWin(3);
+    expect(first.filter((m) => m.category === "family")).toHaveLength(1);
+    expect(first.find((m) => m.category === "family")).toMatchObject({ from: "Mom", read: false });
+    expect(first.filter((m) => m.category === "official")).toHaveLength(1);
+    expect(first.find((m) => m.category === "official")).toMatchObject({
+      from: "Sweden Federation President, Test President",
+      read: false,
+    });
+
+    // a second title shouldn't re-congratulate either milestone
+    const second = forceFullWin(7);
+    expect(second.filter((m) => m.category === "family")).toHaveLength(0);
+    expect(second.filter((m) => m.category === "official")).toHaveLength(0);
   });
 
   it("firStanding is null until the human has a counted FIR result", () => {

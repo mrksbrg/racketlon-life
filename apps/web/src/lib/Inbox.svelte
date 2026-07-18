@@ -15,6 +15,9 @@
     coach: "🧑‍🏫",
     draw: "📋",
     record: "📈",
+    podium: "🥇",
+    family: "💌",
+    official: "🎖️",
   };
 
   /** Trophy for a title, a plainer note otherwise — a "result" message's icon
@@ -117,6 +120,30 @@
               <div class="actions">
                 <button class="view" onclick={() => store.viewTournamentDetail(msg.tournamentWeek!)}>View the draw ▸</button>
               </div>
+            {/if}
+
+            {#if msg.category === "podium"}
+              {#each [
+                { label: "Men's A", rows: msg.podiumMen },
+                { label: "Women's A", rows: msg.podiumWomen },
+              ] as section (section.label)}
+                {#if section.rows && section.rows.length > 0}
+                  <div class="ranking-label">{section.label}</div>
+                  <div class="ranking">
+                    {#each section.rows as row (row.position)}
+                      <button class="rank-row" onclick={() => store.viewOpponent(row.playerId)}>
+                        <span class="rank">{row.position === 1 ? "🥇" : row.position === 2 ? "🥈" : "🥉"}</span>
+                        <span class="rank-name">{flagEmoji(row.nationality)} {row.name}</span>
+                      </button>
+                    {/each}
+                  </div>
+                {/if}
+              {/each}
+              {#if msg.tournamentWeek !== undefined}
+                <div class="actions">
+                  <button class="view" onclick={() => store.viewTournamentDetail(msg.tournamentWeek!)}>View the draw ▸</button>
+                </div>
+              {/if}
             {/if}
           </div>
         {/if}

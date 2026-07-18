@@ -235,6 +235,21 @@ class GameStore {
    * with a `screenStack` push by `viewTournamentDetail`, same pattern as
    * `viewingOpponentId`. Null the rest of the time. */
   viewingTournamentWeek = $state<number | null>(null);
+  /** Which division tab (`OtherDivisionDraw.tournament.id`, or null for the
+   * primary/"Your draw" bracket) was last selected on the tournamentDetail
+   * screen, per week — so tapping a player's name to open their profile and
+   * then backing out lands back on the same division instead of resetting
+   * to the primary one (Draw.svelte's own `viewing` state is destroyed when
+   * it unmounts for the opponent-profile overlay). Only read/written by
+   * Draw.svelte's non-live modes; the live in-progress draw keeps its own
+   * component-local selection, since its choreography is session-scoped by
+   * design. Never persisted to the save — pure session UI memory. */
+  viewingDivisionByWeek: Record<number, string | null> = $state({});
+  /** Horizontal scroll offset within a division's bracket sheet, keyed
+   * `${week}:${divisionId ?? "primary"}` — the companion to
+   * `viewingDivisionByWeek`: scrolling to the final and stepping away (or
+   * switching tabs and back) shouldn't snap back to round 1. */
+  viewingScrollByDivision: Record<string, number> = $state({});
   /** Overlay navigation history: `openInbox`/`viewOpponent`/
    * `viewTournamentDetail` each push the screen they're opening *from*, and
    * their matching close method pops it back. A single non-stack slot isn't
@@ -565,12 +580,15 @@ class GameStore {
     rerollStats(this.draft);
   }
 
-  /** Commit the draft and drop into the planner for week 1. */
+  /** Commit the draft and drop into the planner for week 1. A brand-new
+   * player lands on the "Balanced" template rather than an all-rest week —
+   * a wall of empty slots (and the vacation/income hit that comes with it)
+   * is a rough first impression, not a real choice the player made. */
   startCareer(): void {
     if (!this.canStartCareer) return;
     const character = $state.snapshot(this.draft) as CharacterDraft;
     this.game = Game.newGame({ content: defaultContent, character });
-    this.slots = emptyPlan().slots;
+    this.slots = this.correctedTemplateSlots("Balanced") ?? emptyPlan().slots;
     this.summary = null;
     this.match = null;
     this.tournamentContext = null;
@@ -638,12 +656,15 @@ class GameStore {
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
   }
 
-  /** The plan actually submitted on Simulate: the draft with travel/tournament
-   * overrides baked in (see `simulateWeek`) — the vacation-cost hint must use
-   * this, not the raw draft, since a travel/tournament slot's underlying
-   * (invisible, disabled) draft activity is never what actually happens. */
+  /** The plan actually submitted on Simulate: the draft with holiday/leave
+   * corrections and travel/tournament overrides baked in (see
+   * `simulateWeek`) — the vacation-cost hint must use this, not the raw
+   * draft, since a travel/tournament slot's underlying (invisible, disabled)
+   * draft activity is never what actually happens, and a carried-over "rest"
+   * slot from before the leave balance ran out must still resolve to `work`
+   * (see `correctActivity`) rather than silently keep burning leave. */
   availableSlots(): ActivityType[] {
-    const slots = [...this.slots];
+    const slots = this.slots.map((activity, i) => this.correctActivity(activity, i));
     for (const block of this.travelBlocksThisWeek) {
       for (const index of block.slotIndices) slots[index] = "travel";
     }
@@ -673,6 +694,24 @@ class GameStore {
     return (this.you?.remainingVacationDays ?? 0) <= 0;
   }
 
+  /** Applies the holiday (no work) and out-of-leave (must work) corrections
+   * to a single slot — shared by the grid display (`effectiveSlot`),
+   * submission (`availableSlots`), and template adoption
+   * (`correctedTemplateSlots`), so a carried-over draft activity that no
+   * longer fits the current calendar/balance is never taken at face value. */
+  private correctActivity(activity: ActivityType, index: number): ActivityType {
+    if (activity === "work" && this.isHolidaySlot(index)) return "rest";
+    if (activity !== "work" && this.isForcedWorkSlot(index)) return "work";
+    return activity;
+  }
+
+  /** What `index` will actually resolve to once corrections are applied —
+   * what the grid should show, even before the underlying draft slot is
+   * edited (e.g. a "rest" slot carried over from before leave ran out). */
+  effectiveSlot(index: number): ActivityType {
+    return this.correctActivity(this.slots[index] ?? "rest", index);
+  }
+
   setSlot(index: number, activity: ActivityType): void {
     if (activity === "work" && this.isHolidaySlot(index)) return;
     if (activity !== "work" && this.isForcedWorkSlot(index)) return;
@@ -686,11 +725,7 @@ class GameStore {
     const build = TEMPLATES[name];
     if (!build || !this.you) return null;
     const built = build(rankSports(this.you.sports));
-    return built.map((activity, i) => {
-      if (activity === "work" && this.isHolidaySlot(i)) return "rest";
-      if (activity !== "work" && this.isForcedWorkSlot(i)) return "work";
-      return activity;
-    });
+    return built.map((activity, i) => this.correctActivity(activity, i));
   }
 
   /** A fully income-free week (e.g. Training camp) is a discretionary trip
@@ -832,13 +867,24 @@ class GameStore {
     title: string;
     rounds: DrawRound[];
     otherDivisionDraws: OtherDivisionDraw[];
+    /** the "primary" bracket's own def — completed mode only. Lets
+     * `Draw.svelte` tell whether this is genuinely the human's own division
+     * or just whichever one `simulateUnplayedWorldTournaments` happened to
+     * pick as primary for a week the human never played at all. */
+    tournament: TournamentDef | null;
   } | null = $derived.by(() => {
     this.version;
     if (!this.game || this.viewingTournamentWeek === null) return null;
     const week = this.viewingTournamentWeek;
     const completed = this.game.completedDraw(week);
     if (completed) {
-      return { mode: "completed", title: completed.tournament.name, rounds: completed.rounds, otherDivisionDraws: completed.otherDivisions };
+      return {
+        mode: "completed",
+        title: completed.tournament.name,
+        rounds: completed.rounds,
+        otherDivisionDraws: completed.otherDivisions,
+        tournament: completed.tournament,
+      };
     }
     const entry = this.seasonTournaments.find((e) => e.weekIndex === week);
     return {
@@ -846,6 +892,7 @@ class GameStore {
       title: entry?.tournament.name ?? "Draw",
       rounds: this.game.previewTournamentDraw(week) ?? [],
       otherDivisionDraws: [],
+      tournament: null,
     };
   });
 
@@ -854,9 +901,13 @@ class GameStore {
    * rendering needed, see `tournamentDetail`'s doc comment); anything else
    * opens the read-only `tournamentDetail` screen instead, following the
    * same `screenStack`-push pattern as `viewOpponent` (so it nests correctly
-   * even when opened from inside another overlay, like the inbox). No-ops
-   * for a "skipped" past week with no completed draw — there's no real
-   * bracket to show for an event the human never entered. */
+   * even when opened from inside another overlay, like the inbox). Every
+   * scheduled tournament week — played or skipped — now gets a real
+   * `completedDraw` once it's been submitted (see `Game.submitWeek`'s
+   * headless world-tournament simulation), so this only still no-ops for a
+   * "skipped" week from a save made before that existed, or a future week
+   * that hasn't happened yet — there's genuinely no bracket to show either
+   * way. */
   viewTournamentDetail(weekIndex: number): void {
     if (!this.game) return;
     if (this.tournamentContext && this.weekIndex === weekIndex) {

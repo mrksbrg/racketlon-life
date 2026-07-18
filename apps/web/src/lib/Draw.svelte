@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { DivisionCode, DrawRound, OtherDivisionDraw } from "@racketlon/engine";
+  import type { DrawRound, OtherDivisionDraw, TournamentDef } from "@racketlon/engine";
   import { store } from "./store.svelte";
   import { finishLabel, flagEmoji, seedBadge, setScoreLine } from "./ui";
 
@@ -13,24 +13,95 @@
     rounds: roundsProp,
     otherDivisionDraws: otherProp,
     title: titleProp,
+    primaryTournament,
     mode = "live",
     onClose,
   }: {
     rounds?: DrawRound[];
     otherDivisionDraws?: OtherDivisionDraw[];
     title?: string;
+    /** the "primary" bracket's own def — completed mode only, see
+     * `primaryIsHuman` below. */
+    primaryTournament?: TournamentDef | null;
     mode?: "live" | "preview" | "completed";
     onClose?: () => void;
   } = $props();
 
-  let viewing = $state<DivisionCode | null>(null);
+  // Keyed by tournament id, not the bare division letter ("A") — a
+  // completed week's other-division list can hold both a men's and a
+  // women's division sharing the same letter (see `submitWeek`'s headless
+  // world-tournament simulation, which now folds every division of an event
+  // into one week's list regardless of gender), and `DivisionCode` alone
+  // can't tell those apart. The live case never mixes genders (its siblings
+  // are always the human's own gender — see `enterTournament`), but reusing
+  // the same id-keyed lookup for both keeps this component's logic uniform.
+  let viewing = $state<string | null>(null);
   let sheetEl = $state<HTMLElement | null>(null);
 
-  const effectiveOtherDivisionDraws = $derived(mode === "live" ? store.otherDivisionDraws : (otherProp ?? []));
-  const otherTournament = $derived(
-    viewing ? effectiveOtherDivisionDraws.find((d) => d.division === viewing) : null,
-  );
+  /** Selects a division tab and (for non-live modes) remembers the choice
+   * in the store, keyed by the open week — see `store.viewingDivisionByWeek`.
+   * A plain function rather than a reactive effect, so persisting the
+   * choice never risks looping back into re-reading it. */
+  function selectDivision(id: string | null): void {
+    viewing = id;
+    if (mode === "live") return;
+    const week = store.viewingTournamentWeek;
+    if (week !== null) store.viewingDivisionByWeek[week] = id;
+  }
+
+  function scrollKey(week: number, divisionId: string | null): string {
+    return `${week}:${divisionId ?? "primary"}`;
+  }
+
   const ownRounds = $derived(mode === "live" ? store.drawRounds : (roundsProp ?? []));
+
+  // True whenever the "primary" bracket really is the human's own —
+  // trivially true live (a session only exists because the human entered)
+  // and preview (always projects the human's own division). Only a
+  // completed draw can genuinely have nobody's own match in it: a fully
+  // skipped week the human never entered still has to store *some* division
+  // as primary (see facade.ts's `simulateUnplayedWorldTournaments`), and
+  // that pick has no special claim to being "yours". Checked directly
+  // against the actual matchup flags rather than trusted from outside, so
+  // it can't drift from what's really shown.
+  const primaryIsHuman = $derived(
+    mode !== "completed" ||
+      ownRounds.some((round) => round.sections.some((section) => section.matchups.some((m) => m.isYouA || m.isYouB))),
+  );
+
+  const effectiveOtherDivisionDraws = $derived(mode === "live" ? store.otherDivisionDraws : (otherProp ?? []));
+
+  // When the primary bracket isn't the human's own, there's nothing to
+  // single out as "your draw" — fold it into one uniform division list
+  // instead of a specially-labeled first tab, sorted class-then-gender for a
+  // predictable "Men A, Women A, Men B, Women B, …" reading order.
+  const tabDivisions = $derived.by((): OtherDivisionDraw[] => {
+    if (primaryIsHuman || !primaryTournament) return effectiveOtherDivisionDraws;
+    return [
+      { division: primaryTournament.division, tournament: primaryTournament, rounds: ownRounds, concluded: true },
+      ...effectiveOtherDivisionDraws,
+    ];
+  });
+  const sortedTabDivisions = $derived(
+    [...tabDivisions].sort(
+      (a, b) =>
+        a.division.localeCompare(b.division) ||
+        (a.tournament.gender === b.tournament.gender ? 0 : a.tournament.gender === "m" ? -1 : 1),
+    ),
+  );
+  // Only worth labeling a same-tab-strip entry by gender when the list
+  // actually mixes them — the live same-gender case stays exactly "Class A"
+  // as before; the no-human-involved uniform list is always gender-labeled.
+  const otherDivisionsMixGenders = $derived(
+    new Set(effectiveOtherDivisionDraws.map((d) => d.tournament.gender)).size > 1,
+  );
+
+  // The division actually being viewed — defaults to the first uniform-list
+  // entry once there's no "your draw" tab to fall back to.
+  const effectiveViewing = $derived(viewing ?? (!primaryIsHuman ? (sortedTabDivisions[0]?.tournament.id ?? null) : null));
+  const otherTournament = $derived(
+    effectiveViewing ? tabDivisions.find((d) => d.tournament.id === effectiveViewing) : null,
+  );
   const rounds = $derived(otherTournament ? otherTournament.rounds : ownRounds);
   // The round the human hasn't finished their own match of yet — its other
   // matches already have real results internally (AI-vs-AI resolves
@@ -92,6 +163,45 @@
       });
     }
   });
+
+  // Non-live modes only: restore whichever division tab was last selected
+  // for this week (see `store.viewingDivisionByWeek`) — runs once on mount,
+  // correcting the local `viewing` state before the user notices it briefly
+  // defaulted to the primary bracket.
+  $effect(() => {
+    if (mode === "live") return;
+    const week = store.viewingTournamentWeek;
+    if (week === null) return;
+    const remembered = store.viewingDivisionByWeek[week];
+    if (remembered !== undefined) viewing = remembered;
+  });
+
+  // Non-live modes only: restore this division's own remembered scroll
+  // offset (see `store.viewingScrollByDivision`) whenever the viewed
+  // division changes — covers both "came back from a player's profile" and
+  // "switched tabs and switched back", defaulting to round 1 for a division
+  // that's never been scrolled. requestAnimationFrame matches the live-mode
+  // effect above — the columns need to exist before `scrollLeft` sticks.
+  $effect(() => {
+    if (mode === "live" || !sheetEl) return;
+    const week = store.viewingTournamentWeek;
+    if (week === null) return;
+    const remembered = store.viewingScrollByDivision[scrollKey(week, effectiveViewing)] ?? 0;
+    void rounds; // re-run once this division's columns are populated
+    requestAnimationFrame(() => {
+      if (sheetEl) sheetEl.scrollLeft = remembered;
+    });
+  });
+
+  // Companion to the restore effect above: persists the live scroll
+  // position as the user pans the sheet, so it survives a component
+  // unmount/remount (opening a player's profile) or a later tab switch.
+  function onSheetScroll(): void {
+    if (mode === "live" || !sheetEl) return;
+    const week = store.viewingTournamentWeek;
+    if (week === null) return;
+    store.viewingScrollByDivision[scrollKey(week, effectiveViewing)] = sheetEl.scrollLeft;
+  }
 </script>
 
 <div class="draw">
@@ -120,20 +230,32 @@
     <p class="stage-line">The draw is out — round 1 pairings, before anyone's played a match</p>
   {/if}
 
-  {#if effectiveOtherDivisionDraws.length > 0}
+  {#if primaryIsHuman}
+    {#if effectiveOtherDivisionDraws.length > 0}
+      <div class="tabs">
+        <button class="tab" class:active={viewing === null} onclick={() => selectDivision(null)}>
+          Your draw
+        </button>
+        {#each effectiveOtherDivisionDraws as other (other.tournament.id)}
+          <button class="tab" class:active={viewing === other.tournament.id} onclick={() => selectDivision(other.tournament.id)}>
+            {otherDivisionsMixGenders ? (other.tournament.gender === "f" ? "Women's " : "Men's ") : ""}Class {other.division}{other.concluded ? " ✓" : ""}
+          </button>
+        {/each}
+      </div>
+    {/if}
+  {:else if sortedTabDivisions.length > 0}
+    <!-- No human involvement anywhere this week — every division is listed
+         plainly (Men A, Women A, Men B, …), none singled out as "yours". -->
     <div class="tabs">
-      <button class="tab" class:active={viewing === null} onclick={() => (viewing = null)}>
-        Your draw
-      </button>
-      {#each effectiveOtherDivisionDraws as other (other.division)}
-        <button class="tab" class:active={viewing === other.division} onclick={() => (viewing = other.division)}>
-          Class {other.division}{other.concluded ? " ✓" : ""}
+      {#each sortedTabDivisions as d (d.tournament.id)}
+        <button class="tab" class:active={effectiveViewing === d.tournament.id} onclick={() => selectDivision(d.tournament.id)}>
+          {d.tournament.gender === "f" ? "Women" : "Men"} {d.division}{d.concluded ? " ✓" : ""}
         </button>
       {/each}
     </div>
   {/if}
 
-  <div class="sheet" bind:this={sheetEl}>
+  <div class="sheet" bind:this={sheetEl} onscroll={onSheetScroll}>
     {#each rounds as round (round.round)}
       {@const isCurrentRound = !revealAll && !branchConcluded && round.round === lastRoundNumber}
       <div class="column">

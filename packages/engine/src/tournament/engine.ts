@@ -469,6 +469,59 @@ export function fullDivisionField(
   return sampleDivisionField(state, def, weekIndex, content, def.fieldSize);
 }
 
+/**
+ * The four registration waves a division's field fills in over, oldest
+ * first: the week the tournament-director invite email actually goes out
+ * (`systems/inbox.ts`'s `addInvitations` computes the identical week), one
+ * week later, the human's own entry deadline (`entryDeadlineWeeks` before
+ * the event — real racketlon players often don't commit until close to
+ * their own deadline either), and finally the tournament's own week itself
+ * — the late rush that fills in only after the human's own entry window has
+ * already closed. Roughly a quarter of the field lands in each wave (see
+ * `projectedFieldAsOf`); before the first checkpoint, nobody's registered
+ * yet.
+ */
+function registrationCheckpoints(weekIndex: number): [number, number, number, number] {
+  const deadlineWeek = weekIndex - BALANCE.tournament.entryDeadlineWeeks;
+  const inviteWeek = deadlineWeek - BALANCE.inbox.inviteLeadWeeks;
+  return [inviteWeek, inviteWeek + 1, deadlineWeek, weekIndex];
+}
+
+/**
+ * `projectedField`, narrowed to only the entrants who'd realistically have
+ * registered by `asOfWeek` — the Tour screen's "who's in so far" view for a
+ * tournament that hasn't happened yet. The *eventual* field (who actually
+ * shows up once the event is played) is always `projectedField`'s full,
+ * unfiltered result — this only controls how much of it is visible ahead of
+ * time, so a tournament months away doesn't misleadingly look fully booked
+ * the moment its invite lands.
+ *
+ * Each entrant is assigned to one of `registrationCheckpoints`' four waves
+ * by a dedicated shuffle (a separate RNG stream from the field draw itself,
+ * so "who registers early" doesn't correlate with "who got sampled from a
+ * nearby country") — quartering a shuffled order rather than rolling each
+ * entrant independently, so a small field still reads as a real quarter-by
+ * quarter fill-in instead of a lumpy, possibly-empty first wave.
+ */
+export function projectedFieldAsOf(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+  asOfWeek: number,
+): Player[] {
+  const field = projectedField(state, def, weekIndex, content);
+  const checkpoints = registrationCheckpoints(weekIndex);
+  const rng = new Rng(childSeed(state.seed, "tournament", weekIndex, def.id, "registration"));
+  const shuffled = shuffle(field, rng);
+  const waveOf = new Map<string, number>();
+  shuffled.forEach((p, i) => {
+    const wave = Math.min(3, Math.floor((i * 4) / shuffled.length));
+    waveOf.set(p.identity.id, checkpoints[wave]!);
+  });
+  return field.filter((p) => waveOf.get(p.identity.id)! <= asOfWeek);
+}
+
 function sampleDivisionField(
   state: GameState,
   def: TournamentDef,
@@ -802,20 +855,41 @@ function finishAllRemainingGroups(state: GameState, session: TournamentSession):
 
 /**
  * Records this concluded tournament into every entrant's `recentResults`
- * *and* `firResults` — called exactly once, at the moment every group in
- * `session` is decided (the human's own session right after
- * `finishAllRemainingGroups`; a sibling session the instant
- * `isSiblingConcluded` first turns true). Walks `session.groups` in
- * bracket-position order, same as `groupStartPosition` uses for the human's
- * own `finishingPosition` in `concludeTournament`, so every entrant — not
- * just the human — gets an accurate placement, a `matchesPlayed` count
- * (`Group.gamesPlayed`, final by construction once a group is decided), and
- * FIR ranking points via `rankingPointsFor` (the same Points Matrix lookup
- * `concludeTournament` uses for the human, generalized to the whole field —
- * NPCs previously never earned any in-game points at all, only carrying
- * their frozen real-world `firPoints` snapshot).
+ * *and* `pendingFirResults`, and applies the session's Glicko-2 rating
+ * period — called exactly once, at the moment every group in `session` is
+ * decided (the human's own session right after `finishAllRemainingGroups`;
+ * a sibling or fully-AI world session the instant `isSiblingConcluded` first
+ * turns true). Walks `session.groups` in bracket-position order, same as
+ * `groupStartPosition` uses for the human's own `finishingPosition` in
+ * `concludeTournament`, so every entrant — not just the human — gets an
+ * accurate placement, a `matchesPlayed` count (`Group.gamesPlayed`, final by
+ * construction once a group is decided), and FIR ranking points via
+ * `rankingPointsFor` (the same Points Matrix lookup `concludeTournament` uses
+ * for the human, generalized to the whole field — NPCs previously never
+ * earned any in-game points at all, only carrying their frozen real-world
+ * `firPoints` snapshot).
+ *
+ * FIR ranking points land in `pendingFirResults`, not `firResults` — real
+ * federations batch a month's results and publish them together on the 1st
+ * of the next month, they don't update live the instant a tournament ends.
+ * `systems/ranking-points.ts`'s `publishPendingFirResults` moves them into
+ * the real ledger on the next calendar-month crossing (see
+ * `orchestrator.ts`'s `simulateWeek`). `recentResults` (the human-visible
+ * "you played this, here's how it went" placement history) is unaffected —
+ * that lands immediately, same as always.
+ *
+ * `applyTournamentRatings` is called here too, not just for the human's own
+ * session — every entrant's Glicko rating is updated from the sets they
+ * actually played this event, same as the human's, and *immediately* (a
+ * seeding-relevant strength estimate has no reason to wait the way official
+ * ranking points do). Before this, a sibling or world-only session's NPCs
+ * earned FIR points but their ratings stayed frozen at whatever they were
+ * before the event started, since nothing ever applied their `resultsBook`.
+ * Only logs a `ranking.moved` event for `state.career.playerId` (see
+ * `applyTournamentRatings`), so this is a no-op for the log on any session
+ * the human isn't actually in.
  */
-function recordEntrantResults(state: GameState, session: TournamentSession): void {
+function recordEntrantResults(state: GameState, session: TournamentSession, log: EventLog): void {
   let offset = 0;
   for (const group of session.groups) {
     const finishingPosition = offset + 1;
@@ -841,7 +915,7 @@ function recordEntrantResults(state: GameState, session: TournamentSession): voi
         matchesPlayed: group.gamesPlayed,
       });
       if (player.recentResults.length > MAX_RECENT_RESULTS) player.recentResults.shift();
-      player.firResults.push({
+      player.pendingFirResults.push({
         weekIndex: session.weekIndex,
         tournamentId: session.def.id,
         tier: session.def.tier,
@@ -849,6 +923,7 @@ function recordEntrantResults(state: GameState, session: TournamentSession): voi
       });
     }
   }
+  applyTournamentRatings(state, session.resultsBook, session.ratingsSnapshot, state.career.playerId, session.weekIndex, log);
 }
 
 /**
@@ -931,9 +1006,13 @@ const NO_HUMAN_ID = "__no_human__";
  * prize money, no fatigue) — the session itself is a pure spectator view,
  * recomputed fresh each time and never persisted in `GameState` (see the
  * module doc comment's note on `TournamentSession` being ephemeral for the
- * same reason). It does still write one lasting thing to `GameState` once
- * concluded: every entrant's placement, via `recordEntrantResults` — see
- * `advanceSiblingSession`.
+ * same reason). It does still write lasting things to `GameState` once
+ * concluded — every entrant's placement and Glicko rating update, via
+ * `recordEntrantResults` — see `advanceSiblingSession`. Also the entry point
+ * for a fully-AI "world" division with no human entrant at all (see
+ * `facade.ts`'s weekly world-tournament simulation) — `def`'s gender doesn't
+ * need to match the human's own, since `fullDivisionField` samples strictly
+ * off `def.gender`.
  */
 export function startSiblingSession(
   state: GameState,
@@ -990,12 +1069,12 @@ export function isSiblingConcluded(session: TournamentSession): boolean {
  * yet) resolves immediately with the same all-AI mechanics as round 0. A
  * no-op once `isSiblingConcluded`.
  */
-export function advanceSiblingSession(state: GameState, session: TournamentSession): void {
+export function advanceSiblingSession(state: GameState, session: TournamentSession, log: EventLog): void {
   if (isSiblingConcluded(session)) return;
   session.groups = buildNextGroups(session.groups, session.roundPairs!);
   session.currentRound += 1;
   if (isSiblingConcluded(session)) {
-    recordEntrantResults(state, session);
+    recordEntrantResults(state, session, log);
     return;
   }
   resolveRound(state, session);
@@ -1005,12 +1084,14 @@ export function advanceSiblingSession(state: GameState, session: TournamentSessi
  * Fast-forwards a sibling session straight to conclusion — used once the
  * human's own tournament ends, so a sibling division that had more rounds
  * left (a bigger draw, or one simply behind on pacing) still reaches a real
- * final result instead of freezing mid-bracket.
+ * final result instead of freezing mid-bracket. Also the way a fully-AI
+ * "world" division (no human entrant at all) is played out headlessly in one
+ * call — see `facade.ts`'s weekly world-tournament simulation.
  */
-export function finishSiblingSession(state: GameState, session: TournamentSession): void {
+export function finishSiblingSession(state: GameState, session: TournamentSession, log: EventLog): void {
   let guard = 0;
   while (!isSiblingConcluded(session) && ++guard <= session.totalRounds + 1) {
-    advanceSiblingSession(state, session);
+    advanceSiblingSession(state, session, log);
   }
 }
 
@@ -1031,9 +1112,10 @@ function sorenessGainForMatch(player: Player, age: number, energySpent: number):
  * have 2 wins), and both draw the same `prizeByRoundsWon[2]`. Ranking points,
  * by contrast, use `finishingPosition` exactly (the tied band's *best*
  * position, per FIR convention), since that's what the Points Matrix is
- * keyed on. The ledger entry itself is written by `recordEntrantResults`
- * (called just before this, for every entrant including the human) —
- * `rankingPoints` is only recomputed here for the return value and log event.
+ * keyed on. The ledger entry — and the whole session's Glicko rating
+ * update — is written by `recordEntrantResults` (called just before this,
+ * for every entrant including the human); `rankingPoints` is only
+ * recomputed here for the return value and log event.
  */
 function concludeTournament(
   state: GameState,
@@ -1090,14 +1172,8 @@ function concludeTournament(
     },
   });
 
-  applyTournamentRatings(
-    state,
-    session.resultsBook,
-    session.ratingsSnapshot,
-    session.humanId,
-    session.weekIndex,
-    log,
-  );
+  // Ratings are already applied by `recordEntrantResults`, called just
+  // before this (see `advanceTournament`) — not repeated here.
 
   return won
     ? { status: "won", totalRounds: session.totalRounds, prizeMoney: prize, finishingPosition, rankingPoints, tiedCount }
@@ -1248,7 +1324,7 @@ export function advanceTournament(
     const finishingPosition = groupStartPosition(session.groups, hgi);
     const tiedCount = humanGroup.participants.length;
     finishAllRemainingGroups(state, session);
-    recordEntrantResults(state, session);
+    recordEntrantResults(state, session, log);
     return concludeTournament(state, session, log, session.roundsWon, finishingPosition, tiedCount);
   }
 

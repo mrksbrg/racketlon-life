@@ -70,24 +70,33 @@ describe("inbox generation", () => {
     expect(digest?.body).toMatch(/hasn't earned any counted ranking points/i);
   });
 
-  it("lists ranked players sorted best-first by FIR points, with the human included once they've earned some", () => {
+  it("lists ranked players sorted best-first by FIR points, with the human's own rank always resolvable even outside the visible top N", () => {
     const content: ContentBundle = { ...testContent, players: [...testContent.players, ...rankedMalePlayers(5)] };
     const game = Game.newGame({ content, seed: "inbox-rank-2" });
+    // week 3's Monday (Jan 26) is still January; week 4 (Feb 2) crosses into
+    // February, so playWeekThreeTournament's own trailing submitWeek already
+    // fires a fresh digest for week 4 — no extra advance needed.
     playWeekThreeTournament(game);
-    advance(game, 5); // reach the next calendar-month boundary for a fresh digest
 
-    // game.inbox is already newest-first; the fallback human is male, so
-    // they (and every ranked NPC here) land in rankingMen, never rankingWomen
-    const digest = game.inbox.find((m) => m.category === "ranking" && m.rankingMen && m.rankingMen.length > 0);
+    const digest = game.inbox.find((m) => m.category === "ranking" && typeof m.yourRankMen === "number");
     expect(digest).toBeTruthy();
-    expect(digest?.rankingWomen).toEqual([]);
-    const you = digest!.rankingMen!.filter((r) => r.isYou);
-    expect(you).toHaveLength(1);
-    expect(typeof digest!.yourRankMen).toBe("number");
     expect(digest!.yourRankWomen).toBeUndefined();
+    expect(digest!.rankingMen!.length).toBeGreaterThan(0);
     // rows are sorted best (most points) first
     const points = digest!.rankingMen!.map((r) => r.points);
     expect([...points].sort((a, b) => b - a)).toEqual(points);
+    // A rookie who's just placed once at a small SAT event is realistically
+    // ranked well outside the digest's visible top-`rankingTopN` rows now
+    // that the whole field they played alongside also carries real FIR
+    // points (see officialPointsFor's ledger fallback, and facade.ts's
+    // simulateUnplayedWorldTournaments for the same-week sibling divisions)
+    // — `yourRankMen` still resolves their true position regardless, the
+    // same "outside" case Inbox.svelte already renders a row for.
+    expect(digest!.yourRankMen).toBeGreaterThan(digest!.rankingMen!.length);
+    // the week-3 event's women's SAT field is now fully simulated too,
+    // earning real FIR points despite having no real-world firPoints
+    // snapshot — no longer an empty list.
+    expect(digest!.rankingWomen!.length).toBeGreaterThan(0);
   });
 
   it("invites the human to a tournament while its entry window is open", () => {
@@ -219,5 +228,40 @@ describe("inbox generation", () => {
     const results = game.inbox.filter((m) => m.category === "result");
     expect(results).toHaveLength(2);
     expect(new Set(results.map((m) => m.id)).size).toBe(2);
+  });
+
+  it("sends a tournament-director podium announcement for a week the human never played", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-podium-1" });
+    advance(game, 4); // past week 3's tournament — never registered, never entered
+
+    const podiums = game.inbox.filter((m) => m.category === "podium" && m.week === 3);
+    expect(podiums).toHaveLength(1);
+    const msg = podiums[0]!;
+    expect(msg.from).toBe("Monthly Open tournament director");
+    expect(msg.tournamentWeek).toBe(3);
+    expect(msg.podiumMen).toHaveLength(3);
+    expect(msg.podiumWomen).toHaveLength(3);
+    expect(new Set(msg.podiumMen!.map((r) => r.position))).toEqual(new Set([1, 2, 3]));
+    expect(msg.body).toContain("Men's A");
+    expect(msg.body).toContain("Women's A");
+  });
+
+  it("also sends the podium announcement for a week the human did play, alongside their personal result mail", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-podium-2" });
+    playWeekThreeTournament(game);
+
+    expect(game.inbox.filter((m) => m.category === "result" && m.week === 3)).toHaveLength(1);
+    expect(game.inbox.filter((m) => m.category === "podium" && m.week === 3)).toHaveLength(1);
+  });
+
+  it("never duplicates the podium mail when the week is re-scanned", () => {
+    const game = Game.newGame({ content: testContent, seed: "inbox-podium-3" });
+    advance(game, 4);
+    const state = game.serialize().state;
+    const weekThreeEvents = game.eventsForWeek(3);
+
+    const again = generateInboxMessages(state, testContent, 3, weekThreeEvents);
+    expect(again.filter((m) => m.category === "podium")).toHaveLength(0);
+    expect(game.inbox.filter((m) => m.category === "podium" && m.week === 3)).toHaveLength(1);
   });
 });

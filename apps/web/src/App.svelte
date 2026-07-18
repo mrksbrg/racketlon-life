@@ -51,6 +51,7 @@
     rounds={store.tournamentDetail.rounds}
     otherDivisionDraws={store.tournamentDetail.otherDivisionDraws}
     title={store.tournamentDetail.title}
+    primaryTournament={store.tournamentDetail.tournament}
     onClose={() => store.closeTournamentDetail()}
   />
 {:else if store.screen === "opponent"}

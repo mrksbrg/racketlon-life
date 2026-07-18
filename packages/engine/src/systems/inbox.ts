@@ -3,7 +3,7 @@ import type { ContentBundle } from "../content.js";
 import { monthKeyForWeek, monthLabelForWeek } from "../core/date.js";
 import type { GameEvent } from "../core/events.js";
 import { humanPlayer } from "../core/state.js";
-import type { GameState, InboxMessage, InboxRankingRow } from "../core/state.js";
+import type { GameState, InboxMessage, InboxRankingRow, PersistedDrawRound, PodiumRow } from "../core/state.js";
 import { fullName } from "../model/player.js";
 import { SPORTS, SPORT_LABELS } from "../model/sport.js";
 import type { GameSystem } from "./types.js";
@@ -71,6 +71,7 @@ export function generateInboxMessages(
   addInvitations(state, content, week, add);
   addDrawEmails(state, content, week, add);
   addTournamentResults(state, weekEvents, add);
+  addWorldTournamentResults(state, content, week, add);
   addRankingDigest(state, content, week, add);
   addPotentialClues(state, week, add);
   return out;
@@ -141,7 +142,16 @@ function addTournamentResults(state: GameState, weekEvents: readonly GameEvent[]
     const won = e.type === "tournament.won";
     const place = won ? "Champion" : eliminationLabel(d.finishingPosition, d.tiedCount);
     const prizeNote = d.prizeMoney > 0 ? ` You collected ${eur(d.prizeMoney)} in prize money.` : "";
-    const pointsNote = d.rankingPoints > 0 ? ` That's worth ${d.rankingPoints} FIR ranking points.` : "";
+    // The points figure itself is final the moment the tournament ends, but
+    // it doesn't count on any official ladder yet — see
+    // systems/ranking-points.ts's `publishPendingFirResults`, which folds it
+    // into the real ledger only on the next calendar-month crossing. Said
+    // plainly here so a player doesn't go looking for it on the Rankings
+    // screen the same week and assume it's missing.
+    const pointsNote =
+      d.rankingPoints > 0
+        ? ` That's worth ${d.rankingPoints} FIR ranking points, pending official publication next month.`
+        : "";
 
     add({
       id: `result:${e.week}:${d.tournamentId}`,
@@ -156,6 +166,107 @@ function addTournamentResults(state: GameState, weekEvents: readonly GameEvent[]
       resultWon: won,
     });
   }
+}
+
+/** The Final's winner/runner-up and the Bronze Medal Match's winner, scanned
+ * out of a division's full round history — same shape `Draw.svelte` renders,
+ * just read back out rather than displayed. `third` is only null for a
+ * content gap (every real fieldSize here is ≥ 8, and the module doc comment
+ * on `buildNextGroups` guarantees a genuine bronze match always gets played
+ * for any field ≥ 4). Null entirely if the final hasn't actually been
+ * decided — shouldn't happen for a division pulled out of a concluded
+ * `completedDraws` entry, but this is read-only over persisted data that
+ * could in principle be stale/partial, so it doesn't assume. */
+function podiumFromRounds(
+  rounds: PersistedDrawRound[],
+): { first: { id: string; name: string; nationality: string }; second: { id: string; name: string; nationality: string }; third: { id: string; name: string; nationality: string } | null } | null {
+  let final: PersistedDrawRound["sections"][number]["matchups"][number] | undefined;
+  let bronze: PersistedDrawRound["sections"][number]["matchups"][number] | undefined;
+  for (const round of rounds) {
+    for (const section of round.sections) {
+      if (section.roundName === "Final") final = section.matchups[0];
+      if (section.roundName === "Bronze Medal Match") bronze = section.matchups[0];
+    }
+  }
+  if (!final || final.winnerId === null) return null;
+  const first = final.winnerId === final.a.id ? final.a : final.b;
+  const second = final.winnerId === final.a.id ? final.b : final.a;
+  const third = bronze && bronze.winnerId !== null ? (bronze.winnerId === bronze.a.id ? bronze.a : bronze.b) : null;
+  return { first, second, third };
+}
+
+/**
+ * A results announcement from the tournament director the moment an event
+ * concludes — reporting the men's and women's A-division podiums, *whether
+ * or not the human played in either* (unlike `addTournamentResults`, which
+ * is the human's own personal placement note). Reads `career.completedDraws`
+ * rather than the event log, since a division the human never entered
+ * produces no log events at all — see `facade.ts`'s
+ * `simulateUnplayedWorldTournaments`, which guarantees every scheduled
+ * division for `week` is already in `completedDraws` by the time
+ * `InboxSystem` runs. Fires once per event (dedup on `eventId`, shared by
+ * every division of the same event), not once per division.
+ */
+function addWorldTournamentResults(
+  state: GameState,
+  content: ContentBundle,
+  week: number,
+  add: (m: InboxMessage) => void,
+): void {
+  const draw = state.career.completedDraws[week];
+  if (!draw) return;
+  const primary = content.tournaments[draw.tournamentId];
+  if (!primary) return;
+
+  const roundsFor = (tournamentId: string): PersistedDrawRound[] | null =>
+    tournamentId === draw.tournamentId
+      ? draw.rounds
+      : (draw.otherDivisions.find((o) => o.tournamentId === tournamentId)?.rounds ?? null);
+
+  const allIds = [draw.tournamentId, ...draw.otherDivisions.map((o) => o.tournamentId)];
+  const podiumFor = (gender: "m" | "f"): PodiumRow[] | undefined => {
+    const def = allIds
+      .map((id) => content.tournaments[id])
+      .find((d): d is TournamentDef => !!d && d.gender === gender && d.division === "A");
+    if (!def) return undefined;
+    const rounds = roundsFor(def.id);
+    if (!rounds) return undefined;
+    const podium = podiumFromRounds(rounds);
+    if (!podium) return undefined;
+    const rows: PodiumRow[] = [
+      { position: 1, playerId: podium.first.id, name: podium.first.name, nationality: podium.first.nationality },
+      { position: 2, playerId: podium.second.id, name: podium.second.name, nationality: podium.second.nationality },
+    ];
+    if (podium.third) {
+      rows.push({ position: 3, playerId: podium.third.id, name: podium.third.name, nationality: podium.third.nationality });
+    }
+    return rows;
+  };
+
+  const podiumMen = podiumFor("m");
+  const podiumWomen = podiumFor("f");
+  if (!podiumMen && !podiumWomen) return;
+
+  const summarize = (rows: PodiumRow[] | undefined) => (rows ? rows.map((r) => `${r.position}) ${r.name}`).join(", ") : null);
+  const menLine = summarize(podiumMen);
+  const womenLine = summarize(podiumWomen);
+
+  add({
+    id: `podium:${week}:${primary.eventId}`,
+    week,
+    category: "podium",
+    from: tournamentDirectorFrom(primary),
+    subject: `🏆 Results: ${primary.name}`,
+    body:
+      `The results are in from ${primary.city}. ` +
+      (menLine ? `Men's A: ${menLine}. ` : "") +
+      (womenLine ? `Women's A: ${womenLine}. ` : "") +
+      `Full draws are up — check them out.`,
+    read: false,
+    tournamentWeek: week,
+    podiumMen,
+    podiumWomen,
+  });
 }
 
 function addDrawEmails(

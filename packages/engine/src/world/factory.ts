@@ -149,6 +149,7 @@ function makePlayer(spec: PlayerSpec): Player {
     ratings: ratingsFromSkills(spec.skills),
     firPoints: spec.firPoints,
     firResults: [],
+    pendingFirResults: [],
     simTier: spec.simTier,
     recentResults: [],
   };

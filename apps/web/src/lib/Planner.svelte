@@ -62,11 +62,13 @@
         </span>
       {/if}
       <span class="travel-note">Check the draw email in your inbox, then tune any free sessions before the event.</span>
+      <button class="draw-link" onclick={() => store.viewTournamentDetail(store.weekIndex)}>View the draw ▸</button>
     </div>
   {:else if store.tournamentThisWeek}
     {@const t = store.tournamentThisWeek}
     <div class="tournament-missed">
       <span>🏆 {t.name} is on this week — entry closed. Register on the Tour tab at least two weeks ahead next time.</span>
+      <button class="draw-link" onclick={() => store.viewTournamentDetail(store.weekIndex)}>View the draw ▸</button>
     </div>
   {/if}
 
@@ -128,7 +130,7 @@
         {@const i = slotIndex(d, p)}
         {@const isTournament = tournamentSlots.has(i)}
         {@const isTravel = travelSlots.has(i)}
-        {@const activity = isTravel ? "travel" : (store.slots[i] ?? "rest")}
+        {@const activity = isTravel ? "travel" : store.effectiveSlot(i)}
         <button
           class="slot"
           class:is-rest={activity === "rest" && !isTravel && !isTournament}
@@ -246,6 +248,14 @@
 
   .travel-note {
     display: block;
+  }
+
+  .draw-link {
+    display: block;
+    margin-top: 6px;
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 12.5px;
   }
 
   .travel-note.over {

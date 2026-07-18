@@ -22,6 +22,7 @@ import {
   isSiblingConcluded,
   isTournamentWeek,
   projectedField,
+  projectedFieldAsOf,
   seedBracket,
   simulateMatchAuto,
   slotIndex,
@@ -155,6 +156,7 @@ describe("bracket seeding", () => {
       ratings: { tt: glicko, bd: glicko, sq: glicko, tn: glicko },
       firPoints: null,
       firResults: [],
+      pendingFirResults: [],
       simTier: 1,
       recentResults: [],
     };
@@ -911,8 +913,11 @@ describe("monrad placement bracket", () => {
 
   it("awards FIR ranking points to every entrant, not just the human", () => {
     // locks in the fix for "NPCs don't earn Tour Race points" — every
-    // entrant's own firResults ledger (not just the human's) should gain an
-    // entry once the tournament concludes.
+    // entrant's own pendingFirResults ledger (not just the human's) should
+    // gain an entry once the tournament concludes. Pending, not published:
+    // real FIR points wait for the next calendar-month crossing (see
+    // systems/ranking-points.ts's publishPendingFirResults) — only
+    // recordEntrantResults's own immediate-write behavior is under test here.
     const game = Game.newGame({ content: testContent, seed: "monrad-fir-points" });
     advanceUntil(game, () => game.weekIndex === 3);
     const state: GameState = game.serialize().state;
@@ -936,7 +941,7 @@ describe("monrad placement bracket", () => {
     expect(positions.size).toBe(def.fieldSize);
 
     for (const [id] of positions) {
-      const entry = getPlayer(state, id).firResults.find((r) => r.tournamentId === def.id);
+      const entry = getPlayer(state, id).pendingFirResults.find((r) => r.tournamentId === def.id);
       expect(entry).toBeDefined();
       expect(entry!.weekIndex).toBe(3);
       expect(entry!.tier).toBe(def.tier);
@@ -946,8 +951,8 @@ describe("monrad placement bracket", () => {
     // award — the champion earns strictly more than the last-place finisher
     const championId = [...positions.entries()].find(([, pos]) => pos === 1)![0];
     const lastId = [...positions.entries()].find(([, pos]) => pos === def.fieldSize)![0];
-    const championPoints = getPlayer(state, championId).firResults.find((r) => r.tournamentId === def.id)!.points;
-    const lastPoints = getPlayer(state, lastId).firResults.find((r) => r.tournamentId === def.id)!.points;
+    const championPoints = getPlayer(state, championId).pendingFirResults.find((r) => r.tournamentId === def.id)!.points;
+    const lastPoints = getPlayer(state, lastId).pendingFirResults.find((r) => r.tournamentId === def.id)!.points;
     expect(championPoints).toBeGreaterThan(lastPoints);
   });
 
@@ -1014,20 +1019,38 @@ describe("tournamentSchedule", () => {
     expect(fresh.tournamentSchedule(1)[0]!.status).toBe("closed");
   });
 
-  it("projects a stable, non-empty NPC field for a future week", () => {
+  it("projects a stable, partial NPC field for a future week — real players register late, not all at once", () => {
     const game = Game.newGame({ content: testContent, seed: "sched-6" });
     const entry = game.tournamentSchedule(1)[0]!;
-    expect(entry.entrants.length).toBe(entry.tournament.fieldSize - 1); // minus the human
+    const fullField = entry.tournament.fieldSize - 1; // minus the human
+    // this far ahead of the event, only some registration waves have
+    // landed yet (see tournament/engine.ts's projectedFieldAsOf) — not the
+    // full eventual field
+    expect(entry.entrants.length).toBeGreaterThan(0);
+    expect(entry.entrants.length).toBeLessThan(fullField);
     // same seed, same week -> same projection every time it's read
     expect(game.tournamentSchedule(1)[0]!.entrants.map((e) => e.id)).toEqual(entry.entrants.map((e) => e.id));
   });
 
-  it("the projected field matches who actually shows up in the bracket", () => {
-    const game = Game.newGame({ content: testContent, seed: "sched-7" });
-    const projectedIds = game.tournamentSchedule(1)[0]!.entrants.map((e) => e.id).sort();
+  it("the projected field fills in wave by wave and matches the full field once the tournament's own week arrives", () => {
+    const game = Game.newGame({ content: testContent, seed: "sched-6b" });
+    const before = game.tournamentSchedule(1)[0]!.entrants.length;
     registerAndAdvanceTo(game, 3);
+    const atTournament = game.tournamentSchedule(1)[0]!;
+    expect(atTournament.entrants.length).toBe(atTournament.tournament.fieldSize - 1);
+    expect(atTournament.entrants.length).toBeGreaterThan(before);
+  });
+
+  it("the projected field matches who actually shows up in the bracket, once the tournament's own week arrives", () => {
+    // Before the tournament's own week, the preview is deliberately a
+    // partial (not-yet-fully-registered) view — the human's real opponent
+    // isn't guaranteed to be one of the early registrants shown. Only once
+    // every registration wave has landed (asOfWeek === tournamentWeek) is
+    // the preview guaranteed to match the real bracket exactly.
+    const game = Game.newGame({ content: testContent, seed: "sched-7" });
+    registerAndAdvanceTo(game, 3);
+    const projectedIds = game.tournamentSchedule(1)[0]!.entrants.map((e) => e.id).sort();
     const match = game.enterTournament();
-    // the human's own opponent must be one of the projected NPCs
     expect(projectedIds).toContain(match.players.b.id);
   });
 
@@ -1298,6 +1321,52 @@ describe("match.played roundName", () => {
   });
 });
 
+describe("projectedFieldAsOf (gradual registration)", () => {
+  const def = testContent.tournaments["monthly-open-1-m"]!;
+  const tournamentWeek = 3;
+  const deadlineWeek = tournamentWeek - BALANCE.tournament.entryDeadlineWeeks;
+  const inviteWeek = deadlineWeek - BALANCE.inbox.inviteLeadWeeks;
+
+  it("shows nobody registered before the invite email goes out", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-wave-1" });
+    const state = game.serialize().state;
+    const field = projectedFieldAsOf(state, def, tournamentWeek, testContent, inviteWeek - 1);
+    expect(field).toHaveLength(0);
+  });
+
+  it("reveals the field in four roughly-equal waves, growing monotonically to the full field by the tournament's own week", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-wave-2" });
+    const state = game.serialize().state;
+    const full = projectedField(state, def, tournamentWeek, testContent);
+
+    const counts = [inviteWeek, inviteWeek + 1, deadlineWeek, tournamentWeek].map(
+      (asOfWeek) => projectedFieldAsOf(state, def, tournamentWeek, testContent, asOfWeek).length,
+    );
+    for (let i = 1; i < counts.length; i++) expect(counts[i]).toBeGreaterThanOrEqual(counts[i - 1]!);
+    expect(counts[counts.length - 1]).toBe(full.length);
+    // the first wave alone is a real quarter, not the whole field
+    expect(counts[0]).toBeGreaterThan(0);
+    expect(counts[0]).toBeLessThan(full.length);
+  });
+
+  it("is deterministic — the same (def, week, asOfWeek) always reveals the same entrants", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-wave-3" });
+    const state = game.serialize().state;
+    const a = projectedFieldAsOf(state, def, tournamentWeek, testContent, deadlineWeek).map((p) => p.identity.id);
+    const b = projectedFieldAsOf(state, def, tournamentWeek, testContent, deadlineWeek).map((p) => p.identity.id);
+    expect(a).toEqual(b);
+  });
+
+  it("is always a subset of the eventual full field", () => {
+    const game = Game.newGame({ content: testContent, seed: "reg-wave-4" });
+    const state = game.serialize().state;
+    const full = new Set(projectedField(state, def, tournamentWeek, testContent).map((p) => p.identity.id));
+    const partial = projectedFieldAsOf(state, def, tournamentWeek, testContent, deadlineWeek);
+    expect(partial.length).toBeGreaterThan(0);
+    for (const p of partial) expect(full.has(p.identity.id)).toBe(true);
+  });
+});
+
 describe("projectedField geographic entry bias", () => {
   // HOME hosts the tournament; NEAR is ~111km away (1 degree of longitude at
   // the equator), FAR is ~10000km away (90 degrees) — both well inside vs.
@@ -1428,39 +1497,41 @@ describe("sibling division sessions", () => {
   it("resolves round 0 immediately and advances one round at a time", () => {
     const game = Game.newGame({ content: testContent, seed: "sib-1" });
     const state = game.serialize().state;
+    const log: EventLog = [];
     const session = startSiblingSession(state, defA, 3, testContent);
 
     expect(session.totalRounds).toBe(3); // log2(8)
     expect(drawRounds(state, session)).toHaveLength(1); // round 0 already resolved
     expect(isSiblingConcluded(session)).toBe(false);
 
-    advanceSiblingSession(state, session);
+    advanceSiblingSession(state, session, log);
     expect(drawRounds(state, session)).toHaveLength(2);
     expect(isSiblingConcluded(session)).toBe(false);
 
-    advanceSiblingSession(state, session);
+    advanceSiblingSession(state, session, log);
     expect(drawRounds(state, session)).toHaveLength(3);
     // an 8-draw's 3-game cap exactly matches its 3 rounds (see the module
     // doc comment) — round 2 is recorded, but every group is still size 2
     // until the *next* build, so the session isn't concluded quite yet
     expect(isSiblingConcluded(session)).toBe(false);
 
-    advanceSiblingSession(state, session);
+    advanceSiblingSession(state, session, log);
     // that build resolves every group down to size 1 — concluded, and no
     // 4th round is ever recorded (nothing left needing a resolveRound call)
     expect(isSiblingConcluded(session)).toBe(true);
     expect(drawRounds(state, session)).toHaveLength(3);
 
     // no-op once concluded — doesn't throw or add a phantom round
-    advanceSiblingSession(state, session);
+    advanceSiblingSession(state, session, log);
     expect(drawRounds(state, session)).toHaveLength(3);
   });
 
   it("reaches a real final with a decisive winner, never a human matchup flag", () => {
     const game = Game.newGame({ content: testContent, seed: "sib-2" });
     const state = game.serialize().state;
+    const log: EventLog = [];
     const session = startSiblingSession(state, defA, 3, testContent);
-    finishSiblingSession(state, session);
+    finishSiblingSession(state, session, log);
 
     expect(isSiblingConcluded(session)).toBe(true);
     const rounds = drawRounds(state, session);
@@ -1482,24 +1553,26 @@ describe("sibling division sessions", () => {
   it("finishSiblingSession is idempotent from any starting point", () => {
     const game = Game.newGame({ content: testContent, seed: "sib-3" });
     const state = game.serialize().state;
+    const log: EventLog = [];
     const session = startSiblingSession(state, defA, 3, testContent);
-    advanceSiblingSession(state, session); // partway through
-    finishSiblingSession(state, session);
+    advanceSiblingSession(state, session, log); // partway through
+    finishSiblingSession(state, session, log);
     expect(isSiblingConcluded(session)).toBe(true);
     const roundsAfterFirstFinish = drawRounds(state, session);
-    finishSiblingSession(state, session); // already concluded — must not change anything
+    finishSiblingSession(state, session, log); // already concluded — must not change anything
     expect(drawRounds(state, session)).toEqual(roundsAfterFirstFinish);
   });
 
   it("records every entrant's placement into recentResults exactly once, on conclusion", () => {
     const game = Game.newGame({ content: testContent, seed: "sib-4" });
     const state = game.serialize().state;
+    const log: EventLog = [];
     const session = startSiblingSession(state, defA, 3, testContent);
     for (const id of session.bracketBySeed) {
       expect(getPlayer(state, id).recentResults).toHaveLength(0);
     }
 
-    finishSiblingSession(state, session);
+    finishSiblingSession(state, session, log);
 
     const seenPositions = new Set<number>();
     for (const id of session.bracketBySeed) {
@@ -1517,10 +1590,34 @@ describe("sibling division sessions", () => {
     expect(seenPositions.has(1)).toBe(true); // a real champion always exists
 
     // fast-forwarding an already-concluded session must not add a second entry
-    finishSiblingSession(state, session);
+    finishSiblingSession(state, session, log);
     for (const id of session.bracketBySeed) {
       expect(getPlayer(state, id).recentResults).toHaveLength(1);
     }
+  });
+
+  it("applies Glicko rating updates to every entrant, not just their FIR points", () => {
+    // Regression: a sibling (or fully-AI world) session used to record
+    // recentResults/firResults for its whole field but never actually ran
+    // their sets through applyTournamentRatings — only the human's own
+    // session did that. Every entrant here is an NPC, so this specifically
+    // exercises the fix in recordEntrantResults.
+    const game = Game.newGame({ content: testContent, seed: "sib-ratings-1" });
+    const state = game.serialize().state;
+    const log: EventLog = [];
+    const before = new Map(state.players.map((p) => [p.identity.id, JSON.stringify(p.ratings)]));
+
+    const session = startSiblingSession(state, defA, 3, testContent);
+    finishSiblingSession(state, session, log);
+
+    let changed = 0;
+    for (const id of session.bracketBySeed) {
+      const player = getPlayer(state, id);
+      if (JSON.stringify(player.ratings) !== before.get(id)) changed++;
+    }
+    // every entrant played at least one set of every sport, so every one of
+    // them should have moved in at least one sport's rating
+    expect(changed).toBe(session.bracketBySeed.length);
   });
 
   it("plays a real Bronze Medal Match for 3rd/4th on a 16-field draw, not just a tied band", () => {
@@ -1533,8 +1630,9 @@ describe("sibling division sessions", () => {
     expect(def.fieldSize).toBe(16);
     const game = Game.newGame({ content: testContent, seed: "sib-bronze-1" });
     const state = game.serialize().state;
+    const log: EventLog = [];
     const session = startSiblingSession(state, def, 30, testContent);
-    finishSiblingSession(state, session);
+    finishSiblingSession(state, session, log);
     expect(isSiblingConcluded(session)).toBe(true);
 
     const rounds = drawRounds(state, session);

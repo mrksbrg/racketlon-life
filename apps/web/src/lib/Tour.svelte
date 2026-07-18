@@ -79,9 +79,19 @@
         <div class="season-row-wrap">
           <button
             class="season-row"
-            onclick={() => (played ? toggleResult(entry.weekIndex) : selectWeek(entry.weekIndex))}
+            onclick={() => {
+              if (played) toggleResult(entry.weekIndex);
+              // "skipped" (and any other past week with no live registration
+              // to show) isn't in tourEntries — selectWeek would silently do
+              // nothing, since selectedEntry's lookup would come up empty.
+              // Go straight to the draw/results view instead, same branch
+              // onCalendarSelectWeek already uses for the calendar grid.
+              else if (store.tourEntries.some((e) => e.weekIndex === entry.weekIndex)) selectWeek(entry.weekIndex);
+              else store.viewTournamentDetail(entry.weekIndex);
+            }}
           >
             <span class="season-week">{entry.weekLabel}</span>
+            <span class="season-tier">{entry.tournament.tier}</span>
             <span class="season-name">{entry.tournament.name}</span>
             <span class="season-status {entry.status}">
               {played ? finishLabel(played.finishingPosition, played.tiedCount) : SEASON_STATUS_LABEL[entry.status]}
@@ -101,18 +111,21 @@
               <button class="season-view-draw" onclick={() => store.viewTournamentDetail(entry.weekIndex)}>View draw ▸</button>
             </div>
           {/if}
+          {#if selectedEntry && selectedEntry.weekIndex === entry.weekIndex}
+            {@render registerDetail(selectedEntry)}
+          {/if}
         </div>
       {/each}
     </div>
   </section>
 
-  {#if selectedEntry}
-    {@const entry = selectedEntry}
+  {#snippet registerDetail(entry: TourEntry)}
     {@const t = entry.tournament}
     {@const canPlayNow = entry.isThisWeek && store.registeredTournamentThisWeek}
     {@const choice = choiceFor(entry)}
     {@const canPick = entry.status !== "closed"}
-    <div class="card" class:this-week={entry.isThisWeek} class:registered={entry.status === "registered"}>
+    {@const humanRegisteredHere = entry.status === "registered" && choice.def.division === t.division}
+    <div class="card inline" class:this-week={entry.isThisWeek} class:registered={entry.status === "registered"}>
       <div class="detail-head">
         <div class="info">
           <div class="name-line">
@@ -199,8 +212,10 @@
           </div>
         {/if}
         <div class="field">
-          <div class="field-label">Field ({choice.entrants.length + 1} entered)</div>
-          <div class="field-you">You</div>
+          <div class="field-label">Field ({choice.entrants.length + (humanRegisteredHere ? 1 : 0)} entered)</div>
+          {#if humanRegisteredHere}
+            <div class="field-you">You</div>
+          {/if}
           {#each choice.entrants as opp (opp.id)}
             <button class="field-row" onclick={() => store.viewOpponent(opp.id)}>
               <span>{opp.name}</span>
@@ -214,7 +229,7 @@
         </div>
       </div>
     </div>
-  {/if}
+  {/snippet}
 </main>
 
 <TabBar />
@@ -254,6 +269,23 @@
 
   .card.registered {
     border-color: var(--ok);
+  }
+
+  /* rendered inline inside a .season-row-wrap, right under the row that
+   * opened it, instead of the standalone card's own boxed border */
+  .card.inline {
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .card.inline.this-week {
+    border-top-color: var(--accent);
+  }
+
+  .card.inline.registered {
+    border-top-color: var(--ok);
   }
 
   .detail-head {
@@ -529,6 +561,17 @@
     font-size: 11px;
     color: var(--muted);
     font-variant-numeric: tabular-nums;
+  }
+
+  .season-tier {
+    flex-shrink: 0;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    padding: 2px 6px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--accent) 16%, var(--card));
+    color: var(--accent);
   }
 
   .season-name {
