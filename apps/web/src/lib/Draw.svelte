@@ -56,16 +56,16 @@
   const ownRounds = $derived(mode === "live" ? store.drawRounds : (roundsProp ?? []));
 
   // True whenever the "primary" bracket really is the human's own —
-  // trivially true live (a session only exists because the human entered)
-  // and preview (always projects the human's own division). Only a
-  // completed draw can genuinely have nobody's own match in it: a fully
-  // skipped week the human never entered still has to store *some* division
-  // as primary (see facade.ts's `simulateUnplayedWorldTournaments`), and
-  // that pick has no special claim to being "yours". Checked directly
-  // against the actual matchup flags rather than trusted from outside, so
-  // it can't drift from what's really shown.
+  // trivially true live (a session only exists because the human entered).
+  // A preview or completed draw can both genuinely have nobody's own match
+  // in it: a preview of a tournament the human never registered for (see
+  // facade.ts's `canPreviewAsHuman`) or a fully skipped week the human never
+  // entered (`simulateUnplayedWorldTournaments`) still has to show *some*
+  // division as primary, and that pick has no special claim to being
+  // "yours". Checked directly against the actual matchup flags rather than
+  // trusted from outside, so it can't drift from what's really shown.
   const primaryIsHuman = $derived(
-    mode !== "completed" ||
+    mode === "live" ||
       ownRounds.some((round) => round.sections.some((section) => section.matchups.some((m) => m.isYouA || m.isYouB))),
   );
 

@@ -536,6 +536,52 @@ describe("Game facade", () => {
     ]);
 
     expect(records.gummiarms).toEqual({ played: 2, won: 1 });
+
+    // o1's win never trailed (deficit stays 0, excluded); o4's win was down
+    // 16 (5-21 in tt) before rallying to a 62-49 final — the deepest hole
+    // among the wins, beating o3's 10-point deficit
+    expect(records.biggestComeback).toMatchObject({ opponentId: "o4", deficit: 16, margin: 13, totalA: 62, totalB: 49 });
+  });
+
+  it("records finds the greatest comeback among wins only, ignoring matches never trailed and breaking ties by recency", () => {
+    const game = Game.newGame({ content: testContent, seed: "rec-comeback" });
+    const save = game.serialize();
+    const match = (week: number, opponentId: string, opponentName: string, won: boolean, sets: [number, number][]) => ({
+      week,
+      type: "match.played" as const,
+      subject: save.state.career.playerId,
+      data: {
+        tournamentName: "T",
+        tier: "CHA",
+        round: 1,
+        totalRounds: 1,
+        roundName: "Final",
+        opponentId,
+        opponentName,
+        opponentRank: null,
+        opponentRatings: { tt: 1000, bd: 1000, sq: 1000, tn: 1000 },
+        won,
+        sets: sets.map(([a, b]) => ({ a, b, done: true })),
+        gummiarm: false,
+      },
+    });
+
+    save.log.push(
+      // won, but led from the very first set — no comeback in it
+      match(1, "o1", "Alice", true, [[21, 5], [21, 19], [21, 19], [21, 19]]),
+      // trailed for most of the match but ultimately lost — must not
+      // surface, comebacks only count when the match was actually won
+      match(2, "o2", "Bob", false, [[2, 21], [21, 19], [10, 21], [21, 19]]),
+      // won after trailing by 15 at the earliest boundary (older of the tie)
+      match(3, "o3", "Cara", true, [[6, 21], [21, 5], [21, 10], [21, 15]]),
+      // won after trailing by 15 as well, but this is the more recent match —
+      // the tie-break should prefer it over o3's
+      match(4, "o4", "Dave", true, [[6, 21], [21, 5], [21, 10], [21, 15]]),
+    );
+    const restored = Game.fromSave(save, testContent);
+    const records = restored.records();
+
+    expect(records.biggestComeback).toMatchObject({ opponentId: "o4", deficit: 15 });
   });
 
   it("records skips a set an early finish cut short, even if its score shape looks final", () => {

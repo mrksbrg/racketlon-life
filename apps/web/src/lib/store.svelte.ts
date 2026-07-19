@@ -891,8 +891,8 @@ class GameStore {
       mode: "preview",
       title: entry?.tournament.name ?? "Draw",
       rounds: this.game.previewTournamentDraw(week) ?? [],
-      otherDivisionDraws: [],
-      tournament: null,
+      otherDivisionDraws: this.game.previewOtherDivisionDraws(week),
+      tournament: this.game.previewTournamentDef(week),
     };
   });
 

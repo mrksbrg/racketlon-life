@@ -1,10 +1,12 @@
 import { BALANCE } from "../balance.js";
 import type { ContentBundle } from "../content.js";
 import { monthKeyForWeek, monthLabelForWeek } from "../core/date.js";
+import type { Calendar } from "../core/date.js";
 import type { GameEvent } from "../core/events.js";
 import { humanPlayer } from "../core/state.js";
 import type { GameState, InboxMessage, InboxRankingRow, PersistedDrawRound, PodiumRow } from "../core/state.js";
 import { fullName } from "../model/player.js";
+import type { FirResult, Player } from "../model/player.js";
 import { SPORTS, SPORT_LABELS } from "../model/sport.js";
 import type { GameSystem } from "./types.js";
 import { skillCeiling } from "./effects.js";
@@ -345,12 +347,88 @@ function addInvitations(
   }
 }
 
+/** Points a player earned within one concluded calendar month, summed from
+ * their *published* FIR ledger — the digest's basis for "climber of the
+ * month" and the player's own monthly-change line. */
+function monthlyGain(cal: Calendar, ledger: readonly FirResult[], monthKey: string): number {
+  return ledger.filter((r) => monthKeyForWeek(cal, r.weekIndex) === monthKey).reduce((sum, r) => sum + r.points, 0);
+}
+
+/** A note on how a gender's top 10 shuffled since last month's digest — the
+ * new leader (if the top spot changed hands) and any newcomers. Empty when
+ * there's no previous digest to diff against (first-ever digest). */
+function top10ChangeNote(
+  label: "men's" | "women's",
+  current: readonly InboxRankingRow[],
+  previous: readonly InboxRankingRow[] | undefined,
+): string {
+  if (!previous || previous.length === 0) return "";
+  const prevIds = new Set(previous.map((r) => r.playerId));
+  const newLeader = current[0] && previous[0] && current[0].playerId !== previous[0].playerId ? current[0] : null;
+  // if the new leader also wasn't in the top 10 last month, they'd otherwise
+  // get named twice — once as leader, once as a newcomer
+  const newcomers = current.filter((r) => !prevIds.has(r.playerId) && r.playerId !== newLeader?.playerId);
+
+  const parts: string[] = [];
+  if (newLeader) parts.push(`${newLeader.name} takes over at No. 1`);
+  if (newcomers.length > 0) {
+    parts.push(`${newcomers.map((r) => r.name).join(", ")} crack${newcomers.length === 1 ? "s" : ""} the top 10`);
+  }
+  return parts.length > 0 ? ` In the ${label} top 10: ${parts.join("; ")}.` : ` The ${label} top 10 is unchanged this month.`;
+}
+
+/**
+ * This month's biggest gainer of the given gender. Players with a fixed
+ * real-world `firPoints` snapshot are excluded — their official standing
+ * never moves regardless of in-game results (see `officialPointsFor`), so
+ * they can't meaningfully be this month's "climber." Empty when nobody in
+ * that gender earned any points this month.
+ */
+function climberNote(
+  label: "men" | "women",
+  gender: "m" | "f",
+  players: readonly Player[],
+  cal: Calendar,
+  monthKey: string,
+): string {
+  let best: { name: string; gain: number } | null = null;
+  for (const p of players) {
+    if (p.identity.gender !== gender || p.firPoints !== null) continue;
+    const gain = monthlyGain(cal, p.firResults, monthKey);
+    if (gain > 0 && (!best || gain > best.gain)) best = { name: fullName(p), gain };
+  }
+  return best ? ` Climber of the month (${label}): ${best.name}, +${best.gain} points.` : "";
+}
+
+/** The human's own month-over-month move — a rank delta plus any points
+ * earned, as a follow-up to the headline standing. Empty when there's no
+ * previous digest to compare against, or the human wasn't ranked last
+ * month (first appearance is already covered by the headline sentence). */
+function yourChangeNote(prevRank: number | undefined, currentRank: number | undefined, gain: number): string {
+  if (prevRank === undefined || currentRank === undefined) return "";
+  if (currentRank < prevRank) {
+    return ` You've climbed from #${prevRank} to #${currentRank} this month${gain > 0 ? `, picking up ${gain} points` : ""}.`;
+  }
+  if (currentRank > prevRank) {
+    return ` You've slipped from #${prevRank} to #${currentRank} this month.`;
+  }
+  return gain > 0
+    ? ` You're holding at #${currentRank}, adding ${gain} points along the way.`
+    : ` You're holding steady at #${currentRank}.`;
+}
+
 /**
  * Official FIR communication is always framed around the real FIR World
  * Ranking (points), never the Glicko rating shown elsewhere to describe a
  * player's relative strength — see `firWorldRanking`'s doc comment. FIR
  * keeps entirely separate men's and women's rankings, so the digest reports
  * both top-N lists rather than one mixed one.
+ *
+ * Beyond the human's own headline standing, the officer's note also covers
+ * how the human's own position moved, whether either top 10 reshuffled, and
+ * who this month's biggest gainer was per gender — all diffed against the
+ * previous digest still sitting in `career.inbox` (found by category, not by
+ * id, so it works however many months back it was sent).
  */
 function addRankingDigest(state: GameState, content: ContentBundle, week: number, add: (m: InboxMessage) => void): void {
   // fire on a calendar-month boundary (and at week 0, whose "previous" month
@@ -373,12 +451,29 @@ function addRankingDigest(state: GameState, content: ContentBundle, week: number
       points: s.points,
       isYou: s.playerId === humanId,
     }));
+  const rankingMen = toRows(menStandings);
+  const rankingWomen = toRows(womenStandings);
 
   // the human only ever appears in their own gender's standings
   const isWoman = human?.identity.gender === "f";
   const ownStandings = isWoman ? womenStandings : menStandings;
   const you = ownStandings.find((s) => s.playerId === humanId);
   const monthLabel = monthLabelForWeek(state.calendar, week);
+  const concludedMonthKey = monthKeyForWeek(state.calendar, week - 1);
+
+  const prevDigest = [...state.career.inbox].reverse().find((m) => m.category === "ranking");
+  const yourPrevRank = prevDigest ? (isWoman ? prevDigest.yourRankWomen : prevDigest.yourRankMen) : undefined;
+  const yourGain = human ? monthlyGain(state.calendar, human.firResults, concludedMonthKey) : 0;
+
+  const body =
+    (you
+      ? `The ${monthLabel} FIR World Ranking is out. ${youName} sits at #${you.rank} of ${ownStandings.length}, with ${you.points} points.`
+      : `The ${monthLabel} FIR World Ranking is out. ${youName} hasn't earned any counted ranking points yet — enter and place in a FIR tournament to appear on it.`) +
+    yourChangeNote(yourPrevRank, you?.rank, yourGain) +
+    top10ChangeNote("men's", rankingMen, prevDigest?.rankingMen) +
+    top10ChangeNote("women's", rankingWomen, prevDigest?.rankingWomen) +
+    climberNote("men", "m", state.players, state.calendar, concludedMonthKey) +
+    climberNote("women", "f", state.players, state.calendar, concludedMonthKey);
 
   add({
     id: `ranking:${monthKeyForWeek(state.calendar, week)}`,
@@ -386,12 +481,10 @@ function addRankingDigest(state: GameState, content: ContentBundle, week: number
     category: "ranking",
     from: `${content.firOfficials.rankingsOfficer?.role ?? "FIR Rankings Officer"}, ${content.firOfficials.rankingsOfficer?.name ?? "James Pope"}`,
     subject: `${monthLabel} FIR world ranking`,
-    body: you
-      ? `The ${monthLabel} FIR World Ranking is out. ${youName} sits at #${you.rank} of ${ownStandings.length}, with ${you.points} points.`
-      : `The ${monthLabel} FIR World Ranking is out. ${youName} hasn't earned any counted ranking points yet — enter and place in a FIR tournament to appear on it.`,
+    body,
     read: false,
-    rankingMen: toRows(menStandings),
-    rankingWomen: toRows(womenStandings),
+    rankingMen,
+    rankingWomen,
     yourRankMen: isWoman ? undefined : you?.rank,
     yourRankWomen: isWoman ? you?.rank : undefined,
   });

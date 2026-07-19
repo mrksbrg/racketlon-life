@@ -26,6 +26,16 @@ import type { GameSystem, SystemContext } from "./types.js";
  * Runs for any player still weekly-simulated (skips simTier 2, same as
  * RecoverySystem/InjurySystem) — NPCs age and decline exactly like the
  * human, no special-casing needed.
+ *
+ * A player's own current endurance/coreStrength gives a bounded credit
+ * against all of this (weekly erosion, trainable-attribute decay, and
+ * cliff-drop MAGNITUDE — never whether a cliff fires at all) — see
+ * fitnessDeclineMultiplier(). Real case this exists for: Magnus Edby, a
+ * 64-year-old +60 world champion described as "a physical monster...
+ * strong and fit" — before this, his exceptional condition was reflected in
+ * the imported skill/attribute seed but bought him nothing in the ongoing
+ * simulated decline, which used the same population-uniform curve for
+ * every player regardless of fitness.
  */
 export const AgingSystem: GameSystem = {
   id: "aging",
@@ -36,13 +46,33 @@ export const AgingSystem: GameSystem = {
       const age = ageOn(ctx.state.calendar.mondayISO, player.identity.birthDate);
       if (age < b.declineFromAge) continue;
 
-      reduceSkillsByFraction(player, b.weeklyDeclineRate);
-      reduceTrainableAttributesByFraction(player, BALANCE.training.attributeAgeDeclineRate);
-      maybeStepDown(ctx, player, age, "step1", b.step1FromAge, b.step1ToAge, b.step1WeeklyChance, b.step1DropPct);
-      maybeStepDown(ctx, player, age, "step2", b.step2FromAge, b.step2ToAge, b.step2WeeklyChance, b.step2DropPct);
+      const fitnessMult = fitnessDeclineMultiplier(player);
+      reduceSkillsByFraction(player, b.weeklyDeclineRate * fitnessMult);
+      reduceTrainableAttributesByFraction(player, BALANCE.training.attributeAgeDeclineRate * fitnessMult);
+      maybeStepDown(
+        ctx, player, age, "step1", b.step1FromAge, b.step1ToAge, b.step1WeeklyChance, b.step1DropPct * fitnessMult,
+      );
+      maybeStepDown(
+        ctx, player, age, "step2", b.step2FromAge, b.step2ToAge, b.step2WeeklyChance, b.step2DropPct * fitnessMult,
+      );
     }
   },
 };
+
+/**
+ * Fraction in [1 - BALANCE.aging.fitnessDeclineMaxReduction, 1], multiplied
+ * onto every decline amount above. Only ABOVE-average fitness (> 0.5, the
+ * engine's neutral point — see mapRatings.ts's affineUnit) earns a
+ * reduction; at or below average gets the plain 1.0 multiplier (the
+ * population-uniform curve, unchanged) — this credits confirmed exceptional
+ * condition, it does not additionally punish below-average condition.
+ */
+function fitnessDeclineMultiplier(player: Player): number {
+  const fitness = (player.attributes.endurance + player.attributes.coreStrength) / 2;
+  const aboveAverage = Math.max(0, fitness - 0.5); // 0..0.5
+  const reduction = Math.min(1, aboveAverage / 0.5) * BALANCE.aging.fitnessDeclineMaxReduction;
+  return 1 - reduction;
+}
 
 function reduceSkillsByFraction(player: Player, fraction: number): void {
   for (const sport of SPORTS) {

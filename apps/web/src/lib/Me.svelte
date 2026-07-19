@@ -245,6 +245,15 @@
               <span class="record-meta">{tournamentLabel(bl.tournamentTier, bl.tournamentName, bl.year)}</span>
             </button>
           {/if}
+          {#if records.biggestComeback}
+            {@const bc = records.biggestComeback}
+            <button class="record-tile comeback" onclick={() => store.viewOpponent(bc.opponentId)}>
+              <span class="record-label">Greatest comeback</span>
+              <span class="record-score">−{bc.deficit} → +{bc.margin}</span>
+              <span class="record-opponent">vs {bc.opponentName}</span>
+              <span class="record-meta">{tournamentLabel(bc.tournamentTier, bc.tournamentName, bc.year)}</span>
+            </button>
+          {/if}
         </div>
       {:else}
         <p class="empty">No matches played yet.</p>
@@ -928,6 +937,11 @@
     border-color: color-mix(in srgb, var(--danger) 35%, var(--border));
   }
 
+  .record-tile.comeback {
+    background: color-mix(in srgb, var(--warn) 10%, var(--card));
+    border-color: color-mix(in srgb, var(--warn) 35%, var(--border));
+  }
+
   .record-label {
     font-size: 11px;
     text-transform: uppercase;
@@ -947,6 +961,10 @@
 
   .record-tile.loss .record-score {
     color: var(--danger);
+  }
+
+  .record-tile.comeback .record-score {
+    color: var(--warn);
   }
 
   .record-opponent {

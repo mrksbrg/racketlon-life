@@ -552,7 +552,7 @@ function sampleDivisionField(
   return weightedSampleWithoutReplacement(rng, pool, (p) => entryWeight(content, p.identity.nationality, def), needed);
 }
 
-function pickEntrants(state: GameState, def: TournamentDef, weekIndex: number, content: ContentBundle): Player[] {
+export function pickEntrants(state: GameState, def: TournamentDef, weekIndex: number, content: ContentBundle): Player[] {
   const human = getPlayer(state, state.career.playerId);
   return [human, ...projectedField(state, def, weekIndex, content)];
 }
@@ -641,25 +641,30 @@ export function previewDraw(
 
 /**
  * A "the draw is out" bracket-shaped preview of round 1 only, for a
- * tournament that hasn't started yet — same entrant/seeding pipeline as
- * `previewDraw`/`startTournament` (`pickEntrants`/`seedBracket`), so it can
- * never disagree with the real bracket once entered. Deliberately never
- * calls `resolveRound`/`simulateMatchAuto`: every `winnerId` here is null and
- * every `sets` is undefined, even for AI-vs-AI pairs that could technically
- * be simulated already — revealing a result before the event has actually
+ * tournament that hasn't started yet — same seeding pipeline as
+ * `previewDraw`/`startTournament` (`seedBracket`), so it can never disagree
+ * with the real bracket once entered. Deliberately never calls
+ * `resolveRound`/`simulateMatchAuto`: every `winnerId` here is null and every
+ * `sets` is undefined, even for AI-vs-AI pairs that could technically be
+ * simulated already — revealing a result before the event has actually
  * started would spoil "the draw" as a real preview. Later rounds aren't
  * included at all: who plays round 2 depends on round-1 results (including
  * the human's) that don't exist yet. Doesn't touch `GameState`, matching
  * `previewDraw`'s own no-mutation guarantee.
+ *
+ * `entrants` is supplied by the caller rather than resolved here — pass
+ * `pickEntrants`'s result when the human genuinely belongs in this bracket
+ * (registered, or still eligible to register), or `fullDivisionField`'s when
+ * they don't, so a tournament the human never entered never shows them as a
+ * participant (see `Game.previewTournamentDraw`).
  */
 export function previewFirstRoundDraw(
   state: GameState,
   def: TournamentDef,
   weekIndex: number,
-  content: ContentBundle,
+  entrants: Player[],
 ): DrawRound[] {
   const rngSeed = childSeed(state.seed, "tournament", weekIndex, def.id);
-  const entrants = pickEntrants(state, def, weekIndex, content);
   const bracketBySeed = seedBracket(entrants, def.fieldSize, childSeed(rngSeed, "seedBracket"));
   const seedByPlayerId = seedRanks(entrants);
   const maxSeed = seededCount(def.fieldSize);

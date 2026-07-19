@@ -51,9 +51,11 @@ import {
   advanceTournament,
   drawRounds,
   finishSiblingSession,
+  fullDivisionField,
   humanDivisionDef,
   humanEligibleDivisions,
   isSiblingConcluded,
+  pickEntrants,
   previewFirstRoundDraw,
   projectedFieldAsOf,
   startSiblingSession,
@@ -348,6 +350,19 @@ export interface SportRecordView extends MatchRecordView {
   b: number;
 }
 
+/** A "greatest comeback" record — the biggest aggregate-point hole the human
+ * dug out of and still won the match. `deficit` is the largest gap by which
+ * the opponent led at any set boundary (running point totals after each of
+ * the 4 sets, in play order); `margin` (inherited from {@link MatchRecordView})
+ * is the match's final winning margin, which can be smaller than `deficit`
+ * once the comeback overshoots. Only set-boundary totals are checked, not
+ * point-by-point — the point trajectory itself is a presentation-only trace
+ * for the live match screen (see MatchScreen.svelte's `pointHistory`) and
+ * isn't persisted to the event log this is mined from. */
+export interface ComebackRecordView extends MatchRecordView {
+  deficit: number;
+}
+
 /** The strongest opponent (by Glicko-2 rating, at the time) the human has
  * ever faced in one sport — win or lose. See `Game.records`. */
 export interface BestOpponentView {
@@ -399,6 +414,7 @@ export interface RecordsView {
   biggestLossBySport: Partial<Record<Sport, SportRecordView>>;
   bestOpponentBySport: Partial<Record<Sport, BestOpponentView>>;
   highestRankedWin: RankedWinView | null;
+  biggestComeback: ComebackRecordView | null;
   gummiarms: GummiarmStatsView;
 }
 
@@ -612,6 +628,7 @@ export interface RankingRowView {
   rank: number;
   playerId: string;
   name: string;
+  age: number;
   nationality: string;
   points: number;
   racePoints: number;
@@ -1155,13 +1172,43 @@ export class Game {
         }
       : null;
 
+    // greatest comeback: among match wins, the biggest hole the human was in
+    // at any set boundary (running point totals after each of the 4 sets, in
+    // play order) before still winning the match overall.
+    type ComebackHit = { m: RecentMatchView; deficit: number };
+    const comebackHits: ComebackHit[] = [];
+    for (const m of wins) {
+      let a = 0;
+      let b = 0;
+      let maxDeficit = 0;
+      for (const s of m.sets) {
+        a += s.a;
+        b += s.b;
+        maxDeficit = Math.max(maxDeficit, b - a);
+      }
+      if (maxDeficit > 0) comebackHits.push({ m, deficit: maxDeficit });
+    }
+    const bestComeback = better(comebackHits, (h) => h.deficit);
+    const biggestComeback: ComebackRecordView | null = bestComeback
+      ? { ...toMatchRecord(bestComeback.m, bestComeback.m.totalA - bestComeback.m.totalB), deficit: bestComeback.deficit }
+      : null;
+
     const gummiarmMatches = matches.filter((m) => m.gummiarm);
     const gummiarms: GummiarmStatsView = {
       played: gummiarmMatches.length,
       won: gummiarmMatches.filter((m) => m.won).length,
     };
 
-    return { biggestWin, biggestLoss, biggestWinBySport, biggestLossBySport, bestOpponentBySport, highestRankedWin, gummiarms };
+    return {
+      biggestWin,
+      biggestLoss,
+      biggestWinBySport,
+      biggestLossBySport,
+      bestOpponentBySport,
+      highestRankedWin,
+      biggestComeback,
+      gummiarms,
+    };
   }
 
   /**
@@ -1307,6 +1354,7 @@ export class Game {
       const player = getPlayer(this.state, row.playerId);
       return {
         ...row,
+        age: ageOn(this.state.calendar.mondayISO, player.identity.birthDate),
         racePoints: firRacePointsTotal(player.firResults, this.state.calendar),
         rating: Math.round(combinedRating(player)),
         sportRatings: {
@@ -1770,6 +1818,11 @@ export class Game {
         `Best win by ranking yet: beat World No. ${after.highestRankedWin.rank} ${after.highestRankedWin.opponentName}.`,
       );
     }
+    if (before.biggestComeback && after.biggestComeback && after.biggestComeback.deficit > before.biggestComeback.deficit) {
+      notes.push(
+        `Greatest comeback yet: clawed back from ${after.biggestComeback.deficit} down to beat ${after.biggestComeback.opponentName} (previous best ${before.biggestComeback.deficit} down).`,
+      );
+    }
 
     if (notes.length === 0) return;
     const week = this.state.calendar.weekIndex;
@@ -1854,22 +1907,77 @@ export class Game {
   }
 
   /**
+   * Whether the human genuinely belongs in `weekIndex`'s bracket for preview
+   * purposes — either they've actually registered for it, or the entry
+   * deadline for it hasn't passed yet and they simply haven't decided (the
+   * same "still eligible" window `registerForTournament` enforces). False
+   * for any other week: one they registered a *different* tournament for
+   * instead, a skipped week already in the past, or a future week whose
+   * deadline has lapsed unregistered. Without this check, browsing an
+   * unrelated tournament from the season calendar would wrongly show the
+   * human competing in it — see `previewTournamentDraw`.
+   */
+  private canPreviewAsHuman(weekIndex: number): boolean {
+    if (this.state.career.tournamentEntries.some((e) => e.weekIndex === weekIndex)) return true;
+    return weekIndex - this.state.calendar.weekIndex >= BALANCE.tournament.entryDeadlineWeeks;
+  }
+
+  /** The def a preview's "primary" bracket is built from — the human's
+   * actual registered (possibly played-up) division if they registered for
+   * this exact week, else their default division, so a played-up preview
+   * never shows the wrong class. Doesn't imply the human is actually in that
+   * bracket — see `canPreviewAsHuman`. */
+  private previewPrimaryDef(weekIndex: number, defs: TournamentDef[]): TournamentDef {
+    const registeredEntry = this.state.career.tournamentEntries.find((e) => e.weekIndex === weekIndex);
+    return registeredEntry
+      ? (this.content.tournaments[registeredEntry.tournamentId] ?? humanDivisionDef(this.state, defs))
+      : humanDivisionDef(this.state, defs);
+  }
+
+  /**
    * A bracket-shaped preview of round 1 for a tournament that hasn't started
    * yet — null once it's actually begun (use `tournamentDraw`/
-   * `completedDraw` instead) or if the week has no tournament. Resolves the
-   * same def `registeredTournamentThisWeek`/`enterTournament` would use — the
-   * human's actual registered (possibly played-up) division if they
-   * registered, else their default division — so a played-up preview never
-   * shows the wrong class. See `tournament/engine.ts`'s `previewFirstRoundDraw`.
+   * `completedDraw` instead) or if the week has no tournament. See
+   * `tournament/engine.ts`'s `previewFirstRoundDraw`.
    */
   previewTournamentDraw(weekIndex: number): DrawRound[] | null {
     const defs = tournamentForWeek(this.content, weekIndex);
     if (!defs) return null;
-    const registeredEntry = this.state.career.tournamentEntries.find((e) => e.weekIndex === weekIndex);
-    const def = registeredEntry
-      ? (this.content.tournaments[registeredEntry.tournamentId] ?? humanDivisionDef(this.state, defs))
-      : humanDivisionDef(this.state, defs);
-    return previewFirstRoundDraw(this.state, def, weekIndex, this.content);
+    const def = this.previewPrimaryDef(weekIndex, defs);
+    const entrants = this.canPreviewAsHuman(weekIndex)
+      ? pickEntrants(this.state, def, weekIndex, this.content)
+      : fullDivisionField(this.state, def, weekIndex, this.content);
+    return previewFirstRoundDraw(this.state, def, weekIndex, entrants);
+  }
+
+  /** The def behind `previewTournamentDraw`'s bracket — lets callers tell
+   * `Draw.svelte` which division is "primary" even when the human isn't
+   * actually in it (see `canPreviewAsHuman`), same as `completedDraw`'s
+   * `tournament` field. Null if the week has no tournament. */
+  previewTournamentDef(weekIndex: number): TournamentDef | null {
+    const defs = tournamentForWeek(this.content, weekIndex);
+    return defs ? this.previewPrimaryDef(weekIndex, defs) : null;
+  }
+
+  /**
+   * Every other division of `weekIndex`'s event besides the "primary" one
+   * `previewTournamentDraw` shows — always the full field, never the human
+   * (mirrors the live `otherDivisionDraws`' siblings), so the schedule's
+   * draw preview can offer the same "Class B"/"Women A" browsing before a
+   * tournament has even started. Empty if the week has no tournament.
+   */
+  previewOtherDivisionDraws(weekIndex: number): OtherDivisionDraw[] {
+    const defs = tournamentForWeek(this.content, weekIndex);
+    if (!defs) return [];
+    const primaryDef = this.previewPrimaryDef(weekIndex, defs);
+    return defs
+      .filter((def) => def.id !== primaryDef.id)
+      .map((def) => ({
+        division: def.division,
+        tournament: def,
+        rounds: previewFirstRoundDraw(this.state, def, weekIndex, fullDivisionField(this.state, def, weekIndex, this.content)),
+        concluded: false,
+      }));
   }
 
   /**

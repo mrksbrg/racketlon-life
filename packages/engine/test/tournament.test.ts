@@ -1243,6 +1243,44 @@ describe("previewFirstRoundDraw / Game.previewTournamentDraw", () => {
     game.previewTournamentDraw(3);
     expect(JSON.stringify(game.serialize())).toBe(before);
   });
+
+  it("never shows the human in a tournament they registered a different week for instead, once its own deadline has passed", () => {
+    // Registers for week 3's event, then leaves week 7's alone entirely —
+    // matching the reported bug (signed up for one tournament, later
+    // browsed a different one's draw from the season calendar and saw
+    // themselves in it even though they never entered it).
+    const game = Game.newGame({ content: testContent, seed: "preview-elsewhere" });
+    game.registerForTournament(3);
+    advanceUntil(game, () => game.weekIndex === 7); // past week 7's own entry deadline, never registered for it
+    const matchups = game.previewTournamentDraw(7)![0]!.sections[0]!.matchups;
+    expect(matchups.every((m) => !m.isYouA && !m.isYouB)).toBe(true);
+  });
+
+  it("still shows the human's projected default division while a not-yet-registered week is still open to enter", () => {
+    const game = Game.newGame({ content: testContent, seed: "preview-open" });
+    // week 7 is untouched and its own deadline hasn't passed yet — still a
+    // live "if you enter here" hypothetical, same as the very first test.
+    const matchups = game.previewTournamentDraw(7)![0]!.sections[0]!.matchups;
+    expect(matchups.filter((m) => m.isYouA || m.isYouB)).toHaveLength(1);
+  });
+});
+
+describe("Game.previewOtherDivisionDraws", () => {
+  it("lists every other division of the week's event, never the human", () => {
+    const game = Game.newGame({ content: testContent, seed: "preview-other-1" });
+    const others = game.previewOtherDivisionDraws(3);
+    // fixtures.ts's week-3 event has 5 divisions total (B-m, B-f, A-m, A-f, C-m) — one is primary
+    expect(others).toHaveLength(4);
+    for (const other of others) {
+      const matchups = other.rounds[0]!.sections[0]!.matchups;
+      expect(matchups.every((m) => !m.isYouA && !m.isYouB)).toBe(true);
+    }
+  });
+
+  it("is empty for a week with no tournament", () => {
+    const game = Game.newGame({ content: testContent, seed: "preview-other-2" });
+    expect(game.previewOtherDivisionDraws(0)).toEqual([]);
+  });
 });
 
 describe("match.played roundName", () => {

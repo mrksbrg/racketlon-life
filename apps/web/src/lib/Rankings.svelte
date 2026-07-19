@@ -127,6 +127,7 @@
       <div class="row head-row">
         <span class="c-rank">#</span>
         <span class="c-name">Player</span>
+        <span class="c-age">Age</span>
         {#if store.rankingsView === "fir"}
           <button class="c-num primary sortable" onclick={() => sortBy("points")}>FIR {arrowFor("points")}</button>
           <button class="c-num sortable" onclick={() => sortBy("rating")}>Rating {arrowFor("rating")}</button>
@@ -141,6 +142,7 @@
         <button class="row" class:you={row.playerId === youId} onclick={() => store.viewOpponent(row.playerId)}>
           <span class="c-rank">{rankingModel.safePage * PAGE_SIZE + index + 1}</span>
           <span class="c-name">{flagEmoji(row.nationality)} {row.name}</span>
+          <span class="c-age">{row.age}</span>
           {#if store.rankingsView === "fir"}
             <span class="c-num primary">{row.points}</span>
             <span class="c-num">{row.rating}</span>
@@ -311,6 +313,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .c-age {
+    width: 26px;
+    flex-shrink: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+
+  .row.you .c-age {
+    color: var(--accent);
   }
 
   .c-num {

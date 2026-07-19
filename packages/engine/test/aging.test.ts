@@ -13,6 +13,18 @@ function withBirthDate(seed: string, birthDate: string): Game {
   return Game.fromSave(save, testContent);
 }
 
+/** Same as withBirthDate, plus a fixed endurance/coreStrength — isolates the
+ * fitness-credit effect from everything else. */
+function withBirthDateAndFitness(seed: string, birthDate: string, fitness: number): Game {
+  const game = Game.newGame({ content: testContent, seed });
+  const save = game.serialize();
+  const you = save.state.players.find((p) => p.identity.id === "you")!;
+  you.identity.birthDate = birthDate;
+  you.attributes.endurance = fitness;
+  you.attributes.coreStrength = fitness;
+  return Game.fromSave(save, testContent);
+}
+
 describe("AgingSystem", () => {
   it("does not permanently erode skill before declineFromAge", () => {
     // 26 at game start — well under declineFromAge (32) for the whole run
@@ -93,5 +105,65 @@ describe("AgingSystem", () => {
     expect(b.step1FromAge).toBeLessThan(b.step1ToAge);
     expect(b.step1ToAge).toBeLessThanOrEqual(b.step2FromAge);
     expect(b.step2FromAge).toBeLessThan(b.step2ToAge);
+  });
+
+  describe("fitness credit", () => {
+    // Real case this exists for: Magnus Edby, a 64-year-old +60 world
+    // champion described as "a physical monster... strong and fit" — his
+    // exceptional endurance/coreStrength should measurably slow his decline,
+    // not just describe him.
+    function rawSkill(game: Game, sport: "tt" | "bd" | "sq" | "tn" = "tt"): number {
+      return game.serialize().state.players.find((p) => p.identity.id === "you")!.attributes.skills[sport];
+    }
+
+    it("erodes skill slower for an above-average-fitness player than a neutral one", () => {
+      const neutral = withBirthDateAndFitness("aging-fit-neutral", "1981-01-15", 0.5);
+      const fit = withBirthDateAndFitness("aging-fit-high", "1981-01-15", 1.0);
+      const neutralBefore = rawSkill(neutral);
+      const fitBefore = rawSkill(fit);
+
+      for (let i = 0; i < 10; i++) {
+        neutral.submitWeek(WORK);
+        fit.submitWeek(WORK);
+      }
+
+      const neutralDrop = neutralBefore - rawSkill(neutral);
+      const fitDrop = fitBefore - rawSkill(fit);
+      expect(fitDrop).toBeLessThan(neutralDrop);
+    });
+
+    it("does not slow decline for an at-or-below-average-fitness player", () => {
+      const neutral = withBirthDateAndFitness("aging-fit-baseline-a", "1981-01-15", 0.5);
+      const belowAverage = withBirthDateAndFitness("aging-fit-baseline-b", "1981-01-15", 0.2);
+      const neutralBefore = rawSkill(neutral);
+      const belowBefore = rawSkill(belowAverage);
+
+      for (let i = 0; i < 10; i++) {
+        neutral.submitWeek(WORK);
+        belowAverage.submitWeek(WORK);
+      }
+
+      const neutralDrop = neutralBefore - rawSkill(neutral);
+      const belowDrop = belowBefore - rawSkill(belowAverage);
+      // both get the plain population-uniform curve — no extra punishment
+      expect(belowDrop).toBeCloseTo(neutralDrop, 5);
+    });
+
+    it("erodes trainable attributes slower for an above-average-fitness player", () => {
+      const neutral = withBirthDateAndFitness("aging-fit-attrs-neutral", "1981-01-15", 0.5);
+      const fit = withBirthDateAndFitness("aging-fit-attrs-high", "1981-01-15", 1.0);
+
+      for (let i = 0; i < 10; i++) {
+        neutral.submitWeek(WORK);
+        fit.submitWeek(WORK);
+      }
+
+      const neutralAfter = neutral.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
+      const fitAfter = fit.serialize().state.players.find((p) => p.identity.id === "you")!.attributes;
+      // fit started at 1.0 (the ceiling) and neutral at 0.5, so compare the
+      // fraction each has decayed from their own starting point instead of
+      // raw values.
+      expect((1.0 - fitAfter.endurance) / 1.0).toBeLessThan((0.5 - neutralAfter.endurance) / 0.5);
+    });
   });
 });

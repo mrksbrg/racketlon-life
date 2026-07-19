@@ -51,5 +51,8 @@
   "TJ": { "name": "Tajikistan", "lat": 38.56, "lon": 68.78, "costIndex": 0.25 },
   "UA": { "name": "Ukraine", "lat": 50.45, "lon": 30.52, "costIndex": 0.35 },
   "LI": { "name": "Liechtenstein", "lat": 47.14, "lon": 9.52, "costIndex": 1.5, "president": "Mirianda Frick" },
-  "MY": { "name": "Malaysia", "lat": 3.14, "lon": 101.69, "costIndex": 0.4, "president": "Jonathan Quek" }
+  "MY": { "name": "Malaysia", "lat": 3.14, "lon": 101.69, "costIndex": 0.4, "president": "Jonathan Quek" },
+  "CU": { "name": "Cuba", "lat": 23.11, "lon": -82.37, "costIndex": 0.35, "president": "Eric De La Torre" },
+  "ER": { "name": "Eritrea", "lat": 15.34, "lon": 38.93, "costIndex": 0.25, "president": "Yohannes Berhiu" },
+  "KR": { "name": "South Korea", "lat": 37.57, "lon": 126.98, "costIndex": 1.2, "president": "Tobin Chang" }
 }

@@ -217,6 +217,16 @@ export const BALANCE = {
     step2ToAge: 65,
     step2WeeklyChance: 0.03,
     step2DropPct: 0.06,
+    /** Bounded credit against the weekly erosion and cliff-drop MAGNITUDE
+     * above (never the cliff's chance of firing at all) from a player's own
+     * current endurance/coreStrength — real, sourced physical condition
+     * predicts less decline than this population-uniform curve assumes on
+     * its own. 0.5 here means a player at the attribute ceiling (1.0 on
+     * both) gets at most half the usual decline, same principle and same
+     * cap as Racketlon_TS's age_rating.VETERAN_MAX_FITNESS_REDUCTION — real
+     * decline never fully disappears even for the best-conditioned
+     * veterans. See systems/aging.ts's fitnessDeclineMultiplier(). */
+    fitnessDeclineMaxReduction: 0.5,
   },
   /** Glicko-2 rating updates, batched once per tournament (one rating period). */
   ranking: {
