@@ -8,10 +8,12 @@ import { humanPlayer } from "./core/state.js";
 import type { ActivityCounts, PlayerPlan } from "./model/plan.js";
 import type { WeekSummary } from "./model/summary.js";
 import { AgingSystem } from "./systems/aging.js";
+import { DecisionSystem } from "./systems/decision.js";
 import { EconomySystem } from "./systems/economy.js";
 import { FatigueSystem } from "./systems/fatigue.js";
 import { generateInboxMessages, InboxSystem } from "./systems/inbox.js";
 import { InjurySystem } from "./systems/injury.js";
+import { activeWeekModifier, homeLatitudeFor } from "./systems/modifiers.js";
 import { PlanningSystem } from "./systems/planning.js";
 import { ProgressionSystem } from "./systems/progression.js";
 import { publishPendingFirResults } from "./systems/ranking-points.js";
@@ -28,6 +30,9 @@ import type { GameSystem, HumanSnapshot, WeekOutputs } from "./systems/types.js"
  */
 const SYSTEMS: readonly GameSystem[] = [
   PlanningSystem,
+  // Decision-event effects (the fun-plan P2 "coming up" choices) land here,
+  // before this week's own training/economy/fatigue build on top of them.
+  DecisionSystem,
   // TravelSystem (M2)
   TrainingSystem,
   EconomySystem,
@@ -83,6 +88,12 @@ function runSystems(
   };
   const plans = new Map<string, ActivityCounts>();
   const outputs: WeekOutputs = {};
+  const weekModifier = activeWeekModifier(
+    state.seed,
+    week,
+    state.calendar,
+    homeLatitudeFor(content, human.identity.nationality),
+  );
 
   for (const system of systems) {
     system.run({
@@ -94,6 +105,7 @@ function runSystems(
       outputs,
       rng: new Rng(childSeed(state.seed, week, system.id)),
       log: new WeekLog(log, week),
+      weekModifier,
     });
   }
 

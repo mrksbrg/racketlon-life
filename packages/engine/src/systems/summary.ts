@@ -116,6 +116,9 @@ export const SummarySystem: GameSystem = {
         notes.push(`New career-high rating: ${d.value}!`);
       } else if (event.type === "aging.stepDown") {
         notes.push("You can feel your body isn't quite what it used to be — a real step down this week.");
+      } else if (event.type === "decision.resolved") {
+        const d = event.data as { note: string };
+        notes.push(d.note);
       }
     }
 

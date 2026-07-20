@@ -18,6 +18,7 @@
     podium: "🥇",
     family: "💌",
     official: "🎖️",
+    decision: "🤔",
   };
 
   /** Trophy for a title, a plainer note otherwise — a "result" message's icon
@@ -37,6 +38,17 @@
   function tourStatus(week: number | undefined) {
     if (week === undefined) return null;
     return store.tourEntries.find((e) => e.weekIndex === week) ?? null;
+  }
+
+  /** A decision message's own deadline has passed — `choices` are still
+   * shown, but disabled, rather than disappearing (so it's clear something
+   * was missed, not just absent). */
+  function isExpired(msg: InboxView): boolean {
+    return msg.expiresWeekIndex !== undefined && store.weekIndex > msg.expiresWeekIndex;
+  }
+
+  function chosenLabel(msg: InboxView): string | undefined {
+    return msg.choices?.find((c) => c.id === msg.resolvedChoiceId)?.label;
   }
 
 </script>
@@ -143,6 +155,29 @@
                 <div class="actions">
                   <button class="view" onclick={() => store.viewTournamentDetail(msg.tournamentWeek!)}>View the draw ▸</button>
                 </div>
+              {/if}
+            {/if}
+
+            {#if msg.category === "decision" && msg.choices}
+              {#if msg.relatedPlayerId}
+                <div class="actions">
+                  <button class="view" onclick={() => store.viewOpponent(msg.relatedPlayerId!)}>View {msg.from}'s profile ▸</button>
+                </div>
+              {/if}
+              {#if msg.resolvedChoiceId}
+                <p class="decision-resolved">✓ You chose: {chosenLabel(msg)}</p>
+              {:else if isExpired(msg)}
+                <p class="decision-expired">This offer has expired — you didn't answer in time.</p>
+              {:else}
+                <div class="choices">
+                  {#each msg.choices as choice (choice.id)}
+                    <button class="choice" onclick={() => void store.chooseInboxOption(msg.id, choice.id)}>
+                      <span class="choice-label">{choice.label}</span>
+                      {#if choice.hint}<span class="choice-hint">{choice.hint}</span>{/if}
+                    </button>
+                  {/each}
+                </div>
+                <p class="decision-deadline">Answer by week {msg.expiresWeekIndex! + 1} or it expires.</p>
               {/if}
             {/if}
           </div>
@@ -386,5 +421,59 @@
     font-size: 13px;
     text-align: center;
     padding: 24px 0;
+  }
+
+  .choices {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .choice {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    width: 100%;
+    text-align: left;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+  }
+
+  .choice:active {
+    border-color: var(--accent);
+  }
+
+  .choice-label {
+    font-weight: 700;
+    font-size: 13.5px;
+  }
+
+  .choice-hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .decision-deadline {
+    margin: 8px 0 0;
+    font-size: 11.5px;
+    color: var(--muted);
+  }
+
+  .decision-resolved {
+    margin: 12px 0 0;
+    font-size: 13px;
+    color: var(--ok);
+    font-weight: 600;
+  }
+
+  .decision-expired {
+    margin: 12px 0 0;
+    font-size: 13px;
+    color: var(--danger);
+    font-weight: 600;
   }
 </style>

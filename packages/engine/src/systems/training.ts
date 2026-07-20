@@ -5,6 +5,7 @@ import type { Player, TrainableAttribute } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import { SKILL_MAX, SPORTS, levelForSkill } from "../model/sport.js";
 import { countEntries, expectedSessionGain, formDelta } from "./effects.js";
+import { weekModifierContent } from "./modifiers.js";
 import type { GameSystem, SystemContext } from "./types.js";
 
 /**
@@ -22,13 +23,17 @@ import type { GameSystem, SystemContext } from "./types.js";
 export const TrainingSystem: GameSystem = {
   id: "training",
   run(ctx) {
+    // a week modifier (fun-plan P3) is human-only flavor ("your club this
+    // week") — NPCs keep reading the real, unmodified content.
+    const humanContent = weekModifierContent(ctx.content, ctx.weekModifier);
     for (const player of ctx.state.players) {
       const counts = ctx.plans.get(player.identity.id);
       if (!counts) continue;
+      const content = player.identity.id === ctx.state.career.playerId ? humanContent : ctx.content;
       const sessionsBySport: Record<Sport, number> = { tt: 0, bd: 0, sq: 0, tn: 0 };
       const trainedAttributes = new Set<TrainableAttribute>();
       for (const [type, sessions] of countEntries(counts)) {
-        const def = ctx.content.activities[type];
+        const def = content.activities[type];
         if (def.sport !== undefined && def.trainingBase !== undefined) {
           if (player.condition.injury?.type === def.sport) {
             ctx.log.emit("injury.blocked", player.identity.id, { sport: def.sport, sessions });

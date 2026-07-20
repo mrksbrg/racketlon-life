@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ContentBundle, RealPlayerDef } from "../src/index.js";
-import { Game, generateInboxMessages, simulateMatchAuto } from "../src/index.js";
+import type { ContentBundle, RealPlayerDef, Sport } from "../src/index.js";
+import { BALANCE, Game, emptyPlan, generateInboxMessages, humanPlayer, simulateMatchAuto } from "../src/index.js";
 import { planWith, testContent } from "./fixtures.js";
 
 const WORK = planWith({ work: 5 });
@@ -263,5 +263,232 @@ describe("inbox generation", () => {
     const again = generateInboxMessages(state, testContent, 3, weekThreeEvents);
     expect(again.filter((m) => m.category === "podium")).toHaveLength(0);
     expect(game.inbox.filter((m) => m.category === "podium" && m.week === 3)).toHaveLength(1);
+  });
+});
+
+/** Advances a week at a time until the first decision event appears (the
+ * pity timer guarantees this within `pityWeeks + 1` weeks), stopping
+ * immediately so callers can still act on it inside its own answer window —
+ * unlike a fixed `advance(game, pityWeeks + 1)`, which by definition already
+ * runs right up to (or past) that very first offer's own expiry. */
+function advanceUntilDecision(game: Game, plan = WORK): void {
+  let guard = 0;
+  while (!game.inbox.some((m) => m.category === "decision") && guard++ < 20) {
+    game.submitWeek(plan);
+  }
+}
+
+describe("decision events", () => {
+  it("fires at least one decision event within the pity window, offering 2+ real choices with a deadline", () => {
+    const game = Game.newGame({ content: testContent, seed: "decision-pity" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision");
+    expect(msg).toBeTruthy();
+    expect(msg!.week).toBeLessThanOrEqual(BALANCE.events.pityWeeks);
+    expect(msg!.choices?.length).toBeGreaterThanOrEqual(2);
+    expect(msg!.expiresWeekIndex).toBe(msg!.week + BALANCE.events.answerWindowWeeks);
+    expect(msg!.resolvedChoiceId).toBeUndefined();
+    expect(msg!.read).toBe(false);
+  });
+
+  it("the sparring invite names a same-nationality partner, links their profile, and mentions they're in town", () => {
+    // a fresh career's first weeks have no fatigue/money-tightness/training-
+    // wear/tournament-win triggers active yet, so sparring-invite (always
+    // eligible) is deterministically the only candidate — see the cooldown
+    // test below for the same assumption.
+    const game = Game.newGame({ content: testContent, seed: "decision-partner" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision")!;
+    expect(msg.id).toMatch(/^decision:sparring-invite:/);
+    expect(msg.relatedPlayerId).toBeTruthy();
+    expect(msg.body).toMatch(/in town this week/i);
+
+    const partner = testContent.players.find((p) => p.playerId === msg.relatedPlayerId)!;
+    expect(partner).toBeTruthy();
+    expect(partner.nationality).toBe("SE"); // the default fallback human's own nationality
+    expect(msg.from).toBe(`${partner.firstName} ${partner.lastName}`);
+  });
+
+  it("accepting the sparring invite reserves an evening slot matching exactly what the invite proposed", () => {
+    const game = Game.newGame({ content: testContent, seed: "decision-reserve" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision")!;
+    expect(msg.id).toMatch(/^decision:sparring-invite:/);
+    const accept = msg.choices!.find((c) => c.id === "accept")!;
+    const proposed = accept.effect.reserveSlot!;
+    expect(proposed.slotIndex % 3).toBe(2); // always an Evening period
+
+    expect(game.reservedSlotsThisWeek()).toHaveLength(0); // nothing committed until chosen
+    game.chooseInboxOption(msg.id, accept.id);
+
+    const reserved = game.reservedSlotsThisWeek();
+    expect(reserved).toHaveLength(1);
+    expect(reserved[0]!.slotIndex).toBe(proposed.slotIndex);
+    expect(reserved[0]!.activity).toBe(proposed.activity);
+  });
+
+  it("the sparring invite's day is randomized but weekday-biased, and the body always names the exact day", () => {
+    // sweep many seeds to observe both weekday and weekend proposals, and
+    // confirm the body text's day name always matches the reserved slot —
+    // the whole point of resolving the day once at build time.
+    const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    let weekdayCount = 0;
+    let weekendCount = 0;
+    for (let i = 0; i < 30; i++) {
+      const game = Game.newGame({ content: testContent, seed: `decision-day-${i}` });
+      advanceUntilDecision(game);
+      const msg = game.inbox.find((m) => m.category === "decision" && m.id.startsWith("decision:sparring-invite:"));
+      if (!msg) continue; // pity could have picked a different eligible event on some seeds
+      const accept = msg.choices!.find((c) => c.id === "accept")!;
+      const day = Math.floor(accept.effect.reserveSlot!.slotIndex / 3);
+      expect(msg.body).toContain(`free ${DAY_NAMES[day]} evening`);
+      expect(accept.hint).toContain(`blocks ${DAY_NAMES[day]} evening`);
+      if (day < 5) weekdayCount++;
+      else weekendCount++;
+    }
+    expect(weekdayCount).toBeGreaterThan(0);
+    expect(weekendCount).toBeGreaterThan(0);
+    expect(weekdayCount).toBeGreaterThan(weekendCount); // weekday-biased, not 50/50
+  });
+
+  it("declining the sparring invite reserves nothing", () => {
+    const game = Game.newGame({ content: testContent, seed: "decision-reserve-decline" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision")!;
+    const decline = msg.choices!.find((c) => c.id === "decline")!;
+
+    game.chooseInboxOption(msg.id, decline.id);
+
+    expect(game.reservedSlotsThisWeek()).toHaveLength(0);
+  });
+
+  it("the reserved slot runs through the real training pipeline — its own session gain adds on top of the decision's flat bonus, not instead of it", () => {
+    const game = Game.newGame({ content: testContent, seed: "decision-reserve-apply" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision")!;
+    const accept = msg.choices!.find((c) => c.id === "accept")!;
+    const sport = Object.keys(accept.effect.skill ?? {})[0] as Sport;
+    const activity = accept.effect.reserveSlot!.activity;
+    const bonus = accept.effect.skill![sport]!;
+
+    game.chooseInboxOption(msg.id, accept.id);
+    const reserved = game.reservedSlotsThisWeek()[0]!;
+    const beforeSkill = humanPlayer(game.serialize().state).attributes.skills[sport];
+
+    // mimic what the client's store.availableSlots() forces into the plan
+    // before submitting: the reserved slot's activity, everything else free.
+    const slots = emptyPlan().slots;
+    slots[reserved.slotIndex] = activity;
+    game.submitWeek({ slots });
+
+    const afterSkill = humanPlayer(game.serialize().state).attributes.skills[sport];
+    // strictly more than the flat bonus alone proves TrainingSystem actually
+    // ran a real session on that forced slot, on top of the decision's own
+    // bump — this is what makes it "a better session than normal," not just
+    // a free-floating stat grant outside the 21-slot budget.
+    expect(afterSkill - beforeSkill).toBeGreaterThan(bonus);
+  });
+
+  it("the sparring invite never picks a partner from a different nationality than the human", () => {
+    // testContent's own roster is uniformly SE (same as the default fallback
+    // human), which would pass trivially — mix in a same-gender foreign pool
+    // so the nationality filter actually has something to exclude.
+    const foreignPool: RealPlayerDef[] = Array.from({ length: 40 }, (_, i) => ({
+      playerId: `foreign-no-${i}`,
+      firstName: "Foreign",
+      lastName: `NO${i}`,
+      nationality: "NO",
+      gender: "m" as const,
+      birthYear: 1995,
+      ratings: { tt: { skill: 500, rdSkill: 60 }, bd: { skill: 500, rdSkill: 60 }, sq: { skill: 500, rdSkill: 60 }, tn: { skill: 500, rdSkill: 60 } },
+      firPoints: null,
+      endurance: 0.5,
+      coreStrength: 0.5,
+      clutch: 0.5,
+      composure: 0.5,
+    }));
+    const content: ContentBundle = { ...testContent, players: [...testContent.players, ...foreignPool] };
+    const game = Game.newGame({ content, seed: "decision-nationality" });
+    advance(game, 40);
+
+    const sparringInvites = game.inbox.filter((m) => m.id.startsWith("decision:sparring-invite:"));
+    expect(sparringInvites.length).toBeGreaterThan(0);
+    const nationalityById = new Map(content.players.map((p) => [p.playerId, p.nationality]));
+    for (const msg of sparringInvites) {
+      expect(nationalityById.get(msg.relatedPlayerId!)).toBe("SE");
+    }
+  });
+
+  it("never fires the same specific event again within its own cooldown, even while its trigger stays true", () => {
+    // WORK-only weeks keep sparring-invite's always-true trigger the only
+    // realistically eligible one, so every firing across a long stretch
+    // should be that same event id — cooldown should space them out.
+    const game = Game.newGame({ content: testContent, seed: "decision-cooldown" });
+    advance(game, 30);
+    const decisionWeeks = game.inbox
+      .filter((m) => m.category === "decision" && m.id.startsWith("decision:sparring-invite:"))
+      .map((m) => m.week)
+      .sort((a, b) => a - b);
+    expect(decisionWeeks.length).toBeGreaterThan(1);
+    for (let i = 1; i < decisionWeeks.length; i++) {
+      expect(decisionWeeks[i]! - decisionWeeks[i - 1]!).toBeGreaterThanOrEqual(BALANCE.events.eventCooldownWeeks);
+    }
+  });
+
+  it("chooseInboxOption queues the pick, applies nothing immediately, then the next submitted week's summary reports exactly that effect's note", () => {
+    // Money is asserted precisely here since it's unclamped; fatigue/form/
+    // soreness/confidence all clamp to a bounded range, which can silently
+    // wash out a small delta against a saturated baseline after many weeks
+    // of advancing — see test/decision.test.ts for those, exercised directly
+    // against DecisionSystem rather than through the full weekly pipeline.
+    const game = Game.newGame({ content: testContent, seed: "decision-apply" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision")!;
+    const choice = msg.choices![0]!;
+
+    // serialize() twice, not once — it's the deep clone (a JSON round-trip);
+    // fromSave() itself doesn't clone, so reusing one snapshot object across
+    // two fromSave() calls would leave `control`/`treatment` sharing the
+    // exact same underlying state (and pendingEffects array).
+    const control = Game.fromSave(game.serialize(), testContent);
+    const treatment = Game.fromSave(game.serialize(), testContent);
+
+    treatment.chooseInboxOption(msg.id, choice.id);
+    // resolved and queued, but not yet applied to any stat
+    expect(treatment.inbox.find((m) => m.id === msg.id)?.resolvedChoiceId).toBe(choice.id);
+    expect(treatment.you!.money).toBe(control.you!.money);
+
+    const controlSummary = control.submitWeek(WORK);
+    const treatmentSummary = treatment.submitWeek(WORK);
+
+    expect(treatmentSummary.notes).toContain(choice.effect.note);
+    expect(controlSummary.notes).not.toContain(choice.effect.note);
+    if (choice.effect.money) expect(treatment.you!.money - control.you!.money).toBeCloseTo(choice.effect.money, 5);
+  });
+
+  it("chooseInboxOption is a no-op once the offer has expired", () => {
+    const game = Game.newGame({ content: testContent, seed: "decision-expire" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision")!;
+    while (game.weekIndex <= msg.expiresWeekIndex!) game.submitWeek(WORK); // step past its own deadline
+    const moneyBefore = game.you!.money;
+
+    game.chooseInboxOption(msg.id, msg.choices![0]!.id);
+    expect(game.inbox.find((m) => m.id === msg.id)?.resolvedChoiceId).toBeUndefined();
+    expect(game.you!.money).toBe(moneyBefore);
+    expect(game.serialize().state.career.pendingEffects).toHaveLength(0);
+  });
+
+  it("chooseInboxOption only ever applies the first pick — a second call on the same message is ignored", () => {
+    const game = Game.newGame({ content: testContent, seed: "decision-idempotent" });
+    advanceUntilDecision(game);
+    const msg = game.inbox.find((m) => m.category === "decision")!;
+    const [first, second] = msg.choices!;
+
+    game.chooseInboxOption(msg.id, first!.id);
+    game.chooseInboxOption(msg.id, second!.id);
+
+    expect(game.inbox.find((m) => m.id === msg.id)?.resolvedChoiceId).toBe(first!.id);
+    expect(game.serialize().state.career.pendingEffects).toHaveLength(1);
   });
 });

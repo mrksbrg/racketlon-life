@@ -6,6 +6,7 @@ import type { ActivityCounts, PlayerPlan } from "../model/plan.js";
 import type { Skills, TrainableAttribute } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import type { WeekSummary } from "../model/summary.js";
+import type { WeekModifierDef } from "./modifiers.js";
 
 /** Snapshot of the human player before systems run; SummarySystem diffs against it. */
 export interface HumanSnapshot {
@@ -32,6 +33,10 @@ export interface SystemContext {
   log: WeekLog;
   snapshot: HumanSnapshot;
   outputs: WeekOutputs;
+  /** this week's rolled modifier (fun-plan P3), if any — see
+   * `systems/modifiers.ts`. Human-only flavor; a system that applies it must
+   * only do so for `ctx.state.career.playerId`, never every player. */
+  weekModifier: WeekModifierDef | null;
 }
 
 /**

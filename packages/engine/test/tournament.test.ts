@@ -18,6 +18,7 @@ import {
   drawRounds,
   emptyPlan,
   finishSiblingSession,
+  fullDivisionField,
   getPlayer,
   isSiblingConcluded,
   isTournamentWeek,
@@ -1237,11 +1238,53 @@ describe("previewFirstRoundDraw / Game.previewTournamentDraw", () => {
     expect(game.previewTournamentDraw(0)).toBeNull();
   });
 
-  it("doesn't touch GameState", () => {
+  it("doesn't touch gameplay state — only locks the sampled field in place", () => {
+    // Previewing does write `career.lockedFields` now (see the "stays the
+    // same entrants" regression test below) — that's the fix for the
+    // reported draw-swap bug, not a side effect to guard against. Everything
+    // else (money, ratings, entries, inbox) must still be untouched by a
+    // mere preview.
     const game = Game.newGame({ content: testContent, seed: "preview-4" });
-    const before = JSON.stringify(game.serialize());
+    const before = game.serialize();
     game.previewTournamentDraw(3);
-    expect(JSON.stringify(game.serialize())).toBe(before);
+    const after = game.serialize();
+    expect(after.state.career.lockedFields[3]).toBeDefined();
+    const strip = (save: typeof before) => ({
+      ...save,
+      state: { ...save.state, career: { ...save.state.career, lockedFields: {} } },
+    });
+    expect(JSON.stringify(strip(after))).toBe(JSON.stringify(strip(before)));
+  });
+
+  it("keeps showing the same entrants after browsing early, even once NPC ratings have drifted (regression: draws swapping players between an early preview and the tournament actually being played)", () => {
+    const game = Game.newGame({ content: contentWithRankedField, seed: "nz-open-regression" });
+    const early = game.previewOtherDivisionDraws(7);
+    const earlyDef = early[0]!.tournament;
+    const earlySection = early[0]!.rounds[0]!.sections[0]!;
+    const earlyEntrants = new Set(earlySection.matchups.flatMap((m) => [m.a.id, m.b.id]));
+
+    // let several weeks pass — other tournaments simulate and NPC ratings
+    // drift, exactly what happened between the human's early "just curious"
+    // look at NZ Open's draw and the tournament actually being played
+    advanceUntil(game, () => game.weekIndex === 6);
+
+    const later = game.previewOtherDivisionDraws(7);
+    const laterSection = later[0]!.rounds[0]!.sections[0]!;
+    const laterEntrants = new Set(laterSection.matchups.flatMap((m) => [m.a.id, m.b.id]));
+
+    expect(laterEntrants).toEqual(earlyEntrants);
+
+    // sanity check this isn't vacuously passing because nothing ever
+    // actually drifted: bypassing the lock and resampling straight off the
+    // now-current (post-drift) ratings really does produce a different
+    // field, proving `lockedFields` is the only thing holding the earlier
+    // answer in place.
+    const driftedState = game.serialize().state;
+    driftedState.career.lockedFields = {};
+    const resampled = new Set(
+      fullDivisionField(driftedState, earlyDef, 7, contentWithRankedField).map((p) => p.identity.id),
+    );
+    expect(resampled).not.toEqual(earlyEntrants);
   });
 
   it("never shows the human in a tournament they registered a different week for instead, once its own deadline has passed", () => {

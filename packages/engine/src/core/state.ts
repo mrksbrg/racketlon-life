@@ -1,3 +1,4 @@
+import type { ActivityType } from "../model/activity.js";
 import type { Player } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import type { Calendar } from "./date.js";
@@ -96,7 +97,28 @@ import type { Calendar } from "./date.js";
 // `publishPendingFirResults`), matching how real federations batch and
 // publish results monthly rather than live. A new required field an old
 // save's players lack, so it's discarded.
-export const SAVE_VERSION = 24;
+// v25: Career gained `pendingEffects` (queued stat changes from decision-
+// event choices — see `PendingEffect`/`InboxChoice`/`DecisionSystem`) and
+// `InboxMessage` gained an optional `choices`/`expiresWeekIndex`/
+// `resolvedChoiceId` (the fun-plan P2 decision events: an inbox message can
+// now carry real, expiring choices instead of only flavor text or a
+// register/view CTA). `pendingEffects` is a new required field an old save's
+// career lacks, so it's discarded.
+// v26: Career gained `reservedSlots` — accepting a decision event that
+// commits real time (e.g. a sparring invite) now forces a specific evening
+// slot in the target week's plan, instead of granting its bonus for free
+// outside the 21-slot budget every other commitment competes for. A new
+// required field an old save's career lacks, so it's discarded.
+// v27: Career gained `lockedFields` (fixes the "NZ Open" draw-swap bug: a
+// division's tier-1 entrant pool was re-derived from `state.players`' live,
+// week-over-week-drifting ratings on every read, so a spectator preview
+// taken before a tournament could show different players than the draw that
+// actually got played). The sampled field is now locked in place, keyed by
+// weekIndex + TournamentDef.id, the first time `tournament/engine.ts`'s
+// `sampleDivisionField` needs it, and every later read (preview, registration
+// wave, or the tournament itself) reuses that lock. A new required field an
+// old save's career lacks, so it's discarded.
+export const SAVE_VERSION = 27;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
@@ -134,6 +156,63 @@ export interface PodiumRow {
 }
 
 /**
+ * A flat, one-off stat change from a decision the player made — the only
+ * write path a Story-type message gets into core stats, always gated behind
+ * the player's own explicit pick (see `Game.chooseInboxOption`). Embedded in
+ * an `InboxChoice` at message-creation time (so it's deterministic and
+ * replay-stable), queued onto `Career.pendingEffects` the moment it's chosen,
+ * and only actually applied by the core `DecisionSystem` the next time a week
+ * is submitted — InboxSystem/event generation itself never mutates stats
+ * (docs/03's offers-only rule).
+ */
+export interface PendingEffect {
+  money?: number;
+  fatigue?: number;
+  soreness?: number;
+  confidence?: number;
+  skill?: Partial<Record<Sport, number>>;
+  form?: Partial<Record<Sport, number>>;
+  /** digest line for the week it lands, e.g. "Sparring with Elin Kask
+   * sharpened your badminton." — shown by SummarySystem like any other note. */
+  note: string;
+  /** also reserves a specific slot in the target week's plan for this
+   * activity (see `ReservedSlot`), forcing out whatever the player would
+   * otherwise have put there — real time off the same 21-slot budget every
+   * other commitment competes for, not a bonus that bypasses it. `slotIndex`
+   * is chosen once, at message-build time (e.g. a randomized, weekday-
+   * biased evening — see `systems/inbox.ts`'s sparring-invite), so the
+   * message body can name the exact day and the reservation always matches
+   * what it said. The reserved slot runs through the real weekly pipeline
+   * (TrainingSystem etc.) like any other session; this effect's own
+   * `skill`/`fatigue` deltas above are only the *extra* quality bump on top
+   * of that normal session (e.g. a strong sparring partner beats solo
+   * drilling), not a substitute for it. Written immediately to
+   * `Career.reservedSlots` by `Game.chooseInboxOption`, unlike the rest of
+   * this effect which stays queued until the target week is submitted. */
+  reserveSlot?: { activity: ActivityType; slotIndex: number };
+}
+
+/** One option on a decision-event message — see `InboxMessage.choices`. */
+export interface InboxChoice {
+  id: string;
+  label: string;
+  /** short clause under the label, e.g. "-€60 · less sore next week" */
+  hint?: string;
+  effect: PendingEffect;
+}
+
+/** A slot the player has committed to a specific activity ahead of time via
+ * a decision-event choice (e.g. a sparring invite's proposed evening) —
+ * forces that slot in the target week's plan regardless of what's drafted
+ * there, the same way `TravelBlock`/tournament entries already force their
+ * own slots. See `Game.chooseInboxOption`/`Game.reservedSlotsThisWeek`. */
+export interface ReservedSlot {
+  weekIndex: number;
+  slotIndex: number;
+  activity: ActivityType;
+}
+
+/**
  * A message in the human's inbox — the diegetic "living world" feed
  * (docs/07). Generated by InboxSystem, read-only over game state; carries its
  * own read flag and any actionable payload. Pre-rendered text keeps the save
@@ -143,7 +222,18 @@ export interface InboxMessage {
   id: string;
   /** week the message arrived */
   week: number;
-  category: "welcome" | "invitation" | "ranking" | "result" | "coach" | "draw" | "record" | "podium" | "family" | "official";
+  category:
+    | "welcome"
+    | "invitation"
+    | "ranking"
+    | "result"
+    | "coach"
+    | "draw"
+    | "record"
+    | "podium"
+    | "family"
+    | "official"
+    | "decision";
   from: string;
   subject: string;
   body: string;
@@ -169,6 +259,20 @@ export interface InboxMessage {
    * couldn't be resolved (a content gap, not expected in practice). */
   podiumMen?: PodiumRow[];
   podiumWomen?: PodiumRow[];
+  /** decision only: 2+ mutually exclusive choices — see `InboxChoice`. */
+  choices?: InboxChoice[];
+  /** decision only: the last week this offer can still be answered; past
+   * this, `choices` are shown but disabled/"expired" — see
+   * `Game.chooseInboxOption`. */
+  expiresWeekIndex?: number;
+  /** decision only: which choice id was picked, once answered — undefined
+   * while still open, set once and permanent. */
+  resolvedChoiceId?: string;
+  /** decision only: a named player this message is centrally about (e.g. a
+   * sparring invite's partner) — lets the UI open their profile straight
+   * from the mail, same as a draw/podium row's player link. Purely optional
+   * (no SAVE_VERSION bump needed — an old save simply has it undefined). */
+  relatedPlayerId?: string;
 }
 
 /**
@@ -258,6 +362,18 @@ export interface Career {
    * `weekIndex` — see `CompletedDraw`. Bounded by the season's own size
    * (currently ~16 tournament weeks total), not pruned. */
   completedDraws: Record<number, CompletedDraw>;
+  /** Each division's sampled field of tier-1 NPC entrants, locked in place
+   * the moment it's first computed for a given tournament week — by a
+   * spectator preview, a registration-wave check, or the tournament actually
+   * starting, whichever happens first — keyed by weekIndex then
+   * `TournamentDef.id`. Without this lock, `tournament/engine.ts`'s
+   * `sampleDivisionField` re-derives the pool from `state.players`' live
+   * ratings on every call, so a draw browsed ahead of time could show
+   * different entrants than the one actually played once NPC ratings drifted
+   * in between (the "NZ Open" bug). Stores the full `def.fieldSize`-length
+   * weighted sample; a caller needing fewer (the human's own division needs
+   * `fieldSize - 1`, leaving a slot for them) takes a stable prefix. */
+  lockedFields: Record<number, Record<string, string[]>>;
   /** paid-leave days left in the current calendar year; every Mon–Fri
    * Morning/Afternoon slot not spent working (and not a public holiday) draws
    * this down by 0.5. May go negative (over-drawn leave), shown red. Resets
@@ -270,6 +386,17 @@ export interface Career {
    * in one lump sum on the last week of the month, then reset to 0. See
    * systems/economy.ts. */
   pendingSalary: number;
+  /** effects from decision-event choices the player has already made,
+   * queued to land the next time a week for `weekIndex` is submitted — see
+   * `Game.chooseInboxOption` (the only writer) and `DecisionSystem` (the
+   * only reader, which removes each entry once applied). */
+  pendingEffects: { weekIndex: number; effect: PendingEffect }[];
+  /** slots committed ahead of time via a decision-event choice's
+   * `reserveSlot` — see `ReservedSlot`/`Game.chooseInboxOption`. Written
+   * immediately (not deferred like `pendingEffects`) so the Planner shows
+   * the commitment as soon as it's made, even weeks before that week is
+   * actually submitted. */
+  reservedSlots: ReservedSlot[];
 }
 
 export interface GameState {

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
   import AnimatedNumber from "./AnimatedNumber.svelte";
+  import ComingUp from "./ComingUp.svelte";
   import { ATTR_META, type CharAttr } from "./character";
   import { store } from "./store.svelte";
   import { SPORT_COLORS, SPORT_SHORT, formColor, formatSignedMoney } from "./ui";
@@ -122,6 +123,8 @@
         {/each}
       </section>
     {/if}
+
+    <ComingUp />
   </main>
 
   <footer>

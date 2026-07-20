@@ -151,9 +151,14 @@ the player gets a few weeks to prepare first).
   deterministically draws the same tier-1 NPCs that `pickEntrants` will use
   once the human actually enters (same seed formula:
   `childSeed(state.seed, "tournament", weekIndex, def.id)`) — so the Tour
-  screen can show "who's entered" for any future occurrence without
-  mutating `GameState`, and the preview is guaranteed to match the real
-  bracket when that week arrives.
+  screen can show "who's entered" for any future occurrence, guaranteed to
+  match the real bracket when that week arrives. The sampled field is locked
+  into `Career.lockedFields` (keyed by weekIndex + `TournamentDef.id`) the
+  first time it's needed and reused by every later call — the pool it's
+  drawn from is otherwise re-derived from `state.players`' live, still-
+  drifting ratings on every read, so without the lock a draw browsed ahead of
+  time could show different entrants than the one actually played once NPC
+  ratings moved on in between (the real "NZ Open" bug this fixed).
 - **Field & seeding.** Human + 7 tier-1 NPCs (shuffled deterministically),
   seeded into a single-elimination bracket by **Glicko rating** — not hidden
   skill, matching the game's "layers" rule (docs/07): a real seeding committee

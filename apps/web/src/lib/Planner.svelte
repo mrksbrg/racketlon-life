@@ -3,10 +3,11 @@
   import type { ActivityType } from "@racketlon/engine";
   import { ACTIVITY_TYPES, DAYS, PERIODS, slotIndex } from "@racketlon/engine";
   import ActivityPicker from "./ActivityPicker.svelte";
+  import ComingUp from "./ComingUp.svelte";
   import ForecastBar from "./ForecastBar.svelte";
   import StatusBar from "./StatusBar.svelte";
   import TabBar from "./TabBar.svelte";
-  import { TEMPLATES, store } from "./store.svelte";
+  import { TEMPLATES, TRAIN_FOR, store } from "./store.svelte";
   import { ACTIVITY_COLORS, formatMoney } from "./ui";
 
   let picking = $state<number | null>(null);
@@ -16,6 +17,11 @@
   const tournamentSlots = $derived(new Set(store.tournamentBlocksThisWeek.flatMap((block) => block.slotIndices)));
   const activeTournamentThisWeek = $derived(store.registeredTournamentThisWeek ?? (tournamentSlots.size > 0 ? tournamentEntry?.tournament : null));
   const holidayDates = $derived(new Set(store.holidays.map((h) => h.date)));
+  /** A decision-event commitment (e.g. a sparring session) — forced into
+   * the grid like travel/tournament, but shown as its real activity color
+   * rather than an amber "you can't act here" block, since it's a real
+   * (better) training session, not lost time. */
+  const reservedSlots = $derived(new Map(store.reservedSlotsThisWeek.map((r) => [r.slotIndex, r.activity])));
 
   function dayLabel(dateISO: string): number {
     return Number(dateISO.slice(8, 10));
@@ -23,19 +29,24 @@
 
   const pickingUnavailable = $derived.by((): Partial<Record<ActivityType, string>> => {
     if (picking === null) return {};
-    if (store.isHolidaySlot(picking)) return { work: "Closed — public holiday" };
-    if (store.isForcedWorkSlot(picking)) {
-      const reasons: Partial<Record<ActivityType, string>> = {};
+    const reasons: Partial<Record<ActivityType, string>> = {};
+    if (store.isHolidaySlot(picking)) {
+      reasons.work = "Closed — public holiday";
+    } else if (store.isForcedWorkSlot(picking)) {
       for (const type of ACTIVITY_TYPES) {
         if (type !== "work" && type !== "travel") reasons[type] = "No vacation days left";
       }
-      return reasons;
     }
-    return {};
+    // a week modifier (fun-plan P3) blocking a sport this week (e.g. closed
+    // courts) stacks on top of the above — always checked, not mutually
+    // exclusive with holiday/vacation reasons.
+    const blockedSport = store.weekModifier?.blockedSport;
+    if (blockedSport) reasons[TRAIN_FOR[blockedSport]] = store.weekModifier!.headline;
+    return reasons;
   });
 
   function openPicker(index: number) {
-    if (travelSlots.has(index) || tournamentSlots.has(index)) return;
+    if (travelSlots.has(index) || tournamentSlots.has(index) || reservedSlots.has(index)) return;
     picking = index;
   }
 
@@ -92,6 +103,18 @@
     </section>
   {/if}
 
+  {#if store.weekModifier}
+    <div class="week-modifier">
+      <span class="week-modifier-icon">🎲</span>
+      <div class="week-modifier-text">
+        <strong>{store.weekModifier.headline}</strong>
+        <p>{store.weekModifier.body}</p>
+      </div>
+    </div>
+  {/if}
+
+  <ComingUp />
+
   <div class="templates">
     {#each Object.keys(TEMPLATES) as name (name)}
       {@const affordable = store.canAffordTemplate(name)}
@@ -130,12 +153,15 @@
         {@const i = slotIndex(d, p)}
         {@const isTournament = tournamentSlots.has(i)}
         {@const isTravel = travelSlots.has(i)}
-        {@const activity = isTravel ? "travel" : store.effectiveSlot(i)}
+        {@const reservedActivity = reservedSlots.get(i)}
+        {@const activity = isTravel ? "travel" : (reservedActivity ?? store.effectiveSlot(i))}
         <button
           class="slot"
           class:is-rest={activity === "rest" && !isTravel && !isTournament}
           class:is-blocked={isTravel || isTournament}
-          disabled={isTravel || isTournament}
+          class:is-reserved={reservedActivity !== undefined && !isTravel && !isTournament}
+          disabled={isTravel || isTournament || reservedActivity !== undefined}
+          title={reservedActivity !== undefined ? "Reserved — a sparring session you've already committed to" : undefined}
           style:--slot-color={ACTIVITY_COLORS[activity]}
           onclick={() => openPicker(i)}
         >
@@ -245,6 +271,34 @@
     color: var(--danger);
   }
 
+  .week-modifier {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+  }
+
+  .week-modifier-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .week-modifier-text strong {
+    display: block;
+    font-size: 13.5px;
+    margin-bottom: 2px;
+  }
+
+  .week-modifier-text p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
 
   .travel-note {
     display: block;
@@ -349,6 +403,11 @@
     border: 1px dashed var(--border);
     color: var(--muted);
     font-weight: 400;
+  }
+
+  .slot.is-reserved {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--slot-color) 70%, transparent);
+    cursor: default;
   }
 
   .slot:active {

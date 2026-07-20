@@ -17,6 +17,7 @@ import type {
   RankingRowView,
   RecentMatchView,
   RecordsView,
+  ReservedSlot,
   SaveGame,
   SeasonTournamentEntry,
   Sport,
@@ -27,10 +28,13 @@ import type {
   TournamentDef,
   TravelBlock,
   TrainedWeekView,
+  TrainingForecastEntry,
   TrophyView,
+  WeekModifierView,
   WeekSummary,
 } from "@racketlon/engine";
 import {
+  BALANCE,
   DEFAULT_START_MONDAY,
   Game,
   PERIODS,
@@ -90,6 +94,17 @@ export type MeSection = "characteristics" | "history" | "records" | "trophies";
 
 export type MatchSpeed = 1 | 2 | 3;
 
+/** One line of the "coming up" strip (`ComingUp.svelte`) — a Civ-build-
+ * queue-style "something's always about to finish" read on the near future,
+ * shown on the Planner and right after Summary. Deliberately narrow: only
+ * near-term, already-derivable facts (this plan's pace, a deadline about to
+ * shut, this month's payday), never a new prediction the engine doesn't
+ * already support. */
+export type ComingUpItem =
+  | { kind: "training"; sport: Sport; nextLevel: number; weeksToLevelUp: number }
+  | { kind: "deadline"; name: string }
+  | { kind: "payday"; weeks: 0 | 1 };
+
 /** `TournamentAdvanceResult` minus the "nextRound" variant — what
  * `store.concludedTournament` actually holds, since it's only ever set once
  * a tournament has genuinely ended (see `finishMatch`). */
@@ -108,7 +123,7 @@ const DAY = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 } as const;
 const PERIOD = { Mor: 0, Aft: 1, Eve: 2 } as const;
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri"] as const;
 
-const TRAIN_FOR: Record<Sport, ActivityType> = {
+export const TRAIN_FOR: Record<Sport, ActivityType> = {
   tt: "trainTT",
   bd: "trainBD",
   sq: "trainSQ",
@@ -481,6 +496,21 @@ class GameStore {
     return this.game ? this.game.tournamentBlocksThisWeek() : [];
   });
 
+  /** Slots already committed via a decision-event choice (e.g. a sparring
+   * invite's proposed evening) — forced into the drafted plan and shown as
+   * non-editable, same treatment as travel/tournament blocks above. */
+  readonly reservedSlotsThisWeek: ReservedSlot[] = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.reservedSlotsThisWeek() : [];
+  });
+
+  /** This week's rolled modifier (fun-plan P3), if any — the Planner
+   * banner and, when it blocks a sport, the picker's disabled reason. */
+  readonly weekModifier: WeekModifierView | null = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.weekModifier() : null;
+  });
+
   readonly weekIndex: number = $derived.by(() => {
     this.version;
     return this.game ? this.game.weekIndex : 0;
@@ -498,6 +528,45 @@ class GameStore {
     this.version;
     if (!this.game) return null;
     return this.game.previewPlan({ slots: this.availableSlots() });
+  });
+
+  /** "At this pace" level-up ETA per sport for the currently drafted plan —
+   * see `Game.trainingForecast`. Reads the same draft `this.slots` the
+   * forecast bar does, so on the Summary screen (where the draft still
+   * holds whatever was just submitted — see `nextWeek`) this reads as "if
+   * you keep doing this," not a stale pre-week guess. */
+  readonly trainingForecast: TrainingForecastEntry[] = $derived.by(() => {
+    this.version;
+    if (!this.game) return [];
+    return this.game.trainingForecast({ slots: this.availableSlots() });
+  });
+
+  /** Weeks until this month's salary lands — see `Game.weeksUntilPayday`. */
+  readonly weeksUntilPayday: number = $derived.by(() => {
+    this.version;
+    return this.game ? this.game.weeksUntilPayday() : 0;
+  });
+
+  /** Registered-but-not-yet tournament entries one week from their entry
+   * deadline closing for good — the last realistic nudge before an "open"
+   * `tourEntries` row flips to "closed" (`entryDeadlineWeeks`, no same-week
+   * fallback — see `tournamentSchedule`). */
+  readonly closingSoonEntries: TourEntry[] = $derived.by(() =>
+    this.tourEntries.filter(
+      (e) => e.status === "open" && e.weekIndex - this.weekIndex === BALANCE.tournament.entryDeadlineWeeks,
+    ),
+  );
+
+  /** The Planner/Summary "coming up" strip: the soonest couple of training
+   * ETAs plus any near-term deadline/payday nudges — deliberately capped so
+   * it stays a glance, not a report (see `ComingUp.svelte`). */
+  readonly comingUp: ComingUpItem[] = $derived.by(() => {
+    const items: ComingUpItem[] = this.trainingForecast
+      .slice(0, 2)
+      .map((f) => ({ kind: "training", sport: f.sport, nextLevel: f.nextLevel, weeksToLevelUp: f.weeksToLevelUp }) as const);
+    for (const entry of this.closingSoonEntries) items.push({ kind: "deadline", name: entry.tournament.name });
+    if (this.weeksUntilPayday <= 1) items.push({ kind: "payday", weeks: this.weeksUntilPayday as 0 | 1 });
+    return items;
   });
 
   /** Points still to spend in the creation screen — sports and traits are
@@ -656,15 +725,29 @@ class GameStore {
     await set(SAVE_KEY, this.game.serialize()).catch(() => {});
   }
 
+  /** Answers a decision-event message — see `Game.chooseInboxOption`. */
+  async chooseInboxOption(messageId: string, choiceId: string): Promise<void> {
+    if (!this.game) return;
+    this.game.chooseInboxOption(messageId, choiceId);
+    this.version++;
+    await set(SAVE_KEY, this.game.serialize()).catch(() => {});
+  }
+
   /** The plan actually submitted on Simulate: the draft with holiday/leave
-   * corrections and travel/tournament overrides baked in (see
+   * corrections and travel/tournament/reserved overrides baked in (see
    * `simulateWeek`) — the vacation-cost hint must use this, not the raw
    * draft, since a travel/tournament slot's underlying (invisible, disabled)
    * draft activity is never what actually happens, and a carried-over "rest"
    * slot from before the leave balance ran out must still resolve to `work`
-   * (see `correctActivity`) rather than silently keep burning leave. */
+   * (see `correctActivity`) rather than silently keep burning leave. Reserved
+   * slots (a decision-event commitment, e.g. a sparring session) are forced
+   * in before travel/tournament so those still win on the rare clash — you
+   * genuinely can't be at a tournament and a hitting session at once. */
   availableSlots(): ActivityType[] {
     const slots = this.slots.map((activity, i) => this.correctActivity(activity, i));
+    for (const reserved of this.reservedSlotsThisWeek) {
+      slots[reserved.slotIndex] = reserved.activity;
+    }
     for (const block of this.travelBlocksThisWeek) {
       for (const index of block.slotIndices) slots[index] = "travel";
     }

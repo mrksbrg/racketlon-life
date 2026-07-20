@@ -59,6 +59,53 @@ describe("Game facade", () => {
     expect(Math.abs(forecast.money % 100)).toBe(0);
   });
 
+  // Default fallback human (world/factory.ts): skills { tt: 380, bd: 340, sq: 300, tn: 260 },
+  // uniform potential 0.6 for every sport — levels 11/10/9/8, next-level thresholds
+  // 413/360/310/263 (LEVEL_MIN_SKILL), so tennis needs only 3 more skill to level up
+  // while squash needs 10 — a deliberately close-vs-far pair for these tests.
+  it("trainingForecast predicts a same-week level-up for a sport that's just about to cross", () => {
+    const game = Game.newGame({ content: testContent, seed: "tf1" });
+    const forecast = game.trainingForecast(planWith({ trainTN: 8, gym: 1, cardio: 1 }));
+    const tn = forecast.find((f) => f.sport === "tn");
+    expect(tn).toBeDefined();
+    expect(tn?.nextLevel).toBe(9);
+    expect(tn?.weeksToLevelUp).toBe(1);
+  });
+
+  it("trainingForecast omits sports with no sessions in the plan", () => {
+    const game = Game.newGame({ content: testContent, seed: "tf2" });
+    const forecast = game.trainingForecast(planWith({ trainTN: 8 }));
+    expect(forecast.map((f) => f.sport)).toEqual(["tn"]);
+  });
+
+  it("trainingForecast is empty for a week with no training at all", () => {
+    const game = Game.newGame({ content: testContent, seed: "tf3" });
+    expect(game.trainingForecast(planWith({ social: 3 }))).toEqual([]);
+  });
+
+  it("trainingForecast sorts multiple sports soonest-first", () => {
+    const game = Game.newGame({ content: testContent, seed: "tf4" });
+    const forecast = game.trainingForecast(planWith({ trainTN: 1, trainSQ: 1 }));
+    expect(forecast.map((f) => f.sport)).toEqual(["tn", "sq"]);
+    expect(forecast[0]!.weeksToLevelUp).toBeLessThan(forecast[1]!.weeksToLevelUp);
+    expect(forecast[1]!.weeksToLevelUp).toBeLessThanOrEqual(BALANCE.forecast.trainingForecastHorizonWeeks);
+  });
+
+  it("weeksUntilPayday counts down to the last week of the calendar month", () => {
+    // DEFAULT_START_MONDAY 2026-01-05 ⇒ week 3 (Jan 26) is January's last Monday
+    const game = Game.newGame({ content: testContent, seed: "payday-1" });
+    expect(game.weeksUntilPayday()).toBe(3);
+  });
+
+  it("weeksUntilPayday hits 0 on payday itself, then resets after crossing into the next month", () => {
+    const game = Game.newGame({ content: testContent, seed: "payday-2" });
+    for (let i = 0; i < 3; i++) game.submitWeek(WORK);
+    expect(game.weekIndex).toBe(3);
+    expect(game.weeksUntilPayday()).toBe(0);
+    game.submitWeek(WORK);
+    expect(game.weeksUntilPayday()).toBe(3); // Feb 23 (week 7) is February's last Monday
+  });
+
   it("serialize/load round-trips and stays deterministic", () => {
     const original = Game.newGame({ content: testContent, seed: "f4" });
     const plan = planWith({ trainSQ: 4, work: 4 });

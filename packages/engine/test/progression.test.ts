@@ -30,6 +30,7 @@ function makeContext(state: GameState, log: EventLog): SystemContext {
       },
     },
     outputs: {},
+    weekModifier: null,
   };
 }
 

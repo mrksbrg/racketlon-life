@@ -3,13 +3,18 @@ import type { ContentBundle } from "../content.js";
 import { monthKeyForWeek, monthLabelForWeek } from "../core/date.js";
 import type { Calendar } from "../core/date.js";
 import type { GameEvent } from "../core/events.js";
+import type { Rng } from "../core/rng.js";
 import { humanPlayer } from "../core/state.js";
-import type { GameState, InboxMessage, InboxRankingRow, PersistedDrawRound, PodiumRow } from "../core/state.js";
+import type { GameState, InboxChoice, InboxMessage, InboxRankingRow, PersistedDrawRound, PodiumRow } from "../core/state.js";
+import type { ActivityType } from "../model/activity.js";
+import { slotIndex } from "../model/plan.js";
 import { fullName } from "../model/player.js";
 import type { FirResult, Player } from "../model/player.js";
+import type { Sport } from "../model/sport.js";
 import { SPORTS, SPORT_LABELS } from "../model/sport.js";
 import type { GameSystem } from "./types.js";
 import { skillCeiling } from "./effects.js";
+import { combinedRating } from "./ranking.js";
 import { firWorldRanking } from "./ranking-points.js";
 import { eliminationLabel } from "./summary.js";
 import { travelCost } from "./travel.js";
@@ -32,7 +37,7 @@ import { humanDivisionDef, previewDraw, tournamentCalendar } from "../tournament
 export const InboxSystem: GameSystem = {
   id: "inbox",
   run(ctx) {
-    const fresh = generateInboxMessages(ctx.state, ctx.content, ctx.state.calendar.weekIndex, ctx.log.thisWeek());
+    const fresh = generateInboxMessages(ctx.state, ctx.content, ctx.state.calendar.weekIndex, ctx.log.thisWeek(), ctx.rng);
     ctx.state.career.inbox.push(...fresh);
   },
 };
@@ -54,12 +59,18 @@ function tournamentDirectorFrom(def: TournamentDef): string {
  * (so re-running a week, or seeding week 0 at career start, never duplicates).
  * Pure — the caller appends the result. `weekEvents` is this week's slice of
  * the event log (results are mined from it, same as the weekly summary).
+ * `rng`, when supplied, also draws at most one decision event (see
+ * `addDecisionEvent`) — omitted by the two call sites that generate messages
+ * outside the weekly systems pipeline (world-creation seeding, and
+ * `simulateWeek`'s next-week pre-population), so decision events only ever
+ * arrive through `InboxSystem`'s own private stream.
  */
 export function generateInboxMessages(
   state: GameState,
   content: ContentBundle,
   week: number,
   weekEvents: readonly GameEvent[] = [],
+  rng?: Rng,
 ): InboxMessage[] {
   const existing = new Set(state.career.inbox.map((m) => m.id));
   const out: InboxMessage[] = [];
@@ -76,6 +87,7 @@ export function generateInboxMessages(
   addWorldTournamentResults(state, content, week, add);
   addRankingDigest(state, content, week, add);
   addPotentialClues(state, week, add);
+  if (rng) addDecisionEvent(state, week, weekEvents, rng, add);
   return out;
 }
 
@@ -487,5 +499,268 @@ function addRankingDigest(state: GameState, content: ContentBundle, week: number
     rankingWomen,
     yourRankMen: isWoman ? undefined : you?.rank,
     yourRankWomen: isWoman ? you?.rank : undefined,
+  });
+}
+
+/**
+ * Decision events (fun-plan P2): small, minor-choice messages that expire if
+ * ignored — a Civ-style "always a small choice arriving" complement to
+ * `addDecisionEvent`'s pure siblings above. Each definition's `trigger` reads
+ * only already-established facts (fatigue, money, recent training, this
+ * week's results), so an arrival always feels like a consequence of the
+ * player's own situation, never a bolt from nowhere (design pillar 2).
+ * `build` may use `rng` for flavor (which nearby-ranked NPC invites you), but
+ * never for whether it fires — that's `trigger` plus the weighted draw below.
+ * Extending the launch set = adding another entry to `DECISION_EVENTS`.
+ */
+interface DecisionEventBuild {
+  from: string;
+  subject: string;
+  body: string;
+  choices: InboxChoice[];
+  /** a named player this message is centrally about, for a clickable
+   * profile link — see `InboxMessage.relatedPlayerId`. */
+  relatedPlayerId?: string;
+}
+
+interface DecisionEventDef {
+  id: string;
+  trigger(state: GameState, weekEvents: readonly GameEvent[]): boolean;
+  build(state: GameState, rng: Rng): DecisionEventBuild;
+}
+
+/** Same-gender, same-nationality tier-1 NPCs — plausible local training
+ * partners, not just someone the human happens to share a ranking band
+ * with. Shared by the sparring invite's trigger (must be non-empty) and its
+ * build (who the invite is actually from). Every real imported player is
+ * tier-1 (world/factory.ts), and every character-creation nationality has
+ * dozens of same-gender compatriots in the real roster, so this stays a
+ * realistic pool for any playable human. */
+function sparringPool(state: GameState): Player[] {
+  const human = humanPlayer(state);
+  return state.players.filter(
+    (p) =>
+      p.simTier === 1 &&
+      p.identity.gender === human.identity.gender &&
+      p.identity.nationality === human.identity.nationality &&
+      p.identity.id !== human.identity.id,
+  );
+}
+
+/** A player's own strongest sport — the sparring invite frames itself around
+ * the partner's specialty, not a random pick. */
+function bestSportOf(p: Player): Sport {
+  return SPORTS.reduce((best, s) => (p.attributes.skills[s] > p.attributes.skills[best] ? s : best), SPORTS[0]!);
+}
+
+/** Any sport trained in each of the last 3 weeks — a proxy for "heavy enough
+ * recent use that the gear is starting to show it," since session counts
+ * aren't tracked, only which sports were trained per week (`trainedWeeks`). */
+function heavilyUsedSport(state: GameState): Sport | null {
+  const week = state.calendar.weekIndex;
+  const recentWeeks = new Set([week - 1, week - 2, week - 3]);
+  const counts: Record<Sport, number> = { tt: 0, bd: 0, sq: 0, tn: 0 };
+  for (const w of state.career.trainedWeeks) {
+    if (!recentWeeks.has(w.weekIndex)) continue;
+    for (const s of w.sports) counts[s]++;
+  }
+  return SPORTS.find((s) => counts[s] >= 3) ?? null;
+}
+
+const GEAR_NOUN: Record<Sport, string> = { tt: "rubbers", bd: "strings", sq: "strings", tn: "strings" };
+
+/** The training `ActivityType` for a sport — a small fixed mapping (like
+ * `ActivityType` itself, this is a closed 4-sport set baked into
+ * model/activity.ts, not content-driven) so `reserveSlot` can force the
+ * right training activity into the plan without a content lookup. */
+const TRAIN_ACTIVITY: Record<Sport, ActivityType> = { tt: "trainTT", bd: "trainBD", sq: "trainSQ", tn: "trainTN" };
+
+const DAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] as const;
+
+/** Chance the sparring invite proposes a weekday evening rather than a
+ * weekend one — a real partner is more often free on an ordinary weeknight
+ * than specifically carving out a weekend, but a weekend session is still a
+ * real possibility worth keeping in the mix. */
+const SPARRING_WEEKDAY_CHANCE = 0.7;
+
+/** A single evening day, weekday-biased — the sparring invite's proposed
+ * session. Resolved once at message-build time so the body text and the
+ * eventual reservation always agree on the exact same day. */
+function proposeEveningDay(rng: Rng): number {
+  return rng.chance(SPARRING_WEEKDAY_CHANCE) ? rng.int(5) : 5 + rng.int(2);
+}
+
+const DECISION_EVENTS: readonly DecisionEventDef[] = [
+  {
+    id: "sparring-invite",
+    trigger: (state) => sparringPool(state).length > 0,
+    build(state, rng) {
+      const partner = rng.pick(sparringPool(state));
+      const sport = bestSportOf(partner);
+      const label = SPORT_LABELS[sport].toLowerCase();
+      const name = fullName(partner);
+      const day = proposeEveningDay(rng);
+      const dayName = DAY_NAMES[day];
+      const proposedSlot = slotIndex(day, 2);
+      return {
+        from: name,
+        subject: `Sparring invite from ${name}`,
+        body: `${name}'s in town this week and free ${dayName} evening for a hitting partner — ${label} is their strong suit. Up for it?`,
+        relatedPlayerId: partner.identity.id,
+        choices: [
+          {
+            id: "accept",
+            label: "Accept the invite",
+            hint: `blocks ${dayName} evening · extra ${SPORT_LABELS[sport]} gain from a strong partner`,
+            effect: {
+              skill: { [sport]: 8 },
+              fatigue: 2,
+              reserveSlot: { activity: TRAIN_ACTIVITY[sport], slotIndex: proposedSlot },
+              note: `Sparring with ${name} pushed your ${label} further than a normal session would have.`,
+            },
+          },
+          { id: "decline", label: "Not this week", effect: { note: `You skipped the sparring session with ${name}.` } },
+        ],
+      };
+    },
+  },
+  {
+    id: "physio-slot",
+    trigger: (state) => {
+      const c = humanPlayer(state).condition;
+      return c.fatigue >= 55 || c.soreness >= 30;
+    },
+    build() {
+      return {
+        from: "Club physio",
+        subject: "Physio slot open this week",
+        body: "Got a late cancellation — I can fit you in this week if you want some work on that fatigue and soreness.",
+        choices: [
+          {
+            id: "book",
+            label: "Book it (-€60)",
+            hint: "-€60 · less fatigue and soreness",
+            effect: { money: -60, fatigue: -15, soreness: -15, note: "The physio session eased your fatigue and soreness." },
+          },
+          { id: "skip", label: "Skip it", effect: { note: "You skipped the physio slot." } },
+        ],
+      };
+    },
+  },
+  {
+    id: "overtime-shift",
+    trigger: (state) => state.career.money < BALANCE.economy.weeklyExpenses * 4,
+    build() {
+      return {
+        from: "Your manager",
+        subject: "Boss wants you for an extra shift",
+        body: "We're short-staffed — can you pick up some overtime this week? It pays well, but it'll eat into your rest.",
+        choices: [
+          {
+            id: "accept",
+            label: "Take the shift (+€150)",
+            hint: "+€150 · more fatigue",
+            effect: { money: 150, fatigue: 6, note: "The overtime shift padded your account, but it cost you some rest." },
+          },
+          { id: "decline", label: "Turn it down", effect: { note: "You turned down the extra shift." } },
+        ],
+      };
+    },
+  },
+  {
+    id: "gear-wear",
+    trigger: (state) => heavilyUsedSport(state) !== null,
+    build(state) {
+      const sport = heavilyUsedSport(state)!;
+      const label = SPORT_LABELS[sport].toLowerCase();
+      const noun = GEAR_NOUN[sport];
+      return {
+        from: "Club pro shop",
+        subject: `Your ${label} gear is looking worn`,
+        body: `Your ${noun} are showing all that court time this month. Worth sorting before it costs you?`,
+        choices: [
+          {
+            id: "replace",
+            label: `Replace them (-€40)`,
+            hint: `-€40 · ${label} feels sharp again`,
+            effect: { money: -40, note: `Fresh ${noun} — your ${label} feels sharp again.` },
+          },
+          {
+            id: "keep",
+            label: "Play on for now",
+            hint: `-form in ${SPORT_LABELS[sport]}`,
+            effect: { form: { [sport]: -3 }, note: `Playing on worn ${noun} cost you a little edge in ${label}.` },
+          },
+        ],
+      };
+    },
+  },
+  {
+    id: "post-win-interview",
+    trigger: (state, weekEvents) =>
+      weekEvents.some((e) => e.type === "tournament.won" && e.subject === state.career.playerId),
+    build() {
+      return {
+        from: "Local sports desk",
+        subject: "Local paper wants a quick interview",
+        body: "Nice win! Our sports desk would like a few quotes for this week's paper — good exposure if you're after sponsor interest down the line.",
+        choices: [
+          {
+            id: "accept",
+            label: "Give the interview",
+            hint: "a confidence boost",
+            effect: { confidence: 2, note: "Your interview ran in the local paper — a nice bit of recognition." },
+          },
+          { id: "decline", label: "Keep it low-key", effect: { note: "You kept a low profile after the win." } },
+        ],
+      };
+    },
+  },
+];
+
+/** Weeks since the same event id last fired, derived from the inbox itself
+ * (no separate cooldown state to persist) so `generateInboxMessages` stays
+ * pure — `id.startsWith` matches this event's own `decision:${id}:*` rows. */
+function weeksSinceFired(inbox: readonly InboxMessage[], week: number, idPrefix: string): number {
+  const last = inbox.filter((m) => m.id.startsWith(idPrefix)).reduce((max, m) => Math.max(max, m.week), -Infinity);
+  return last === -Infinity ? Infinity : week - last;
+}
+
+/**
+ * Draws at most one decision event for `week`: among currently-eligible
+ * events (trigger true, off their own cooldown), a weighted coin flip
+ * (`BALANCE.events.weeklyFireChance`) decides whether one fires at all — or,
+ * if it's been quiet for `pityWeeks`, one fires unconditionally so a dry
+ * spell never runs forever. `rng` is `InboxSystem`'s own private stream
+ * (`ctx.rng`), so this is fully deterministic and replay-stable per seed.
+ */
+function addDecisionEvent(
+  state: GameState,
+  week: number,
+  weekEvents: readonly GameEvent[],
+  rng: Rng,
+  add: (m: InboxMessage) => void,
+): void {
+  const eligible = DECISION_EVENTS.filter(
+    (e) => weeksSinceFired(state.career.inbox, week, `decision:${e.id}:`) >= BALANCE.events.eventCooldownWeeks && e.trigger(state, weekEvents),
+  );
+  if (eligible.length === 0) return;
+
+  const forcedByPity = weeksSinceFired(state.career.inbox, week, "decision:") >= BALANCE.events.pityWeeks;
+  if (!forcedByPity && !rng.chance(BALANCE.events.weeklyFireChance)) return;
+
+  const chosen = rng.pick(eligible);
+  const built = chosen.build(state, rng);
+  add({
+    id: `decision:${chosen.id}:${week}`,
+    week,
+    category: "decision",
+    from: built.from,
+    subject: built.subject,
+    body: built.body,
+    read: false,
+    choices: built.choices,
+    relatedPlayerId: built.relatedPlayerId,
+    expiresWeekIndex: week + BALANCE.events.answerWindowWeeks,
   });
 }

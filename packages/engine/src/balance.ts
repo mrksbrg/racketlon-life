@@ -594,6 +594,42 @@ export const BALANCE = {
     /** how many players the monthly ranking digest lists */
     rankingTopN: 10,
   },
+  /**
+   * Decision events (fun-plan P2): small, minor-choice inbox messages that
+   * expire if ignored — see `systems/inbox.ts`'s `DECISION_EVENTS` and
+   * `Game.chooseInboxOption`. Deliberately capped at one arriving per week
+   * (never a second on top) so a week stays a glance, not a report.
+   */
+  events: {
+    /** chance, each week at least one event is currently eligible (its
+     * trigger reads true and it's off cooldown), that one actually fires —
+     * keeps arrivals frequent without being a metronome. */
+    weeklyFireChance: 0.5,
+    /** if it's been at least this many weeks since the last decision event
+     * fired, the next eligible one fires unconditionally — the "pity timer"
+     * that guarantees a quiet stretch never runs forever. */
+    pityWeeks: 4,
+    /** the same specific event (e.g. "physio slot") can't fire again within
+     * this many weeks of its last arrival, even if its trigger stays true —
+     * keeps one persistently-true trigger (e.g. chronic high fatigue) from
+     * crowding out every other event. */
+    eventCooldownWeeks: 6,
+    /** an offer stays answerable through this many additional weeks after
+     * the week it arrives, then is shown expired — a real, not-too-harsh
+     * deadline (see the plan's "expiry is the addictive part"). */
+    answerWindowWeeks: 2,
+  },
+  /**
+   * Week modifiers (fun-plan P3): a small, local-feeling wrinkle rolled at
+   * the start of some weeks — see `systems/modifiers.ts`'s `WEEK_MODIFIERS`.
+   * Breaks template-autopilot by making the saved plan need a genuine
+   * 10-second look most weeks, without turning planning into a chore.
+   */
+  modifiers: {
+    /** chance a week rolls a modifier at all — never more than one per
+     * week regardless (see `activeWeekModifier`). */
+    chance: 0.45,
+  },
   forecast: {
     /** expected weekly skill gain thresholds for ++ and +++ */
     sportPlusPlus: 14,
@@ -602,5 +638,10 @@ export const BALANCE = {
     fatigueBuckets: { bigDrop: -12, drop: -2, flat: 6, rise: 20 },
     /** money forecasts round to this (no exact decimals in the UI) */
     moneyRounding: 10,
+    /** how many weeks ahead `Game.trainingForecast` projects the current
+     * plan's pace before giving up on predicting a level-up — long enough to
+     * catch slower sports, short enough that it stays a near-term "coming
+     * up" teaser rather than a distant, low-confidence guess. */
+    trainingForecastHorizonWeeks: 12,
   },
 } as const;

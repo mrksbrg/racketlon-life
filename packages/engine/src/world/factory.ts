@@ -346,9 +346,12 @@ export function createPlaceholderWorld(options: WorldOptions): GameState {
       travelBlocks: [],
       headToHeadSets: {},
       completedDraws: {},
+      lockedFields: {},
       vacationYear: startYear,
       vacationDaysRemaining: annualAllowance(human.nationality, startAge, content),
       pendingSalary: 0,
+      pendingEffects: [],
+      reservedSlots: [],
     },
   };
 

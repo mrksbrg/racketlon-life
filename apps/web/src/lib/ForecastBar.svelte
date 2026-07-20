@@ -22,16 +22,33 @@
         </span>
       {/if}
     {/each}
-    <span class="chip" class:bad={f.fatigue > 0} class:good={f.fatigue < 0}>
-      ⚡ {FATIGUE_ARROWS[f.fatigue]}
+    <span
+      class="chip"
+      class:bad={f.fatigue > 0}
+      class:good={f.fatigue < 0}
+      title="How this week's training/travel load and rest balance out — high fatigue raises injury risk and dulls training gains"
+    >
+      ⚡ Fatigue {FATIGUE_ARROWS[f.fatigue]}
     </span>
-    <span class="chip" class:bad={f.money < 0} class:good={f.money > 0}>
-      {formatSignedMoney(f.money)}
+    <span
+      class="chip"
+      class:bad={f.money < 0}
+      class:good={f.money > 0}
+      title="Rent, food, and phone plus any paid training/gym/social sessions this week — work income is separate, see payday"
+    >
+      🧾 Costs {formatSignedMoney(f.money)}
     </span>
     {#if f.salaryEarned > 0}
-      <span class="chip good">💰 {formatSignedMoney(f.salaryEarned)} payday</span>
+      <span class="chip good" title="Work income banks toward next payday — salary pays out in one lump sum on the last week of each month">
+        💰 {formatSignedMoney(f.salaryEarned)} payday
+      </span>
     {/if}
-    <span class="chip risk-{f.injuryRisk}">✚ {f.injuryRisk}</span>
+    <span
+      class="chip risk-{f.injuryRisk}"
+      title="Chance of picking up an injury this week, from your planned training load and current fatigue"
+    >
+      ✚ Injury risk: {f.injuryRisk}
+    </span>
   </div>
 {/if}
 

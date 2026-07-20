@@ -1,10 +1,10 @@
 import { BALANCE } from "./balance.js";
 import type { ContentBundle, TraitCategory, TraitTone } from "./content.js";
 import type { Calendar } from "./core/date.js";
-import { ageOn, dateForWeek, weekLabel, weekLabelAt, yearOfWeek } from "./core/date.js";
+import { ageOn, dateForWeek, monthKeyForWeek, weekLabel, weekLabelAt, yearOfWeek } from "./core/date.js";
 import type { EventLog, GameEvent } from "./core/events.js";
 import { eventsForWeek } from "./core/events.js";
-import type { CompletedDraw, GameState, InboxMessage, PersistedOtherDivisionDraw, TravelBlock } from "./core/state.js";
+import type { CompletedDraw, GameState, InboxMessage, PersistedOtherDivisionDraw, ReservedSlot, TravelBlock } from "./core/state.js";
 import { SAVE_VERSION, getPlayer, humanPlayer } from "./core/state.js";
 import type { ActivityCounts, PlayerPlan } from "./model/plan.js";
 import { countsFromSlots, slotIndex } from "./model/plan.js";
@@ -13,6 +13,8 @@ import { fullName } from "./model/player.js";
 import type { WeekSummary } from "./model/summary.js";
 import type { Sport } from "./model/sport.js";
 import {
+  LEVEL_MAX,
+  LEVEL_MIN_SKILL,
   SPORTS,
   SPORT_LABELS,
   levelForSkill,
@@ -23,6 +25,8 @@ import {
 import type { MatchState } from "./match/engine.js";
 import { simulateTournamentPreparation, simulateWeek } from "./orchestrator.js";
 import { recoveryAgeMultiplier } from "./systems/age.js";
+import { activeWeekModifier, blockedSportOf, homeLatitudeFor, weekModifierContent } from "./systems/modifiers.js";
+import type { WeekModifierDef } from "./systems/modifiers.js";
 import {
   expectedSessionGain,
   fatigueDeltaFromCounts,
@@ -92,10 +96,30 @@ export interface Forecast {
   injuryRisk: "low" | "medium" | "high";
 }
 
+/** This week's rolled modifier (fun-plan P3) — see `Game.weekModifier`. */
+export interface WeekModifierView {
+  headline: string;
+  body: string;
+  /** set only when a sport's training is worthless this week (e.g. closed
+   * courts) — the Planner disables newly picking it, same as an injury. */
+  blockedSport?: Sport;
+}
+
 export interface SportView {
   level: number;
   /** progress toward the next level, 0..1 */
   progress: number;
+}
+
+/** One sport's "at this pace" level-up ETA — see `Game.trainingForecast`.
+ * Soonest first; a sport absent from the list either isn't being trained
+ * this pace or won't cross its next level threshold within the horizon. */
+export interface TrainingForecastEntry {
+  sport: Sport;
+  nextLevel: number;
+  /** weeks from now, ≥1, until this sport's skill is expected to cross into
+   * `nextLevel` if the given plan's session counts repeat every week */
+  weeksToLevelUp: number;
 }
 
 /** Layer-2 view: the Glicko-2 rating estimate + its uncertainty, rounded. */
@@ -1395,6 +1419,51 @@ export class Game {
   }
 
   /**
+   * Answers a decision-event message: the player's own explicit pick, and
+   * the only way a `PendingEffect` ever gets queued (see `DecisionSystem`,
+   * which applies it and clears the queue entry the next time a week for
+   * `weekIndex` is submitted). A no-op — never throws — for an unknown
+   * message, one with no `choices`, one already resolved, or one whose
+   * `expiresWeekIndex` has passed, so a stale UI click can never double-apply
+   * or resurrect an expired offer. A choice whose effect carries
+   * `reserveSlot` also immediately commits that exact slot in the target
+   * week's plan (see `reservedSlotsThisWeek`) — unlike the rest of the
+   * effect, this write isn't deferred to `DecisionSystem`, since the Planner
+   * needs to show the commitment as soon as it's made, potentially weeks
+   * before that week is actually submitted. A no-op if that slot is
+   * somehow already reserved (two decision events landing on the exact same
+   * slot — the cooldown/pity system makes this rare, but stays safe rather
+   * than silently double-booking).
+   */
+  chooseInboxOption(messageId: string, choiceId: string): void {
+    const msg = this.state.career.inbox.find((m) => m.id === messageId);
+    if (!msg || !msg.choices || msg.resolvedChoiceId) return;
+    if (msg.expiresWeekIndex !== undefined && this.state.calendar.weekIndex > msg.expiresWeekIndex) return;
+    const choice = msg.choices.find((c) => c.id === choiceId);
+    if (!choice) return;
+    msg.resolvedChoiceId = choiceId;
+    msg.read = true;
+    const week = this.state.calendar.weekIndex;
+    this.state.career.pendingEffects.push({ weekIndex: week, effect: choice.effect });
+    if (choice.effect.reserveSlot) {
+      const { slotIndex, activity } = choice.effect.reserveSlot;
+      const alreadyTaken = this.state.career.reservedSlots.some((r) => r.weekIndex === week && r.slotIndex === slotIndex);
+      if (!alreadyTaken) {
+        this.state.career.reservedSlots.push({ weekIndex: week, slotIndex, activity });
+      }
+    }
+  }
+
+  /** Slots already committed (via `chooseInboxOption`'s `reserveSlot`) for
+   * the week currently being planned — the Planner forces these into the
+   * drafted plan and shows them as non-editable, the same treatment
+   * `travelBlocksThisWeek`/`tournamentBlocksThisWeek` already get. */
+  reservedSlotsThisWeek(): ReservedSlot[] {
+    const week = this.state.calendar.weekIndex;
+    return this.state.career.reservedSlots.filter((r) => r.weekIndex === week);
+  }
+
+  /**
    * Approximate consequences of a plan, evaluated in expectation with the
    * same effect functions the systems use — then bucketed.
    */
@@ -1403,17 +1472,22 @@ export class Game {
     const counts = countsFromSlots(plan);
     const { fatigue } = human.condition;
     const age = ageOn(this.state.calendar.mondayISO, human.identity.birthDate);
+    // this week's rolled modifier (fun-plan P3), if any, so the forecast the
+    // player is deciding against already reflects closed courts/a guest
+    // coach/etc. — the same content TrainingSystem/FatigueSystem/
+    // EconomySystem will actually read once this plan is submitted.
+    const content = weekModifierContent(this.content, this.currentWeekModifier());
 
     const sports = {} as Record<Sport, GainBucket>;
     for (const sport of SPORTS) {
       const potential = human.attributes.potential[sport];
-      const expected = expectedWeeklyGain(counts, sport, human.attributes.skills[sport], potential, fatigue, this.content, age);
+      const expected = expectedWeeklyGain(counts, sport, human.attributes.skills[sport], potential, fatigue, content, age);
       sports[sport] = gainBucket(expected);
     }
 
     const fatigueDelta =
-      fatigueDeltaFromCounts(counts, this.content, human.attributes.coreStrength) - BALANCE.recovery.weeklyBase * recoveryAgeMultiplier(age);
-    const { earned, spent } = moneyDeltaFromCounts(counts, this.content, salaryMultiplier(human.attributes.career));
+      fatigueDeltaFromCounts(counts, content, human.attributes.coreStrength) - BALANCE.recovery.weeklyBase * recoveryAgeMultiplier(age);
+    const { earned, spent } = moneyDeltaFromCounts(counts, content, salaryMultiplier(human.attributes.career));
     const expenses = spent + BALANCE.economy.weeklyExpenses;
     const rounding = BALANCE.forecast.moneyRounding;
 
@@ -1422,8 +1496,84 @@ export class Game {
       fatigue: fatigueBucket(fatigueDelta),
       money: -Math.round(expenses / rounding) * rounding,
       salaryEarned: Math.round(earned / rounding) * rounding,
-      injuryRisk: injuryRiskBucket(injuryLoad(counts, this.content, fatigue)),
+      injuryRisk: injuryRiskBucket(injuryLoad(counts, content, fatigue)),
     };
+  }
+
+  /** This week's rolled modifier (fun-plan P3), if any — a pure function of
+   * seed/week/calendar plus the human's home latitude (see
+   * `systems/modifiers.ts`'s `localSeason`), so a season-gated modifier like
+   * "heat wave" reads the player's own hemisphere correctly. */
+  private currentWeekModifier(): WeekModifierDef | null {
+    const human = humanPlayer(this.state);
+    return activeWeekModifier(
+      this.state.seed,
+      this.state.calendar.weekIndex,
+      this.state.calendar,
+      homeLatitudeFor(this.content, human.identity.nationality),
+    );
+  }
+
+  /** This week's rolled modifier (fun-plan P3), if any — the Planner's
+   * banner and, when `blockedSport` is set, the reason a sport can't be
+   * newly picked (courts closed, not just less rewarding). */
+  weekModifier(): WeekModifierView | null {
+    const modifier = this.currentWeekModifier();
+    if (!modifier) return null;
+    return { headline: modifier.headline, body: modifier.body, blockedSport: blockedSportOf(modifier) ?? undefined };
+  }
+
+  /**
+   * "At this pace" level-up ETA per sport — the Planner/Summary "coming up"
+   * strip's headline content: a Civ-build-queue-style always-something-
+   * finishing-soon read on the current plan, not just this week's forecast.
+   * Repeats `plan`'s weekly session counts forward through the same
+   * `expectedWeeklyGain` math `previewPlan` uses (skill/taper compounding
+   * week over week; fatigue and age held at today's value — close enough
+   * over a `trainingForecastHorizonWeeks`-week horizon, and this is
+   * explicitly framed as an estimate, not a guarantee). A sport with no
+   * sessions in `plan`, already at max level, or too slow to cross into its
+   * next level within the horizon is simply omitted — this is a queue of
+   * what's coming, not a status report on every sport. Soonest first.
+   */
+  trainingForecast(plan: PlayerPlan): TrainingForecastEntry[] {
+    const human = humanPlayer(this.state);
+    const counts = countsFromSlots(plan);
+    const { fatigue } = human.condition;
+    const age = ageOn(this.state.calendar.mondayISO, human.identity.birthDate);
+    const horizon = BALANCE.forecast.trainingForecastHorizonWeeks;
+
+    const out: TrainingForecastEntry[] = [];
+    for (const sport of SPORTS) {
+      const currentLevel = levelForSkill(human.attributes.skills[sport]);
+      if (currentLevel >= LEVEL_MAX) continue;
+      const targetSkill = LEVEL_MIN_SKILL[currentLevel]!;
+      const potential = human.attributes.potential[sport];
+
+      let skill = human.attributes.skills[sport];
+      let weeksToLevelUp: number | null = null;
+      for (let week = 1; week <= horizon; week++) {
+        const gain = expectedWeeklyGain(counts, sport, skill, potential, fatigue, this.content, age);
+        if (gain <= 0.01) break; // no sessions this pace (or fully stalled) — nothing to project
+        skill += gain;
+        if (skill >= targetSkill) {
+          weeksToLevelUp = week;
+          break;
+        }
+      }
+      if (weeksToLevelUp !== null) out.push({ sport, nextLevel: currentLevel + 1, weeksToLevelUp });
+    }
+    return out.sort((a, b) => a.weeksToLevelUp - b.weeksToLevelUp);
+  }
+
+  /** Weeks from now until this month's salary lands (`economy.ts` pays the
+   * whole month's earned salary in one lump sum on the last week of each
+   * calendar month) — 0 when this week is itself payday. */
+  weeksUntilPayday(): number {
+    const cal = this.state.calendar;
+    let week = cal.weekIndex;
+    while (monthKeyForWeek(cal, week) === monthKeyForWeek(cal, week + 1)) week++;
+    return week - cal.weekIndex;
   }
 
   tournamentBlocksThisWeek(): TravelBlock[] {

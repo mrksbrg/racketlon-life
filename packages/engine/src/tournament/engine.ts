@@ -522,13 +522,25 @@ export function projectedFieldAsOf(
   return field.filter((p) => waveOf.get(p.identity.id)! <= asOfWeek);
 }
 
-function sampleDivisionField(
+/**
+ * The full `def.fieldSize`-length weighted sample for a division, computed
+ * once and locked into `state.career.lockedFields` the first time it's
+ * needed. Every later call for the same `(weekIndex, def.id)` — a spectator
+ * preview browsed earlier, a registration-wave check, or the tournament
+ * actually starting, in whatever order they happen to occur — reuses that
+ * same locked list instead of re-deriving the pool from `state.players`'
+ * live, still-drifting ratings. See `lockedFields`' doc comment on `Career`
+ * for the bug this fixes.
+ */
+function lockDivisionField(
   state: GameState,
   def: TournamentDef,
   weekIndex: number,
   content: ContentBundle,
-  needed: number,
-): Player[] {
+): string[] {
+  const alreadyLocked = state.career.lockedFields[weekIndex]?.[def.id];
+  if (alreadyLocked) return alreadyLocked;
+
   const rng = new Rng(childSeed(state.seed, "tournament", weekIndex, def.id));
   const tierDivisions = tierDivisionsFor(def.tier, def.gender);
   const sameGender = state.players.filter((p) => p.identity.gender === def.gender);
@@ -543,13 +555,32 @@ function sampleDivisionField(
     { hostCountry: def.country, count: BALANCE.tournament.hostWildcardsToTopDivision },
   );
   const pool = sameGender.filter((p) => p.simTier === 1 && divisionOf(assignments, p.identity.id) === def.division);
-  if (pool.length < needed) {
+  if (pool.length < def.fieldSize) {
     throw new Error(
       `Not enough tier-1 ${def.gender} players in division ${def.division} ` +
-        `(${pool.length}) for a ${needed}-player draw`,
+        `(${pool.length}) for a ${def.fieldSize}-player draw`,
     );
   }
-  return weightedSampleWithoutReplacement(rng, pool, (p) => entryWeight(content, p.identity.nationality, def), needed);
+  const sampled = weightedSampleWithoutReplacement(
+    rng,
+    pool,
+    (p) => entryWeight(content, p.identity.nationality, def),
+    def.fieldSize,
+  );
+  const ids = sampled.map((p) => p.identity.id);
+  (state.career.lockedFields[weekIndex] ??= {})[def.id] = ids;
+  return ids;
+}
+
+function sampleDivisionField(
+  state: GameState,
+  def: TournamentDef,
+  weekIndex: number,
+  content: ContentBundle,
+  needed: number,
+): Player[] {
+  const ids = lockDivisionField(state, def, weekIndex, content);
+  return ids.slice(0, needed).map((id) => getPlayer(state, id));
 }
 
 export function pickEntrants(state: GameState, def: TournamentDef, weekIndex: number, content: ContentBundle): Player[] {
@@ -602,9 +633,12 @@ function seedRanks(entrants: Player[]): Map<string, number> {
 /** The real seeded bracket for an event that hasn't been played yet — the
  * top seeds and the human's actual round-1 opponent, computed the exact same
  * way `startTournament` will (same `pickEntrants`/`seedBracket` call chain,
- * same seed formula) so the two can never disagree. Doesn't touch
- * `GameState`, matching `projectedField`'s no-mutation guarantee (see
- * docs/04's "Field preview ahead of time"). Used by the inbox's
+ * same seed formula) so the two can never disagree. Only ever writes
+ * `state.career.lockedFields` (via `pickEntrants`/`sampleDivisionField`,
+ * locking the entrant pool in place the first time it's needed — see
+ * `lockedFields`' doc comment on `Career` — so a draw browsed ahead of time
+ * can't show different entrants than the one actually played), never any
+ * gameplay-affecting state (money, ratings, entries). Used by the inbox's
  * draw-announcement email (systems/inbox.ts) so it can name real seeds and a
  * real opponent instead of hedging with "possible" ones. */
 export interface DrawPreview {
@@ -649,8 +683,8 @@ export function previewDraw(
  * simulated already — revealing a result before the event has actually
  * started would spoil "the draw" as a real preview. Later rounds aren't
  * included at all: who plays round 2 depends on round-1 results (including
- * the human's) that don't exist yet. Doesn't touch `GameState`, matching
- * `previewDraw`'s own no-mutation guarantee.
+ * the human's) that don't exist yet. Only ever writes `state.career.lockedFields`,
+ * same as `previewDraw` — never any gameplay-affecting state.
  *
  * `entrants` is supplied by the caller rather than resolved here — pass
  * `pickEntrants`'s result when the human genuinely belongs in this bracket

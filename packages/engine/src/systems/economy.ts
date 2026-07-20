@@ -2,6 +2,7 @@ import { BALANCE } from "../balance.js";
 import { monthKeyForWeek } from "../core/date.js";
 import { humanPlayer } from "../core/state.js";
 import { moneyDeltaFromCounts, salaryMultiplier } from "./effects.js";
+import { weekModifierContent } from "./modifiers.js";
 import type { GameSystem } from "./types.js";
 
 /**
@@ -19,7 +20,10 @@ export const EconomySystem: GameSystem = {
     const human = humanPlayer(ctx.state);
     const counts = ctx.plans.get(human.identity.id);
     if (!counts) return;
-    const { earned, spent } = moneyDeltaFromCounts(counts, ctx.content, salaryMultiplier(human.attributes.career));
+    // only the human has an economy, so a week modifier's (e.g. free social)
+    // effect can be applied unconditionally here, unlike Training/Fatigue.
+    const content = weekModifierContent(ctx.content, ctx.weekModifier);
+    const { earned, spent } = moneyDeltaFromCounts(counts, content, salaryMultiplier(human.attributes.career));
     const expenses = spent + BALANCE.economy.weeklyExpenses;
     ctx.state.career.money -= expenses;
     ctx.state.career.pendingSalary += earned;
