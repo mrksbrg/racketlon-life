@@ -33,6 +33,7 @@
     { name: "G. Rossi", flag: "🇮🇹", country: "IT", age: 32, gender: "f" },
     { name: "J. Kowalski", flag: "🇵🇱", country: "PL", age: 41, gender: "m" },
     { name: "M. García", flag: "🇪🇸", country: "ES", age: 62, gender: "f" },
+    { name: "N. Dlamini", flag: "🇿🇦", country: "ZA", age: 29, gender: "m" },
   ];
 
   function cardFor(person: GalleryPerson): PortraitCard {

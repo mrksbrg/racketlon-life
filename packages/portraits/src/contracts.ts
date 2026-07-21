@@ -65,7 +65,12 @@ export interface PortraitInput {
   portraitSeed: string;
   ageYears?: number;
   gender?: "m" | "f";
-  /** ISO country code. Only presentation accents may depend on this. */
+  /**
+   * ISO country code. May only steer the shirt accent and, as a soft
+   * probability weighting only, the skin-tone roll — never a hard
+   * determination of any single facial feature. See "Regional skin-tone
+   * weighting" in docs/08-portrait-system.md.
+   */
   country?: string;
   /** Sparse, semantic cues for hand-tuned players. */
   publicCues?: PortraitRecipeOverrides;

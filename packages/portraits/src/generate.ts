@@ -23,6 +23,20 @@ function pick<T>(seed: string, channel: string, values: readonly T[]): T {
   return value;
 }
 
+/** Weighted pick from the same deterministic roll. Every weight must stay > 0 upstream. */
+function pickWeighted<T>(seed: string, channel: string, values: readonly T[], weights: readonly number[]): T {
+  if (values.length !== weights.length) {
+    throw new Error(`Portrait catalog channel "${channel}" has ${values.length} values but ${weights.length} weights`);
+  }
+  const total = weights.reduce((sum, weight) => sum + weight, 0);
+  let target = roll(seed, channel) * total;
+  for (let index = 0; index < values.length; index++) {
+    target -= weights[index] ?? 0;
+    if (target < 0) return values[index] as T;
+  }
+  return values[values.length - 1] as T;
+}
+
 function chance(seed: string, channel: string, probability: number): boolean {
   return roll(seed, channel) < probability;
 }
@@ -86,6 +100,59 @@ function shirtPaletteFor(country: string | undefined): string {
   return `country-${country.trim().toUpperCase()}`;
 }
 
+/**
+ * Rough regional skin-tone weighting, used only to make the generated player
+ * pool feel plausible per country rather than uniform everywhere. These are
+ * coarse tiers for game-design purposes, not demographic data, and every tier
+ * keeps a nonzero weight on every `catalog.skinPalettes` entry (skin-01
+ * lightest to skin-08 darkest) because a real country's player pool is always
+ * more diverse than any tier can capture. Countries missing from the map fall
+ * back to a uniform roll. See "Regional skin-tone weighting" in
+ * docs/08-portrait-system.md.
+ */
+const SKIN_WEIGHTS_BY_REGION = {
+  nordic: [0.30, 0.28, 0.16, 0.10, 0.06, 0.04, 0.03, 0.03],
+  "western-europe": [0.22, 0.24, 0.16, 0.12, 0.08, 0.06, 0.06, 0.06],
+  "southern-europe": [0.10, 0.16, 0.24, 0.20, 0.12, 0.08, 0.06, 0.04],
+  "eastern-europe": [0.28, 0.28, 0.18, 0.10, 0.06, 0.04, 0.03, 0.03],
+  "mena-central-asia": [0.06, 0.10, 0.18, 0.22, 0.20, 0.12, 0.08, 0.04],
+  "sub-saharan-africa": [0.03, 0.04, 0.06, 0.08, 0.12, 0.18, 0.24, 0.25],
+  "south-asia": [0.03, 0.06, 0.14, 0.22, 0.24, 0.16, 0.10, 0.05],
+  "east-southeast-asia": [0.10, 0.22, 0.28, 0.20, 0.10, 0.05, 0.03, 0.02],
+  americas: [0.12, 0.14, 0.14, 0.14, 0.12, 0.12, 0.11, 0.11],
+  oceania: [0.22, 0.24, 0.16, 0.12, 0.08, 0.08, 0.05, 0.05],
+} as const satisfies Record<string, readonly number[]>;
+
+type SkinRegionTier = keyof typeof SKIN_WEIGHTS_BY_REGION;
+
+const SKIN_REGION_BY_COUNTRY: Record<string, SkinRegionTier> = {
+  SE: "nordic", DK: "nordic", FI: "nordic", NO: "nordic",
+  DE: "western-europe", AT: "western-europe", GB: "western-europe", CH: "western-europe",
+  NL: "western-europe", FR: "western-europe", IE: "western-europe", BE: "western-europe", LI: "western-europe",
+  ES: "southern-europe", IT: "southern-europe", GR: "southern-europe", MT: "southern-europe", HR: "southern-europe",
+  PL: "eastern-europe", CZ: "eastern-europe", HU: "eastern-europe", RU: "eastern-europe", SI: "eastern-europe",
+  BY: "eastern-europe", BG: "eastern-europe", EE: "eastern-europe", LV: "eastern-europe", RO: "eastern-europe",
+  SK: "eastern-europe", UA: "eastern-europe",
+  TR: "mena-central-asia", MA: "mena-central-asia", EG: "mena-central-asia", JO: "mena-central-asia",
+  IL: "mena-central-asia", AF: "mena-central-asia", TJ: "mena-central-asia",
+  ZA: "sub-saharan-africa", ER: "sub-saharan-africa",
+  IN: "south-asia",
+  CN: "east-southeast-asia", JP: "east-southeast-asia", KR: "east-southeast-asia", HK: "east-southeast-asia",
+  TH: "east-southeast-asia", MY: "east-southeast-asia", SG: "east-southeast-asia", ID: "east-southeast-asia",
+  US: "americas", CA: "americas", BR: "americas", PE: "americas", CU: "americas",
+  AU: "oceania", NZ: "oceania", PG: "oceania",
+};
+
+const UNIFORM_SKIN_WEIGHTS: readonly number[] = catalog.skinPalettes.map(() => 1);
+
+function skinPaletteFor(seed: string, country: string | undefined): string {
+  const tier = country === undefined || country.trim() === ""
+    ? undefined
+    : SKIN_REGION_BY_COUNTRY[country.trim().toUpperCase()];
+  const weights = tier === undefined ? UNIFORM_SKIN_WEIGHTS : SKIN_WEIGHTS_BY_REGION[tier];
+  return pickWeighted(seed, "skin-palette", catalog.skinPalettes, weights);
+}
+
 function generatedOffsets(seed: string): Record<string, PortraitOffset> {
   return {
     hair: offset(seed, "offset:hair", -1, 1, -1, 0),
@@ -122,7 +189,7 @@ export function generatePortraitRecipe(input: PortraitInput): PortraitRecipe {
     version: PORTRAIT_RECIPE_VERSION,
     seed,
     head: pick(seed, "head", catalog.heads),
-    skinPalette: pick(seed, "skin-palette", catalog.skinPalettes),
+    skinPalette: skinPaletteFor(seed, input.country),
     hair: hairFor(seed, ageYears, input.gender),
     hairPalette: hairPaletteFor(seed, ageYears),
     eyes: pick(seed, "eyes", catalog.eyes),

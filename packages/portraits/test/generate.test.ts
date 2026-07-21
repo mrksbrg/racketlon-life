@@ -23,7 +23,7 @@ describe("portrait recipe generation", () => {
       version: 1,
       seed: "player-0042",
       head: "broad",
-      skinPalette: "skin-02",
+      skinPalette: "skin-01",
       hair: "side-part",
       hairPalette: "grey",
       eyes: "soft",
@@ -105,14 +105,45 @@ describe("portrait recipe generation", () => {
     expect(generatePortraitRecipe(adapted).accessory).toBeUndefined();
   });
 
-  it("uses country only for the shirt accent, never for facial features", () => {
+  it("uses country only for the shirt accent and skin-tone weighting, never other facial features", () => {
     const swedish = generatePortraitRecipe(input);
     const german = generatePortraitRecipe({ ...input, country: "DE" });
-    const { shirtPalette: swedishPalette, ...swedishIdentity } = swedish;
-    const { shirtPalette: germanPalette, ...germanIdentity } = german;
+    const { shirtPalette: swedishPalette, skinPalette: swedishSkin, ...swedishIdentity } = swedish;
+    const { shirtPalette: germanPalette, skinPalette: germanSkin, ...germanIdentity } = german;
 
     expect(swedishIdentity).toEqual(germanIdentity);
     expect(swedishPalette).not.toBe(germanPalette);
+    // Both are western-tier countries so a single sample may coincidentally
+    // land on the same bucket; the distribution test below covers weighting.
+    void swedishSkin;
+    void germanSkin;
+  });
+
+  it("weights skin tone per region but never rules out any tone for any country", () => {
+    const skinIndex = (skinPalette: string) => Number.parseInt(skinPalette.replace("skin-", ""), 10);
+    const sampleSkinIndexes = (country: string, samples: number) =>
+      Array.from({ length: samples }, (_, index) =>
+        skinIndex(generatePortraitRecipe({ ...input, country, portraitSeed: `region-${country}-${index}` }).skinPalette),
+      );
+
+    const samples = 4000;
+    const nordic = sampleSkinIndexes("SE", samples);
+    const southernAfrica = sampleSkinIndexes("ZA", samples);
+    const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+
+    // Every catalog skin tone must still be reachable for both regions: the
+    // weighting must never harden into a categorical exclusion.
+    expect(new Set(nordic).size).toBe(8);
+    expect(new Set(southernAfrica).size).toBe(8);
+
+    // South Africa's tier is weighted toward darker tones on average, Sweden's
+    // toward lighter ones, but neither is a hard cutoff.
+    expect(mean(southernAfrica)).toBeGreaterThan(mean(nordic) + 2);
+
+    // An unmapped/undefined country falls back to a uniform roll rather than
+    // throwing or defaulting to a specific tier.
+    const unmapped = sampleSkinIndexes("XX", samples);
+    expect(new Set(unmapped).size).toBe(8);
   });
 
   it("keeps mature hair and grey palettes out of the young-player pool", () => {

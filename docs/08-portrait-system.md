@@ -49,11 +49,36 @@ constrain eligible pools:
 - age influences grey hair, receding hair, wrinkles, and face softness;
 - gender can influence hair, brow, facial-hair, and head-shape pools without
   making the result rigid or stereotyped;
-- country can choose shirt or national accent colors, but should not mechanically
-  choose facial features;
+- country can choose shirt or national accent colors, and softly weights the
+  skin-tone roll (see "Regional skin-tone weighting" below), but must never
+  mechanically determine any single facial feature;
 - traits can influence expression, for example confident, tense, neutral, or
   cheerful;
 - injury state can add temporary overlays such as a plaster, tape, or bandage.
+
+## Regional skin-tone weighting
+
+Skin tone is chosen by the same per-seed deterministic roll as every other
+feature, but the roll is weighted by a coarse regional tier derived from
+`country` (`SKIN_REGION_BY_COUNTRY` in `generate.ts`) so the generated player
+pool feels plausible per country instead of uniform everywhere.
+
+Rules that keep this from becoming a stereotype generator instead of a
+plausibility nudge:
+
+- Every tier keeps a nonzero weight on all 8 catalog skin tones. No country
+  ever excludes a tone outright — a real country's player pool is always more
+  diverse than any coarse tier can capture, and hard exclusion would actively
+  misrepresent countries with real minority populations (e.g. Black European
+  citizens).
+- The tiers are rough game-design buckets, not demographic data. They exist to
+  avoid the pool looking randomly uniform across very different countries, not
+  to encode precise population statistics.
+- A country missing from the map falls back to a uniform roll rather than
+  guessing a tier.
+- If this weighting ever looks wrong for a specific country, adjust that
+  country's tier or weights directly — do not remove the "never zero" floor to
+  fix it.
 
 ## Art kit target
 
