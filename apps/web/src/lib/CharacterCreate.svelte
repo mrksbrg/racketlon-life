@@ -14,6 +14,7 @@
     nextRaiseCost,
     statValue,
   } from "./character";
+  import PlayerPortrait from "./PlayerPortrait.svelte";
   import { store } from "./store.svelte";
 
   const age = $derived(ageFromBirthDate(store.draft.birthDate));
@@ -26,10 +27,6 @@
     ...SPORTS.map((s) => ({ key: s as StatKey, ...SPORT_META[s] })),
     ...CHAR_ATTRS.map((a) => ({ key: a as StatKey, ...ATTR_META[a] })),
   ]);
-
-  const initials = $derived(
-    (store.draft.firstName[0] ?? "") + (store.draft.lastName[0] ?? ""),
-  );
 
   const startLabel = $derived.by(() => {
     if (!store.draft.firstName.trim() || !store.draft.lastName.trim()) return "Enter a name";
@@ -44,7 +41,16 @@
   </div>
 
   <div class="identity">
-    <div class="avatar" class:f={store.draft.gender === "f"}>{initials}</div>
+    <div class="avatar">
+      <PlayerPortrait
+        playerId="you"
+        portraitSeed={store.draftPortraitSeed}
+        ageYears={age}
+        gender={store.draft.gender}
+        country={store.draft.nationality}
+        label={`Portrait of ${store.draft.firstName} ${store.draft.lastName}`}
+      />
+    </div>
     <div class="who">
       <div class="nameline">
         <input
@@ -206,20 +212,11 @@
   .avatar {
     width: 52px;
     height: 52px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 19px;
-    font-weight: 700;
+    border-radius: 11px;
+    overflow: hidden;
     flex: 0 0 auto;
-    background: color-mix(in srgb, var(--tn) 32%, var(--card));
-    color: var(--tn);
-  }
-
-  .avatar.f {
-    background: color-mix(in srgb, var(--social) 32%, var(--card));
-    color: var(--social);
+    background: var(--card-2);
+    border: 1px solid var(--border);
   }
 
   .who {

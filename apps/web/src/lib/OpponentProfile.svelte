@@ -1,19 +1,13 @@
 <script lang="ts">
+  import { defaultPortraitCues } from "@racketlon/content";
   import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
   import { NATIONALITIES } from "./character";
+  import PlayerPortrait from "./PlayerPortrait.svelte";
   import { store } from "./store.svelte";
   import { SPORT_COLORS, SPORT_SHORT, finishLabel, flagEmoji } from "./ui";
 
   const p = $derived(store.opponentProfile);
 
-  const initials = $derived(
-    (p?.name ?? "")
-      .split(" ")
-      .map((w) => w[0] ?? "")
-      .slice(0, 2)
-      .join("")
-      .toUpperCase(),
-  );
   const countryName = $derived(p ? (NATIONALITIES[p.nationality]?.name ?? p.nationality) : "");
 
   // Tournament history, year-scoped the same way as the Me screen's "Recent
@@ -50,8 +44,16 @@
   {#if p}
     <main>
       <section class="hero">
-        <div class="avatar" class:female={p.gender === "f"}>
-          <span class="initials">{initials}</span>
+        <div class="avatar">
+          <PlayerPortrait
+            playerId={p.id}
+            portraitSeed={p.isYou ? (store.humanPortraitSeed ?? undefined) : undefined}
+            ageYears={p.age}
+            gender={p.gender}
+            country={p.nationality}
+            cues={defaultPortraitCues[p.id]}
+            label={`Portrait of ${p.name}`}
+          />
           <span class="flag">{flagEmoji(p.nationality)}</span>
         </div>
         <div class="who">
@@ -288,22 +290,11 @@
     width: 68px;
     height: 68px;
     flex-shrink: 0;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, var(--tn), var(--accent));
+    border-radius: 13px;
+    overflow: visible;
+    background: var(--card-2);
+    border: 1px solid var(--border);
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  }
-
-  .avatar.female {
-    background: linear-gradient(135deg, var(--social), var(--sq));
-  }
-
-  .initials {
-    font-weight: 800;
-    font-size: 24px;
-    color: white;
-    letter-spacing: 0.02em;
   }
 
   .flag {
@@ -316,6 +307,7 @@
     border-radius: 50%;
     padding: 2px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    z-index: 1;
   }
 
   .meta {

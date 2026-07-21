@@ -1,0 +1,17 @@
+{
+  "name": "@racketlon/portraits",
+  "version": "0.1.0",
+  "description": "Replaceable portrait recipe contracts and deterministic default generator",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}

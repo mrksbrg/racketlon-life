@@ -15,6 +15,7 @@
   "dependencies": {
     "@racketlon/content": "*",
     "@racketlon/engine": "*",
+    "@racketlon/portraits": "*",
     "idb-keyval": "^6.2.1"
   },
   "devDependencies": {

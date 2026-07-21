@@ -1,6 +1,7 @@
 <script lang="ts">
   import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
   import { ATTR_META, CHAR_ATTRS, NATIONALITIES } from "./character";
+  import PlayerPortrait from "./PlayerPortrait.svelte";
   import { store } from "./store.svelte";
   import TabBar from "./TabBar.svelte";
   import {
@@ -39,14 +40,6 @@
 
   const MEDAL_EMOJI: Record<1 | 2 | 3, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
-  const initials = $derived(
-    (you?.name ?? "")
-      .split(" ")
-      .map((w) => w[0] ?? "")
-      .slice(0, 2)
-      .join("")
-      .toUpperCase(),
-  );
   const countryName = $derived(you ? (NATIONALITIES[you.nationality]?.name ?? you.nationality) : "");
 
   const TITLE_LABELS: Record<string, string> = { champion: "🏆 First title" };
@@ -56,8 +49,15 @@
   <main>
     <!-- Hero -->
     <section class="hero">
-      <div class="avatar" class:female={you.gender === "f"}>
-        <span class="initials">{initials}</span>
+      <div class="avatar">
+        <PlayerPortrait
+          playerId={you.id}
+          portraitSeed={store.humanPortraitSeed ?? undefined}
+          ageYears={you.age}
+          gender={you.gender}
+          country={you.nationality}
+          label={`Portrait of ${you.name}`}
+        />
         <span class="flag">{flagEmoji(you.nationality)}</span>
       </div>
       <div class="who">
@@ -472,22 +472,11 @@
     width: 68px;
     height: 68px;
     flex-shrink: 0;
-    border-radius: 50%;
-    display: grid;
-    place-items: center;
-    background: linear-gradient(135deg, var(--tn), var(--accent));
+    border-radius: 13px;
+    overflow: visible;
+    background: var(--card-2);
+    border: 1px solid var(--border);
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  }
-
-  .avatar.female {
-    background: linear-gradient(135deg, var(--social), var(--sq));
-  }
-
-  .initials {
-    font-weight: 800;
-    font-size: 24px;
-    color: white;
-    letter-spacing: 0.02em;
   }
 
   .flag {
@@ -500,6 +489,7 @@
     border-radius: 50%;
     padding: 2px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+    z-index: 1;
   }
 
   .meta {

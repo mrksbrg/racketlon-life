@@ -30,6 +30,50 @@ fine to open-source, but they enter this repo only as **gitignored inputs** in
    ```
 3. Commit the updated `data/world-bundle.json`.
 
+## Manually reviewing portrait cues
+
+Portrait corrections live in the committed `data/portrait-cues.json` sidecar,
+keyed by the exact stable `playerId` from `world-bundle.json`. They are not put
+in the scraper CSVs, so rebuilding ratings never overwrites your visual work.
+For example:
+
+```json
+{
+  "name:aadirai-k-a:IND": {
+    "skinPalette": "skin-03",
+    "hair": "long-straight",
+    "hairPalette": "black",
+    "eyes": "focused",
+    "accessory": "square-glasses"
+  }
+}
+```
+
+Every field is optional. Omitted fields keep their stable generated value. Use
+`"accessory": null` to guarantee no glasses/accessory and
+`"facialHair": null` to guarantee no facial hair. An empty `{}` cue entry is
+invalid. `npm run build:world` validates that every sidecar id still exists in
+the newly imported roster and fails instead of silently losing a correction.
+
+Version 1 understands these manual values:
+
+- `head`: `round`, `oval`, `square`, `long`, `heart`, `diamond`, `broad`, `narrow`
+- `skinPalette`: `skin-01` through `skin-08`
+- `hair`: `crop`, `side-part`, `swept`, `curly-short`, `buzz`, `shaggy`,
+  `long-straight`, `long-wavy`, `ponytail`, `bun`, `receding`, `bald`
+- `hairPalette`: `black`, `dark-brown`, `brown`, `light-brown`, `blonde`,
+  `auburn`, `salt-and-pepper`, `grey`
+- `eyes`: `calm`, `focused`, `bright`, `narrow`, `wide`, `soft`
+- `accessory`: `round-glasses`, `square-glasses`, `sport-glasses`, `headband`,
+  `earring`, `nose-stud`, or `null`
+- `facialHair`: `stubble`, `moustache`, `goatee`, `short-beard`, `full-beard`,
+  `chin-beard`, `soul-patch`, or `null`
+
+The same file also accepts `brows`, `nose`, `mouth`, and `ageMarks` semantic
+IDs from `@racketlon/portraits`' versioned catalog. Nationality supplies the
+shirt palette. Facial appearance is otherwise deterministic from `playerId`
+unless a reviewed cue explicitly changes it.
+
 ## What the build does (build-time, seed-independent)
 
 - **parse.ts** — dependency-free CSV reader.

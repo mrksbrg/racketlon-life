@@ -163,6 +163,22 @@ Recommended rules:
 - Version recipes. A new art kit or algorithm can ship as `version: 2` while old
   saves keep their existing faces until a deliberate migration is chosen.
 
+## Manual cue workflow
+
+Reviewed real-player corrections live in
+`packages/content/data/portrait-cues.json`, keyed by the stable imported
+`playerId`. Content loading validates the separate map, and the app passes a
+matching sparse entry to the presentation adapter when it builds `PortraitInput`.
+The generated `world-bundle.json` never owns these cues, so `build:world` can
+replace ratings and roster data without overwriting them; the build instead
+fails if a cue points to an id that disappeared from the roster.
+
+Omitting a field preserves its deterministic generated choice. Setting
+`accessory` or `facialHair` to `null` explicitly removes a generated optional
+feature, which allows a review to say both “wears glasses” and “no glasses.”
+The concrete version-1 values and an editable JSON example are documented in
+`packages/content/src/import/README.md`.
+
 ## Real-player policy
 
 Real players should not be photorealistic or intentionally copied from photos.

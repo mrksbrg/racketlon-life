@@ -52,6 +52,11 @@ import type { StatKey } from "./character";
 import { adjust, attrPointsRemaining, randomDraft, randomName, rerollStats, sportPointsRemaining } from "./character";
 
 const SAVE_KEY = "racketlon-life-save";
+const HUMAN_PORTRAIT_SEED_KEY = "racketlon-life-human-portrait-seed";
+
+function newPortraitSeed(): string {
+  return `human-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
 
 /** How many upcoming tournament weeks `tourEntries` requests — generous
  * headroom over the current ~16-event season calendar so the Tour screen
@@ -227,6 +232,10 @@ class GameStore {
   screen = $state<Screen>("loading");
   slots = $state<ActivityType[]>(emptyPlan().slots);
   draft = $state<CharacterDraft>(randomDraft());
+  /** Presentation-only identity; deliberately kept out of CharacterDraft and engine saves. */
+  draftPortraitSeed = $state(newPortraitSeed());
+  /** The creation-screen seed promoted to the active career and persisted beside the save. */
+  humanPortraitSeed = $state<string | null>(null);
   summary = $state<WeekSummary | null>(null);
   match = $state<MatchState | null>(null);
   matchSpeed = $state<MatchSpeed>(2);
@@ -588,6 +597,7 @@ class GameStore {
 
   async init(): Promise<void> {
     let save: SaveGame | undefined;
+    let savedPortraitSeed: string | undefined;
     try {
       save = await get<SaveGame>(SAVE_KEY);
     } catch {
@@ -596,17 +606,27 @@ class GameStore {
     if (!save) {
       // no career yet — build one on the character-creation screen
       this.draft = randomDraft();
+      this.draftPortraitSeed = newPortraitSeed();
+      this.humanPortraitSeed = null;
       this.screen = "create";
       return;
+    }
+    try {
+      savedPortraitSeed = await get<string>(HUMAN_PORTRAIT_SEED_KEY);
+    } catch {
+      savedPortraitSeed = undefined;
     }
     try {
       this.game = Game.fromSave(save, defaultContent);
     } catch {
       // corrupt or incompatible save — start fresh rather than brick the app
       this.draft = randomDraft();
+      this.draftPortraitSeed = newPortraitSeed();
+      this.humanPortraitSeed = null;
       this.screen = "create";
       return;
     }
+    this.humanPortraitSeed = savedPortraitSeed ?? `human-career-${save.state.seed}`;
     this.version++;
     this.screen = "planner";
   }
@@ -615,6 +635,7 @@ class GameStore {
 
   rerollCharacter(): void {
     this.draft = randomDraft();
+    this.draftPortraitSeed = newPortraitSeed();
   }
 
   rerollName(): void {
@@ -657,6 +678,8 @@ class GameStore {
     if (!this.canStartCareer) return;
     const character = $state.snapshot(this.draft) as CharacterDraft;
     this.game = Game.newGame({ content: defaultContent, character });
+    this.humanPortraitSeed = this.draftPortraitSeed;
+    void set(HUMAN_PORTRAIT_SEED_KEY, this.humanPortraitSeed).catch(() => {});
     this.slots = this.correctedTemplateSlots("Balanced") ?? emptyPlan().slots;
     this.summary = null;
     this.match = null;
@@ -1089,7 +1112,7 @@ class GameStore {
 
   /** Discard the current career and return to character creation. */
   async newGame(): Promise<void> {
-    await del(SAVE_KEY).catch(() => {});
+    await Promise.all([del(SAVE_KEY), del(HUMAN_PORTRAIT_SEED_KEY)]).catch(() => {});
     this.game = null;
     this.slots = emptyPlan().slots;
     this.summary = null;
@@ -1098,6 +1121,8 @@ class GameStore {
     this.awaitingKickoff = false;
     this.concludedTournament = null;
     this.draft = randomDraft();
+    this.draftPortraitSeed = newPortraitSeed();
+    this.humanPortraitSeed = null;
     this.version++;
     this.screen = "create";
   }

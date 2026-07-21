@@ -138,6 +138,26 @@ const realPlayerRatingSchema = z.object({
   rdSkill: z.number().min(0),
 });
 
+/** Manually reviewed, renderer-neutral overrides keyed by stable playerId. */
+export const portraitCueSchema = z
+  .object({
+    head: z.string().min(1).optional(),
+    skinPalette: z.string().min(1).optional(),
+    hair: z.string().min(1).optional(),
+    hairPalette: z.string().min(1).optional(),
+    eyes: z.string().min(1).optional(),
+    brows: z.string().min(1).optional(),
+    nose: z.string().min(1).optional(),
+    mouth: z.string().min(1).optional(),
+    facialHair: z.string().min(1).nullable().optional(),
+    accessory: z.string().min(1).nullable().optional(),
+    ageMarks: z.array(z.string().min(1)).optional(),
+  })
+  .strict()
+  .refine((cues) => Object.keys(cues).length > 0, "A portrait cue entry must override at least one field");
+
+export const portraitCuesSchema = z.record(z.string().min(1), portraitCueSchema);
+
 const realPlayerSchema = z.object({
   playerId: z.string().min(1),
   firstName: z.string(),

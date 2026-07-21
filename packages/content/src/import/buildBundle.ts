@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validatePortraitCuePlayerIds } from "../portraitCues.js";
+import { portraitCuesSchema } from "../schema.js";
 import { joinPlayers } from "./join.js";
 import { averageSkill, toBundlePlayer, type WorldBundlePlayer } from "./mapRatings.js";
 import { parseCsv } from "./parse.js";
@@ -22,6 +24,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "../..");
 const inputDir = resolve(pkgRoot, "import-data");
 const outFile = resolve(pkgRoot, "data/world-bundle.json");
+const portraitCuesFile = resolve(pkgRoot, "data/portrait-cues.json");
 
 function readCsv(name: string): Record<string, string>[] {
   const path = resolve(inputDir, name);
@@ -82,6 +85,14 @@ function main(): void {
   const roster = [...allPlayersByGender(mapped, "m"), ...allPlayersByGender(mapped, "f")].sort((a, b) =>
     a.playerId.localeCompare(b.playerId),
   );
+
+  // Manual presentation work lives outside the generated bundle, but a
+  // rebuild must fail if an imported identity changed and left an orphaned
+  // override behind.
+  const portraitCues = portraitCuesSchema.parse(JSON.parse(readFileSync(portraitCuesFile, "utf8")));
+  validatePortraitCuePlayerIds(portraitCues, roster);
+  const portraitCueCount = Object.keys(portraitCues).length;
+  if (portraitCueCount > 0) console.log(`Validated portrait cues for ${portraitCueCount} players`);
 
   const men = roster.filter((p) => p.gender === "m").length;
   const women = roster.filter((p) => p.gender === "f").length;

@@ -7,18 +7,23 @@
   import Me from "./lib/Me.svelte";
   import OpponentProfile from "./lib/OpponentProfile.svelte";
   import Planner from "./lib/Planner.svelte";
+  import PortraitGallery from "./lib/PortraitGallery.svelte";
   import Rankings from "./lib/Rankings.svelte";
   import Summary from "./lib/Summary.svelte";
   import Tour from "./lib/Tour.svelte";
   import World from "./lib/World.svelte";
   import { store } from "./lib/store.svelte";
 
+  const portraitDebugMode = new URLSearchParams(window.location.search).has("portraits");
+
   onMount(() => {
-    void store.init();
+    if (!portraitDebugMode) void store.init();
   });
 </script>
 
-{#if store.screen === "loading"}
+{#if portraitDebugMode}
+  <PortraitGallery />
+{:else if store.screen === "loading"}
   <div class="center muted">Loading…</div>
 {:else if store.screen === "create"}
   <CharacterCreate />
