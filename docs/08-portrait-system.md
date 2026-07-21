@@ -5,9 +5,15 @@ not authored as one-off full portraits. The goal is for every real player and
 newgen to have a persistent, recognizable face while keeping art production,
 legal risk, and save compatibility under control.
 
+The first art-direction target is captured in
+[`images/portrait-pixel-art-direction-v1.png`](images/portrait-pixel-art-direction-v1.png):
+front-facing sports portraits, hard pixel clusters, restrained shading, and
+national-color shirts. It is a visual reference rather than a production sprite
+sheet; production portraits remain assembled deterministically from recipe parts.
+
 ## Recommendation
 
-Use a small stylized pixel portrait generator at 64×64 or 96×96. Each portrait
+Use a small stylized pixel portrait generator at 96×96. Each portrait
 is assembled from reusable layers in a fixed order: body/clothing, head, skin
 shading, hair, facial hair, eyes, brows, nose, mouth, age marks, accessories,
 and temporary overlays such as bandages.
@@ -227,7 +233,8 @@ portrait fits newgens and unlicensed real players.
 
 1. Define the `PortraitRecipe` schema and deterministic recipe builder in the UI
    layer or a shared presentation package.
-2. Add placeholder vector or pixel-layer assets for the MVP art kit.
+2. Add the first hard-edged pixel renderer while retaining the original SVG
+   renderer as a fallback adapter.
 3. Render recipes to stacked image layers in the player list/profile screens.
 4. Add snapshot tests proving a fixed player ID produces a stable recipe.
 5. Add a small debug gallery that shows hundreds of seeded portraits at once to
@@ -237,8 +244,9 @@ portrait fits newgens and unlicensed real players.
 
 ## Open decisions
 
-- Final canvas size: 64×64 is cheaper and more abstract; 96×96 gives more room
-  for personality but requires cleaner art.
+- Final canvas size is now 96×96; the remaining question is how much of the
+  renderer should eventually move from integer-aligned SVG geometry to authored
+  PNG layer sheets.
 - Asset format: pixel PNG layers are fastest for a pixel style; SVG layers are
   easier to recolor and scale but may look less like pixel art unless carefully
   constrained.

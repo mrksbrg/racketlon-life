@@ -287,10 +287,10 @@
 
   .avatar {
     position: relative;
-    width: 68px;
-    height: 68px;
+    width: 96px;
+    height: 96px;
     flex-shrink: 0;
-    border-radius: 13px;
+    border-radius: 15px;
     overflow: visible;
     background: var(--card-2);
     border: 1px solid var(--border);
@@ -301,7 +301,7 @@
     position: absolute;
     bottom: -2px;
     right: -2px;
-    font-size: 18px;
+    font-size: 21px;
     line-height: 1;
     background: var(--card);
     border-radius: 50%;

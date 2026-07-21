@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   defaultPortraitProvider,
   generatePortraitRecipe,
+  renderPortraitPixelSvg,
   renderPortraitSvg,
   shirtColorsFor,
 } from "../src/index.js";
@@ -43,8 +44,12 @@ describe("SVG portrait renderer", () => {
     expect(svg).not.toContain("<team>");
   });
 
-  it("is available through the default replaceable provider", () => {
-    expect(defaultPortraitProvider.render?.(recipe)).toBe(renderPortraitSvg(recipe));
+  it("uses the pixel renderer through the default replaceable provider", () => {
+    const rendered = defaultPortraitProvider.render?.(recipe);
+    expect(rendered).toBe(renderPortraitPixelSvg(recipe));
+    expect(rendered).toContain('shape-rendering="crispEdges"');
+    expect(rendered).not.toContain("<ellipse");
+    expect(rendered).not.toMatch(/\sd="[^"]*[QC]/);
   });
 
   it("falls back deterministically for an unmapped country", () => {

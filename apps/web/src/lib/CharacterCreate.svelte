@@ -210,9 +210,9 @@
   }
 
   .avatar {
-    width: 52px;
-    height: 52px;
-    border-radius: 11px;
+    width: 96px;
+    height: 96px;
+    border-radius: 15px;
     overflow: hidden;
     flex: 0 0 auto;
     background: var(--card-2);
@@ -220,6 +220,7 @@
   }
 
   .who {
+    flex: 1;
     min-width: 0;
   }
 
@@ -270,6 +271,21 @@
     font-size: 12px;
     color: var(--muted);
     margin-top: 2px;
+  }
+
+  @media (max-width: 380px) {
+    .avatar {
+      width: 80px;
+      height: 80px;
+    }
+
+    .name-input {
+      width: 4.5em;
+    }
+
+    .name-input.first {
+      width: 3.8em;
+    }
   }
 
   .controls {

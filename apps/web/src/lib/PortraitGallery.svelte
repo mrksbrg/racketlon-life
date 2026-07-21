@@ -70,7 +70,7 @@
 
 <main class="portrait-gallery">
   <header>
-    <p class="eyebrow">@racketlon/portraits · recipe v1 · SVG renderer</p>
+    <p class="eyebrow">@racketlon/portraits · recipe v1 · 96×96 pixel renderer</p>
     <h1>Procedural portrait gallery</h1>
     <p class="intro">
       These faces are rendered live from deterministic recipes. Reloading the page produces the same portraits.
