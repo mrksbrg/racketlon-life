@@ -74,6 +74,11 @@ export interface PixelAnatomySprite {
   ears: PixelLayer;
 }
 
+export interface PixelAccessorySprite {
+  behindHair: PixelLayer;
+  front: PixelLayer;
+}
+
 export interface PixelFaceArtKit {
   version: number;
   canvas: { width: number; height: number };
@@ -85,7 +90,7 @@ export interface PixelFaceArtKit {
   facialHair: Readonly<Record<string, PixelLayer>>;
   brows: Readonly<Record<string, PixelLayer>>;
   ageDetails: Readonly<Record<string, PixelLayer>>;
-  accessories: Readonly<Record<string, PixelLayer>>;
+  accessories: Readonly<Record<string, PixelAccessorySprite>>;
   anatomy: PixelAnatomySprite;
   shirts: Readonly<Record<string, PixelLayer>>;
 }

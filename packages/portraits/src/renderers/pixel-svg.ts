@@ -1,7 +1,7 @@
 import type { PortraitRecipe, PortraitRenderer } from "../contracts.js";
 import type { PixelInk, PixelLayer } from "../art-kits/contracts.js";
 import {
-  accessoryLayerFor,
+  accessorySpriteFor,
   ageDetailLayerFor,
   anatomySpriteForPortrait,
   browLayerFor,
@@ -25,14 +25,14 @@ interface HairColors { base: string; light: string; shadow: string }
 type Point = readonly [number, number];
 
 const SKINS: Record<string, SkinColors> = {
-  "skin-01": { base: "#f3c69e", shadow: "#c77a50", highlight: "#ffd9b9", line: "#4a2b22" },
-  "skin-02": { base: "#eab17d", shadow: "#b96540", highlight: "#f8c99e", line: "#49271f" },
-  "skin-03": { base: "#d79765", shadow: "#9e5336", highlight: "#ebb280", line: "#43241d" },
-  "skin-04": { base: "#bd7c50", shadow: "#81432e", highlight: "#d99a68", line: "#382019" },
-  "skin-05": { base: "#9f603e", shadow: "#663623", highlight: "#bc7b54", line: "#2f1b16" },
-  "skin-06": { base: "#7d4932", shadow: "#4d2b20", highlight: "#9c6547", line: "#271713" },
-  "skin-07": { base: "#603a2b", shadow: "#39251c", highlight: "#7d513c", line: "#1e1411" },
-  "skin-08": { base: "#472c23", shadow: "#281b17", highlight: "#654337", line: "#18110f" },
+  "skin-01": { base: "#f1c59e", shadow: "#c67b53", highlight: "#ffdfc0", line: "#4a2921" },
+  "skin-02": { base: "#e8ad7b", shadow: "#b96442", highlight: "#f8cca2", line: "#47261f" },
+  "skin-03": { base: "#d49363", shadow: "#9b5137", highlight: "#ecb383", line: "#40231d" },
+  "skin-04": { base: "#ba794f", shadow: "#81442f", highlight: "#d99a6b", line: "#351f1a" },
+  "skin-05": { base: "#9d603f", shadow: "#6b3a29", highlight: "#c17e59", line: "#2d1b16" },
+  "skin-06": { base: "#81503a", shadow: "#593329", highlight: "#aa7356", line: "#241713" },
+  "skin-07": { base: "#684131", shadow: "#482d24", highlight: "#915f49", line: "#1e1512" },
+  "skin-08": { base: "#503229", shadow: "#38251f", highlight: "#795144", line: "#170f0d" },
 };
 
 const HAIR: Record<string, HairColors> = {
@@ -179,6 +179,7 @@ export function renderPortraitPixelSvg(recipe: PortraitRecipe, options: PixelSvg
   const authoredHead = headSpriteFor(recipe.head);
   const authoredHair = hairSpriteFor(recipe.hair);
   const authoredAnatomy = anatomySpriteForPortrait();
+  const authoredAccessory = accessorySpriteFor(recipe.accessory);
   const inks = artInkColors(recipe, skin, hair);
   const hairOffset = recipe.offsets.hair ?? { x: 0, y: 0 };
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" shape-rendering="crispEdges" ${accessibility}>${title}`
@@ -189,12 +190,13 @@ export function renderPortraitPixelSvg(recipe: PortraitRecipe, options: PixelSvg
     + renderAuthoredLayer(authoredAnatomy.ears, inks)
     + polygon(headPoints(recipe.head), skin.base, skin.line, 2)
     + renderAuthoredLayer(authoredHead.lighting, inks)
+    + renderAuthoredLayer(authoredAccessory.behindHair, inks)
     + renderAuthoredLayer(authoredHair.front, inks, hairOffset)
     + renderAuthoredLayer(facialHairLayerFor(recipe.facialHair), inks)
     + renderAuthoredLayer(browLayerFor(recipe.brows), inks, recipe.offsets.brows ?? { x: 0, y: 0 })
     + eyes(recipe, skin, hair) + nose(recipe, skin, hair) + mouth(recipe, skin, hair)
     + (recipe.ageMarks ?? []).map((mark) => renderAuthoredLayer(ageDetailLayerFor(mark), inks)).join("")
-    + renderAuthoredLayer(accessoryLayerFor(recipe.accessory), inks) + `</svg>`;
+    + renderAuthoredLayer(authoredAccessory.front, inks) + `</svg>`;
 }
 
 export const pixelSvgPortraitRenderer: PortraitRenderer<string> = Object.freeze({

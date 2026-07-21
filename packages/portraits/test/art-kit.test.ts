@@ -70,7 +70,6 @@ describe("version 1 authored pixel face kit", () => {
       PIXEL_FACE_ART_KIT_V1.facialHair,
       PIXEL_FACE_ART_KIT_V1.brows,
       PIXEL_FACE_ART_KIT_V1.ageDetails,
-      PIXEL_FACE_ART_KIT_V1.accessories,
       PIXEL_FACE_ART_KIT_V1.shirts,
     ]) {
       for (const feature of Object.values(featureSet)) expectLayerInsideCanvas(feature);
@@ -78,6 +77,10 @@ describe("version 1 authored pixel face kit", () => {
     for (const hairstyle of Object.values(PIXEL_FACE_ART_KIT_V1.hair)) {
       expectLayerInsideCanvas(hairstyle.back);
       expectLayerInsideCanvas(hairstyle.front);
+    }
+    for (const accessory of Object.values(PIXEL_FACE_ART_KIT_V1.accessories)) {
+      expectLayerInsideCanvas(accessory.behindHair);
+      expectLayerInsideCanvas(accessory.front);
     }
     expectLayerInsideCanvas(PIXEL_FACE_ART_KIT_V1.anatomy.neck);
     expectLayerInsideCanvas(PIXEL_FACE_ART_KIT_V1.anatomy.ears);
