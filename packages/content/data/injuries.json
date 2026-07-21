@@ -1,0 +1,83 @@
+{
+  "ankle-sprain": {
+    "id": "ankle-sprain",
+    "label": "Ankle sprain",
+    "bodyPart": "ankle",
+    "kind": "injury",
+    "sportWeights": { "sq": 3, "bd": 3, "tn": 1.5, "tt": 0.3, "gym": 0.3 }
+  },
+  "knee-twist": {
+    "id": "knee-twist",
+    "label": "Knee twist",
+    "bodyPart": "knee",
+    "kind": "injury",
+    "sportWeights": { "sq": 2.5, "bd": 2.5, "tn": 1.5, "tt": 0.3, "gym": 0.5 }
+  },
+  "hamstring-strain": {
+    "id": "hamstring-strain",
+    "label": "Hamstring strain",
+    "bodyPart": "hamstring",
+    "kind": "injury",
+    "sportWeights": { "sq": 2, "bd": 2, "tn": 2, "tt": 0.3, "gym": 1 }
+  },
+  "calf-strain": {
+    "id": "calf-strain",
+    "label": "Calf strain",
+    "bodyPart": "calf",
+    "kind": "injury",
+    "sportWeights": { "sq": 2, "bd": 2, "tn": 1.5, "tt": 0.3, "gym": 0.5 }
+  },
+  "groin-strain": {
+    "id": "groin-strain",
+    "label": "Groin strain",
+    "bodyPart": "groin",
+    "kind": "injury",
+    "sportWeights": { "sq": 1.5, "bd": 1.5, "tn": 1, "tt": 0.3, "gym": 0.5 }
+  },
+  "back-spasm": {
+    "id": "back-spasm",
+    "label": "Back spasm",
+    "bodyPart": "back",
+    "kind": "injury",
+    "sportWeights": { "sq": 1, "bd": 1, "tn": 1, "tt": 0.5, "gym": 2.5 }
+  },
+  "shoulder-impingement": {
+    "id": "shoulder-impingement",
+    "label": "Shoulder impingement",
+    "bodyPart": "shoulder",
+    "kind": "injury",
+    "sportWeights": { "sq": 0.5, "bd": 2, "tn": 2, "tt": 1.5, "gym": 1.5 }
+  },
+  "wrist-tendinitis": {
+    "id": "wrist-tendinitis",
+    "label": "Wrist tendinitis",
+    "bodyPart": "wrist",
+    "kind": "injury",
+    "sportWeights": { "sq": 0.3, "bd": 1, "tn": 1, "tt": 2.5, "gym": 0.3 }
+  },
+  "elbow-strain": {
+    "id": "elbow-strain",
+    "label": "Elbow strain",
+    "bodyPart": "elbow",
+    "kind": "injury",
+    "sportWeights": { "sq": 0.3, "bd": 1, "tn": 2, "tt": 2, "gym": 0.5 }
+  },
+  "achilles-rupture": {
+    "id": "achilles-rupture",
+    "label": "Achilles rupture",
+    "bodyPart": "achilles",
+    "kind": "injury",
+    "sportWeights": { "sq": 2, "bd": 2, "tn": 1, "tt": 0.1, "gym": 0.2 },
+    "severityWeights": [0, 0, 1],
+    "rare": true
+  },
+  "stress-fracture": {
+    "id": "stress-fracture",
+    "label": "Stress fracture",
+    "bodyPart": "shin",
+    "kind": "injury",
+    "sportWeights": { "sq": 1.5, "bd": 1.5, "tn": 1, "tt": 0.1, "gym": 0.3 },
+    "severityWeights": [0, 1, 2],
+    "rare": true
+  }
+}

@@ -84,6 +84,17 @@ function registerAndAdvanceTo(game: Game, weekIndex: number, plan = WORK_PLAN): 
   advanceUntil(game, () => game.weekIndex === weekIndex, plan);
 }
 
+/** Force-clears any injury/illness the human happened to pick up along the
+ * way (the independent weekly illness roll, systems/injury.ts, can strike
+ * even on a plain work-and-rest plan) — for tests whose concern is purely
+ * bracket/placement logic, not health state, and that would otherwise throw
+ * on `enterTournament()` for an unrelated reason on rare seeds. */
+function clearHumanInjury(game: Game): Game {
+  const save = game.serialize();
+  save.state.players.find((p) => p.identity.id === "you")!.condition.injury = null;
+  return Game.fromSave(save, testContent);
+}
+
 /** Plays a whole tournament using AI tactics for the human's own matches too,
  * then submits the week. Returns the final bracket result and week summary. */
 function playTournamentToWeekEnd(game: Game, plan = WORK_PLAN) {
@@ -770,8 +781,9 @@ describe("monrad placement bracket", () => {
     let sawWon = false;
     let sawEliminated = false;
     for (let i = 0; i < 20; i++) {
-      const game = Game.newGame({ content: testContent, seed: `monrad-invariant-${i}`, character: STRONG_DRAFT });
+      let game = Game.newGame({ content: testContent, seed: `monrad-invariant-${i}`, character: STRONG_DRAFT });
       registerAndAdvanceTo(game, 3);
+      game = clearHumanInjury(game);
       const match = game.enterTournament();
       simulateMatchAuto(match);
       const result = playOutFrom(game, match);
@@ -1915,5 +1927,116 @@ describe("Game.seasonTournaments", () => {
     const weeks = season.map((e) => e.weekIndex);
     expect(weeks).toEqual([...weeks].sort((a, b) => a - b));
     for (const e of season) expect(e.weekLabel).toBeTruthy();
+  });
+});
+
+/**
+ * Every scenario here uses `startSiblingSession` (no human entrant at all —
+ * `humanId: NO_HUMAN_ID`), so every walkover exercised is inherently a
+ * pure NPC-vs-NPC one: the same `resolveRound` code path the human's own
+ * matches go through, with no separate "NPC path" to test.
+ */
+describe("match-time injury walkovers", () => {
+  const defA = testContent.tournaments["monthly-open-1-a-m"]!; // fieldSize 8, 3 rounds
+
+  function forcedInjury(startWeek = 0) {
+    return {
+      catalogId: "ankle-sprain",
+      kind: "injury" as const,
+      cause: "sq" as const,
+      severity: 2,
+      weeksRemaining: 3,
+      startWeek,
+    };
+  }
+
+  it("a pre-existing injury resolves the pairing as an immediate walkover, no match simulated", () => {
+    const game = Game.newGame({ content: testContent, seed: "walkover-preexisting" });
+    const state = game.serialize().state;
+    // reconnaissance pass: find who the bracket seeds to position 0, without
+    // mutating `state.players` (AI-vs-AI resolution only ever touches
+    // `session.resultsBook`/`entrantEnergyCarry`, never player objects, until
+    // `recordEntrantResults` at conclusion — safe to reuse `state` below)
+    const probe = startSiblingSession(state, defA, 3, testContent);
+    const targetId = probe.bracketBySeed[0]!;
+
+    getPlayer(state, targetId).condition.injury = forcedInjury();
+    const session = startSiblingSession(state, defA, 3, testContent);
+    const round0 = drawRounds(state, session)[0]!;
+    const matchup = round0.sections.flatMap((s) => s.matchups).find((m) => m.a.id === targetId || m.b.id === targetId)!;
+
+    expect(matchup.walkover).toBe(true);
+    expect(matchup.winnerId).not.toBe(targetId);
+    // no points simulated at all — a genuine walkover, not a cut-short match
+    expect(matchup.sets?.every((s) => s.a === 0 && s.b === 0)).toBe(true);
+  });
+
+  it("cascades to a later round, not just the round the withdrawal happened in", () => {
+    const game = Game.newGame({ content: testContent, seed: "walkover-cascade" });
+    const state = game.serialize().state;
+    const log: EventLog = [];
+    const session = startSiblingSession(state, defA, 3, testContent);
+
+    // mark round 0's first winner injured (as if it happened via a training
+    // week between rounds) before round 1 is resolved
+    const winnerId = session.roundPairs![0]![0]!.winner!;
+    getPlayer(state, winnerId).condition.injury = forcedInjury();
+
+    advanceSiblingSession(state, session, log); // builds + resolves round 1
+    const round1 = drawRounds(state, session)[1]!;
+    const matchup = round1.sections.flatMap((s) => s.matchups).find((m) => m.a.id === winnerId || m.b.id === winnerId);
+
+    expect(matchup).toBeDefined();
+    expect(matchup!.walkover).toBe(true);
+    expect(matchup!.winnerId).not.toBe(winnerId);
+  });
+
+  it("both sides withdrawn resolves deterministically, no crash and a real winner", () => {
+    const game = Game.newGame({ content: testContent, seed: "walkover-both-out" });
+    const state = game.serialize().state;
+    const log: EventLog = [];
+    const session = startSiblingSession(state, defA, 3, testContent);
+
+    // round 0's first two pairs' winners face each other in round 1 (see
+    // buildNextGroups: winners keep the same relative order as their round-0
+    // pairs) — mark both injured before that pairing is resolved
+    const winnerA = session.roundPairs![0]![0]!.winner!;
+    const winnerB = session.roundPairs![0]![1]!.winner!;
+    getPlayer(state, winnerA).condition.injury = forcedInjury();
+    getPlayer(state, winnerB).condition.injury = forcedInjury();
+
+    advanceSiblingSession(state, session, log);
+    const round1 = drawRounds(state, session)[1]!;
+    const matchup = round1.sections
+      .flatMap((s) => s.matchups)
+      .find((m) => (m.a.id === winnerA && m.b.id === winnerB) || (m.a.id === winnerB && m.b.id === winnerA));
+
+    expect(matchup).toBeDefined();
+    expect(matchup!.walkover).toBe(true);
+    expect(matchup!.winnerId).not.toBeNull();
+    expect([winnerA, winnerB]).toContain(matchup!.winnerId);
+  });
+
+  it("a walkover doesn't feed Glicko ratings but still earns placement and FIR points", () => {
+    const game = Game.newGame({ content: testContent, seed: "walkover-ratings" });
+    const state = game.serialize().state;
+    const log: EventLog = [];
+    const probe = startSiblingSession(state, defA, 3, testContent);
+    const targetId = probe.bracketBySeed[0]!;
+
+    getPlayer(state, targetId).condition.injury = forcedInjury();
+    const session = startSiblingSession(state, defA, 3, testContent);
+    const before = session.ratingsSnapshot.get(targetId)!;
+
+    finishSiblingSession(state, session, log);
+
+    const after = getPlayer(state, targetId).ratings;
+    // never played a real set (withdrawn from round 0 onward) — rating stays
+    // exactly at its entry snapshot, not just "close"
+    expect(after.tt.rating).toBe(before.tt.rating);
+    expect(after.sq.rating).toBe(before.sq.rating);
+    // still gets a real placement and FIR points despite never taking the court
+    expect(getPlayer(state, targetId).recentResults.length).toBeGreaterThan(0);
+    expect(getPlayer(state, targetId).pendingFirResults.length).toBeGreaterThan(0);
   });
 });

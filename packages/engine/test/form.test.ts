@@ -85,9 +85,9 @@ describe("per-sport form (training readiness)", () => {
 
   it("gives the well-in-form player a higher point-win probability at identical skill", () => {
     const skills = { tt: 500, bd: 500, sq: 500, tn: 500 };
-    const sharp = { id: "a", name: "a", skills, formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 }, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 25 };
-    const rusty = { id: "a", name: "a", skills, formBySport: { tt: 0, bd: 0, sq: 0, tn: 0 }, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 25 };
-    const opponent = { id: "b", name: "b", skills, formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 }, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 25 };
+    const sharp = { id: "a", name: "a", skills, formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 }, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 25, durability: 0.5, coreStrength: 0.5 };
+    const rusty = { id: "a", name: "a", skills, formBySport: { tt: 0, bd: 0, sq: 0, tn: 0 }, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 25, durability: 0.5, coreStrength: 0.5 };
+    const opponent = { id: "b", name: "b", skills, formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 }, fatigue: 0, endurance: 0.5, composure: 0.5, clutch: 0.5, age: 25, durability: 0.5, coreStrength: 0.5 };
 
     const mSharp = createMatch(sharp, opponent, "form-match-sharp");
     const mRusty = createMatch(rusty, opponent, "form-match-rusty");

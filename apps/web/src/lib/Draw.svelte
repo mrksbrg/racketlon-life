@@ -290,7 +290,9 @@
                       {#if m.b.seed}<span class="seed">{seedBadge(m.b.seed)}</span>{/if}
                       <span class="name">{m.b.name}</span>
                     </button>
-                    {#if scores}
+                    {#if !hidden && m.walkover}
+                      <p class="scores walkover">🤕 WO</p>
+                    {:else if scores}
                       <p class="scores">{scores}</p>
                     {:else if pending && yours}
                       <p class="your-match">● Your match</p>
@@ -572,6 +574,11 @@
     color: var(--muted);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.02em;
+  }
+
+  .scores.walkover {
+    font-weight: 700;
+    letter-spacing: 0.05em;
   }
 
   .your-match {

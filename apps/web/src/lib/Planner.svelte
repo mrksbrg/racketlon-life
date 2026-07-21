@@ -1,7 +1,7 @@
 <script lang="ts">
   import { defaultContent } from "@racketlon/content";
   import type { ActivityType } from "@racketlon/engine";
-  import { ACTIVITY_TYPES, DAYS, PERIODS, slotIndex } from "@racketlon/engine";
+  import { ACTIVITY_TYPES, DAYS, PERIODS, activityBlockedByInjury, slotIndex } from "@racketlon/engine";
   import ActivityPicker from "./ActivityPicker.svelte";
   import ComingUp from "./ComingUp.svelte";
   import ForecastBar from "./ForecastBar.svelte";
@@ -42,6 +42,16 @@
     // exclusive with holiday/vacation reasons.
     const blockedSport = store.weekModifier?.blockedSport;
     if (blockedSport) reasons[TRAIN_FOR[blockedSport]] = store.weekModifier!.headline;
+    // an active injury/illness stacks too — sport training is always
+    // blocked, gym never, cardio only for illness (see injury-gating.ts).
+    const injury = store.you?.injury;
+    if (injury) {
+      for (const type of ACTIVITY_TYPES) {
+        if (!reasons[type] && activityBlockedByInjury(type, injury.kind)) {
+          reasons[type] = `${injury.label} — can't train`;
+        }
+      }
+    }
     return reasons;
   });
 

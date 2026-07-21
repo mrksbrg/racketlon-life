@@ -24,6 +24,8 @@ function ref(id: string, endurance: number): MatchPlayerRef {
     composure: 0.5,
     clutch: 0.5,
     age: 25,
+    durability: 0.5,
+    coreStrength: 0.5,
   };
 }
 

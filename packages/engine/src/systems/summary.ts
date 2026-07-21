@@ -1,6 +1,8 @@
 import { weekLabel } from "../core/date.js";
 import { humanPlayer } from "../core/state.js";
 import { round1 } from "../core/util.js";
+import type { ContentBundle } from "../content.js";
+import type { ActivityType } from "../model/activity.js";
 import type { AttributeSummary, SportSummary } from "../model/summary.js";
 import type { TrainableAttribute } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
@@ -86,15 +88,21 @@ export const SummarySystem: GameSystem = {
         const prize = d.prizeMoney > 0 ? ` — ${eur(d.prizeMoney)}` : "";
         notes.push(`${place} at the ${d.name}${prize}.`);
       } else if (event.type === "injury.occurred") {
-        const d = event.data as { type: string; severity: number; weeksRemaining: number };
+        const d = event.data as { catalogId: string; kind: "injury" | "illness"; severity: number; weeksRemaining: number };
         const weeks = `${d.weeksRemaining} week${d.weeksRemaining === 1 ? "" : "s"}`;
-        notes.push(`Picked up a ${severityLabel(d.severity)} ${injuryLabel(d.type)} injury — ${weeks} out.`);
+        const label = injuryLabel(ctx.content, d.catalogId, d.kind);
+        if (d.kind === "illness") {
+          notes.push(`Came down with ${label.toLowerCase()} — ${weeks} out.`);
+        } else {
+          notes.push(`Picked up a ${severityLabel(d.severity)} ${label} injury — ${weeks} out.`);
+        }
       } else if (event.type === "injury.recovered") {
-        const d = event.data as { type: string };
-        notes.push(`Your ${injuryLabel(d.type)} injury has healed.`);
+        const d = event.data as { catalogId: string; kind: "injury" | "illness" };
+        notes.push(`Your ${injuryLabel(ctx.content, d.catalogId, d.kind).toLowerCase()} has healed.`);
       } else if (event.type === "injury.blocked") {
-        const d = event.data as { sport: Sport };
-        notes.push(`The ${SPORT_LABELS[d.sport]} injury kept you off the court — that training didn't count.`);
+        const d = event.data as { activity: ActivityType };
+        const label = ctx.content.activities[d.activity]?.label ?? d.activity;
+        notes.push(`Your condition kept you off ${label} this week — that session didn't count.`);
       } else if (event.type === "form.rusty") {
         const d = event.data as { sport: Sport };
         notes.push(`Your ${SPORT_LABELS[d.sport]} is getting rusty — it's been neglected.`);
@@ -179,8 +187,9 @@ export function ordinal(n: number): string {
   }
 }
 
-function injuryLabel(type: string): string {
-  return (SPORTS as readonly string[]).includes(type) ? SPORT_LABELS[type as Sport] : "overuse";
+function injuryLabel(content: ContentBundle, catalogId: string, kind: "injury" | "illness"): string {
+  const catalog = kind === "illness" ? content.illnesses : content.injuries;
+  return catalog[catalogId]?.label ?? "injury";
 }
 
 function severityLabel(severity: number): string {

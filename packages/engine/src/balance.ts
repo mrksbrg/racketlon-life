@@ -150,6 +150,29 @@ export const BALANCE = {
     durabilityHealBonus: 2,
   },
   /**
+   * Illness (cold/flu/stomach virus, content.illnesses) — a second, mostly
+   * training-load-independent affliction rolled alongside the weekly injury
+   * roll (systems/injury.ts). Unlike injury, it's not caused by overtraining
+   * — a small flat weekly chance, bumped a little by this week's travel
+   * (jet lag/exposure) and by high fatigue (a run-down immune system).
+   * First-pass values, easy to retune.
+   */
+  illness: {
+    baseWeeklyChance: 0.01,
+    /** extra chance per travel session this week */
+    perTravelSession: 0.01,
+    /** extra chance once fatigue crosses this, same idea as injuryRisk's
+     * fatigueDivisor but flatter — illness cares about "run down," not a
+     * finely graded load number */
+    highFatigueAt: 70,
+    highFatigueBonus: 0.01,
+    hardCeiling: 0.15,
+    /** duration in weeks, indexed by severity 1/2/3 — shorter than physical
+     * injuries; also durability-healed like injury, via the same
+     * durabilityHealBonus above. */
+    durationBySeverity: { 1: 1, 2: 2, 3: 3 },
+  },
+  /**
    * Age curve (docs/02 "Aging"): a continuous modifier applied every week,
    * not a single M4 event. See systems/age.ts for the shape — youth learns
    * fast, a "prime veteran" window in the late 20s/early 30s adds experience
@@ -227,6 +250,24 @@ export const BALANCE = {
      * decline never fully disappears even for the best-conditioned
      * veterans. See systems/aging.ts's fitnessDeclineMultiplier(). */
     fitnessDeclineMaxReduction: 0.5,
+  },
+  /**
+   * Match-time injury risk (docs' "risk when going all out" ask) — a second,
+   * independent-of-training injury roll, checked at every break (side
+   * change, set end, gummiarm) for the sport/tactic just played, over on top
+   * of the weekly training-load roll (BALANCE.injuryRisk). Mirrors
+   * `sorenessGainForMatch`'s inputs (age, coreStrength, durability) but
+   * scales primarily by `BALANCE.match.tacticEnergyMult` — the same ratios
+   * that make `allOut` the most energy-costly tactic make it the riskiest
+   * one here too, "money time" cutting both ways. First-pass values, tuned
+   * so most matches produce zero injuries and `allOut` in squash stands out
+   * as meaningfully riskier than `conserve`.
+   */
+  matchInjuryRisk: {
+    basePerBreak: 0.004,
+    durabilityProtection: 0.5,
+    coreStrengthProtection: 0.3,
+    maxPerBreak: 0.1,
   },
   /** Glicko-2 rating updates, batched once per tournament (one rating period). */
   ranking: {
@@ -593,6 +634,13 @@ export const BALANCE = {
     inviteLeadWeeks: 4,
     /** how many players the monthly ranking digest lists */
     rankingTopN: 10,
+    /** a top-10 player's injury only makes the news if they're out for
+     * MORE than this many weeks — a minor knock isn't newsworthy just
+     * because of who it happened to; keeps the inbox from spamming a
+     * headline every time a top player tweaks something for a week. Rare
+     * (severity-biased-long) injuries bypass this via their own trigger,
+     * unaffected by this threshold. */
+    injuryNewsMinWeeks: 4,
   },
   /**
    * Decision events (fun-plan P2): small, minor-choice inbox messages that

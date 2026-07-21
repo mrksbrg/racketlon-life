@@ -1,5 +1,4 @@
 import type { ActivityType, FatigueTell, FirStandingView, InjuryView, LuckTell, MentalTell, Sport, Tactic } from "@racketlon/engine";
-import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
 
 /** CSS variable per activity for slot chips and the picker. */
 export const ACTIVITY_COLORS: Record<ActivityType, string> = {
@@ -115,11 +114,11 @@ export function formatSignedMoney(eur: number): string {
   return eur > 0 ? `+${formatMoney(eur)}` : formatMoney(eur);
 }
 
-/** Short "🤕 Squash · 3w" style label for the persistent injury badge. */
+/** Short "🤕 Ankle sprain · 3w" style label for the persistent injury badge —
+ * 🤒 for an illness instead of a body-part injury. */
 export function formatInjury(injury: InjuryView): string {
-  const isSport = (SPORTS as readonly string[]).includes(injury.type);
-  const label = isSport ? SPORT_LABELS[injury.type as Sport] : "Overuse";
-  return `🤕 ${label} · ${injury.weeksRemaining}w`;
+  const icon = injury.kind === "illness" ? "🤒" : "🤕";
+  return `${icon} ${injury.label} · ${injury.weeksRemaining}w`;
 }
 
 /** "#12 · 1,879" for a field-list row — FIR rank first (the official

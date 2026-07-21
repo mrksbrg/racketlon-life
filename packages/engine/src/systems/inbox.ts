@@ -15,7 +15,7 @@ import { SPORTS, SPORT_LABELS } from "../model/sport.js";
 import type { GameSystem } from "./types.js";
 import { skillCeiling } from "./effects.js";
 import { combinedRating } from "./ranking.js";
-import { firWorldRanking } from "./ranking-points.js";
+import { firRacePointsTotal, firWorldRanking } from "./ranking-points.js";
 import { eliminationLabel } from "./summary.js";
 import { travelCost } from "./travel.js";
 import type { TournamentDef } from "../tournament/engine.js";
@@ -87,8 +87,74 @@ export function generateInboxMessages(
   addWorldTournamentResults(state, content, week, add);
   addRankingDigest(state, content, week, add);
   addPotentialClues(state, week, add);
+  addInjuryNews(state, content, week, weekEvents, add);
   if (rng) addDecisionEvent(state, week, weekEvents, rng, add);
   return out;
+}
+
+/**
+ * News about OTHER players' injuries/illnesses — the human's own already
+ * shows via the persistent StatusBar/ForecastBar/SeasonCalendar badges, so
+ * this deliberately excludes them to avoid duplicate noise. Scans this
+ * week's `injury.occurred` events (systems/injury.ts's weekly roll, and
+ * tournament/engine.ts's match-time retirement path) for two independent,
+ * OR'd triggers:
+ *  - the player is currently top-10 in the FIR World Ranking for their
+ *    gender — newsworthy regardless of severity;
+ *  - the catalog entry is flagged `rare` (Achilles rupture, stress
+ *    fracture — the "unlikely" severe injuries) AND the player has actually
+ *    scored on this calendar year's Race (`firRacePointsTotal > 0`) — a
+ *    clean, already-computed "active on tour this year" bar, rather than an
+ *    arbitrary new rank cutoff.
+ * At most one message per player per week (the two triggers are OR'd into a
+ * single `add`, not two separate calls).
+ */
+function addInjuryNews(
+  state: GameState,
+  content: ContentBundle,
+  week: number,
+  weekEvents: readonly GameEvent[],
+  add: (m: InboxMessage) => void,
+): void {
+  const humanId = state.career.playerId;
+  for (const e of weekEvents) {
+    if (e.type !== "injury.occurred" || !e.subject || e.subject === humanId) continue;
+    const player = state.players.find((p) => p.identity.id === e.subject);
+    if (!player) continue;
+    const d = e.data as { catalogId?: string; kind?: "injury" | "illness"; weeksRemaining?: number } | undefined;
+    if (!d?.catalogId || !d.kind) continue;
+
+    const top10 = firWorldRanking(state, player.identity.gender)
+      .slice(0, 10)
+      .find((r) => r.playerId === player.identity.id);
+    const weeks = d.weeksRemaining ?? 0;
+    // A minor knock on a top player isn't news just because of who it
+    // happened to — only worth a headline if they're out for a real stretch.
+    // Rare (severity-biased-long) injuries bypass this via their own trigger.
+    const top10Newsworthy = !!top10 && weeks > BALANCE.inbox.injuryNewsMinWeeks;
+    const def = d.kind === "illness" ? content.illnesses[d.catalogId] : content.injuries[d.catalogId];
+    const isRareAndActive = !!def?.rare && firRacePointsTotal(player.firResults, state.calendar) > 0;
+    if (!top10Newsworthy && !isRareAndActive) continue;
+
+    const label = def?.label.toLowerCase() ?? "injury";
+    const weeksNote = weeks > 0 ? `, expected back in about ${weeks} week${weeks === 1 ? "" : "s"}` : "";
+    const name = fullName(player);
+    add({
+      id: `injury:${week}:${player.identity.id}`,
+      week,
+      category: "injury",
+      from: "Tour News Desk",
+      subject:
+        isRareAndActive && def?.rare
+          ? `Shock news: ${name} suffers ${label}`
+          : `Injury update: ${name}`,
+      body: top10
+        ? `${name} (world #${top10.rank}) has been ruled out with a ${label}${weeksNote}.`
+        : `${name}, active on this year's Race, has been ruled out with a ${label}${weeksNote}.`,
+      read: false,
+      relatedPlayerId: player.identity.id,
+    });
+  }
 }
 
 /**

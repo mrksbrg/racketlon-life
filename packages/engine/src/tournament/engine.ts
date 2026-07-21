@@ -21,6 +21,7 @@ import {
 } from "../match/engine.js";
 import { divisionAssignments, divisionOf } from "../systems/division.js";
 import { enduranceRecoveryMult } from "../systems/effects.js";
+import { pickInjuryDef, pickMatchInjurySeverity, rollInjuryDuration } from "../systems/injury.js";
 import { firWorldRanking, rankingPointsFor } from "../systems/ranking-points.js";
 import type { RatingResultsBook } from "../systems/ranking.js";
 import { applyTournamentRatings, cloneRatings, combinedRating, recordMatchResults } from "../systems/ranking.js";
@@ -151,6 +152,12 @@ interface RoundPair {
   /** the four set scores (TT→BD→SQ→TN order), captured from the resolved
    * match — undefined only for the human's own pair until they've played it */
   sets?: { a: number; b: number }[];
+  /** true when this pairing was resolved as a walkover — either a fresh
+   * mid-match injury retirement, or one side already carrying a
+   * match-blocking injury/illness (from training, or an earlier round of
+   * this same tournament) before the match ever started. No competitive
+   * result to show; `winner` is still set, just not earned on court. */
+  walkover?: boolean;
 }
 
 /**
@@ -194,6 +201,18 @@ export interface TournamentSession {
   weekIndex: number;
   seed: string;
   humanId: string;
+  /** snapshotted at session start so internal helpers (retirement injury
+   * catalog picks) don't need `content` threaded through every call site —
+   * TournamentSession is ephemeral, never persisted, so this is safe. */
+  content: ContentBundle;
+  /** entrant ids who have withdrawn mid-tournament due to a match-time
+   * injury/illness retirement — every future pairing involving them
+   * auto-resolves as a walkover for the opponent (see `resolveRound`), no
+   * simulation, no re-rolled injury risk. Never removes them from
+   * `groups`/`bracketBySeed`; they still occupy their bracket slot and
+   * accrue a loss for placement/FIR purposes exactly like a normal
+   * elimination (see `recordEntrantResults`, unchanged). */
+  withdrawnEntrants: Set<string>;
   /** entrant ids in fixed bracket-position order, seeded once at entry */
   bracketBySeed: string[];
   /** each entrant's seed rank (1 = top-rated), computed once at entry from the
@@ -767,6 +786,49 @@ function carryEnergy(leftover: number, endurance: number): number {
  * — there, the human branch below simply never fires and `pendingMatch`
  * stays whatever it already was.
  */
+/** True if `player` can't take the court this pairing — already withdrawn
+ * from this tournament (an earlier retirement), or carrying a match-blocking
+ * injury/illness from training or an even earlier week. Checked before every
+ * pairing is resolved so a walkover cascades through every remaining round,
+ * not just the one it first happened in. */
+function isUnavailable(session: TournamentSession, player: Player): boolean {
+  return session.withdrawnEntrants.has(player.identity.id) || player.condition.injury !== null;
+}
+
+/**
+ * Turns a fresh match-time retirement into a real `Injury` on the retired
+ * player — a no-op if they're already carrying one (a pre-existing-injury
+ * walkover, not a new retirement: `sport` is null in that case too, since
+ * `rollMatchInjuryRiskAtBreak` never ran). Weighted-picks the catalog entry
+ * by the sport just played, the same way the weekly training-load roll
+ * picks by the week's dominant sport (see systems/injury.ts's
+ * `pickInjuryDef`) — deterministic off the match's own seed, so a replay
+ * produces the same injury.
+ */
+function applyMatchRetirementInjury(
+  state: GameState,
+  session: TournamentSession,
+  playerId: string,
+  sport: Sport | null,
+  matchSeed: string,
+): void {
+  const player = getPlayer(state, playerId);
+  if (player.condition.injury !== null || sport === null) return;
+  const rng = new Rng(childSeed(matchSeed, "injuryPick"));
+  const def = pickInjuryDef(session.content, rng, sport);
+  if (!def) return; // content gap: no injuries defined
+  const severity = pickMatchInjurySeverity(rng, def);
+  const weeksRemaining = rollInjuryDuration(rng, severity);
+  player.condition.injury = {
+    catalogId: def.id,
+    kind: "injury",
+    cause: sport,
+    severity,
+    weeksRemaining,
+    startWeek: session.weekIndex,
+  };
+}
+
 function resolveRound(state: GameState, session: TournamentSession): void {
   const round = session.currentRound;
   const ref = (player: Player) =>
@@ -788,6 +850,15 @@ function resolveRound(state: GameState, session: TournamentSession): void {
         const m = createMatch(ref(human), ref(opponent), seed);
         m.energy.a = session.humanEnergyCarry;
         m.energy.b = session.entrantEnergyCarry.get(opponent.identity.id) ?? 100;
+        // the human's own entry is blocked while injured (see facade.ts's
+        // enterTournament), so only the opponent needs checking here — an
+        // opponent who withdrew earlier this same tournament, or who
+        // carries an injury from training/an earlier week.
+        if (isUnavailable(session, opponent)) {
+          m.phase = "finished";
+          m.retiredSide = "b";
+          m.winner = "a";
+        }
         session.pendingMatch = m;
         session.pendingGroupIndex = groupIndex;
         session.pendingPairIndexInGroup = pairIndexInGroup;
@@ -798,7 +869,25 @@ function resolveRound(state: GameState, session: TournamentSession): void {
       const m = createMatch(ref(pa), ref(pb), seed);
       m.energy.a = session.entrantEnergyCarry.get(a) ?? 100;
       m.energy.b = session.entrantEnergyCarry.get(b) ?? 100;
-      simulateMatchAuto(m);
+      if (isUnavailable(session, pa)) {
+        m.phase = "finished";
+        m.retiredSide = "a";
+        m.winner = "b";
+      } else if (isUnavailable(session, pb)) {
+        m.phase = "finished";
+        m.retiredSide = "b";
+        m.winner = "a";
+      }
+      simulateMatchAuto(m); // a no-op if already pre-finished above
+      if (m.retiredSide) {
+        const retiredId = m.retiredSide === "a" ? a : b;
+        const winnerId = m.retiredSide === "a" ? b : a;
+        applyMatchRetirementInjury(state, session, retiredId, m.retiredSport, seed);
+        session.withdrawnEntrants.add(retiredId);
+        session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.endurance));
+        session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.endurance));
+        return { a, b, winner: winnerId, sets: m.sets.map((s) => ({ a: s.a, b: s.b })), walkover: true };
+      }
       recordMatchResults(session.resultsBook, m);
       session.entrantEnergyCarry.set(a, carryEnergy(m.energy.a, pa.attributes.endurance));
       session.entrantEnergyCarry.set(b, carryEnergy(m.energy.b, pb.attributes.endurance));
@@ -1006,6 +1095,8 @@ export function startTournament(
     weekIndex: week,
     seed: rngSeed,
     humanId: state.career.playerId,
+    content,
+    withdrawnEntrants: new Set(),
     bracketBySeed,
     seedByPlayerId,
     currentRound: 0,
@@ -1070,6 +1161,8 @@ export function startSiblingSession(
     weekIndex,
     seed: rngSeed,
     humanId: NO_HUMAN_ID,
+    content,
+    withdrawnEntrants: new Set(),
     bracketBySeed,
     seedByPlayerId,
     currentRound: 0,
@@ -1258,7 +1351,11 @@ export function advanceTournament(
   const age = ageOn(state.calendar.mondayISO, human.identity.birthDate);
   human.condition.soreness = clamp(human.condition.soreness + sorenessGainForMatch(human, age, energySpent), 0, 100);
   human.condition.sorenessStartedWeek = session.weekIndex;
-  recordMatchResults(session.resultsBook, finishedMatch);
+  // A walkover (either side already unavailable, or a fresh mid-match
+  // retirement) isn't a competitive result — real sports exclude retirements
+  // from rating calculations, so skip feeding it into this tournament's
+  // Glicko-2 rating period.
+  if (finishedMatch.retiredSide === null) recordMatchResults(session.resultsBook, finishedMatch);
 
   // Every completed set is a scouting look at this specific opponent in this
   // specific sport — see model/sport.ts's `levelRangeWidthForFamiliarity`,
@@ -1267,6 +1364,13 @@ export function advanceTournament(
   // (`!done`) teaches nothing, so it doesn't count.
   const opponentId = finishedMatch.players.b.id;
   const opponent = getPlayer(state, opponentId);
+
+  if (finishedMatch.retiredSide !== null) {
+    const retiredId = finishedMatch.retiredSide === "a" ? session.humanId : opponentId;
+    applyMatchRetirementInjury(state, session, retiredId, finishedMatch.retiredSport, finishedMatch.seed);
+    session.withdrawnEntrants.add(retiredId);
+  }
+
   const h2h = (state.career.headToHeadSets[opponentId] ??= {});
   finishedMatch.sets.forEach((set, i) => {
     if (!set.done) return;
@@ -1330,11 +1434,13 @@ export function advanceTournament(
       // decisive per-sport result (see facade.ts's `records`).
       sets: finishedMatch.sets.map((s) => ({ a: s.a, b: s.b, done: s.done })),
       gummiarm: finishedMatch.gummiarm,
+      walkover: finishedMatch.retiredSide !== null,
     },
   });
 
   const pair = session.roundPairs![session.pendingGroupIndex!]![session.pendingPairIndexInGroup!]!;
   pair.winner = humanWon ? session.humanId : finishedMatch.players.b.id;
+  pair.walkover = finishedMatch.retiredSide !== null;
   // The human always plays as match side "a", but `pair` keeps its players in
   // bracket order — so flip the set scores into pair.a/pair.b orientation when
   // the human is actually the second-listed bracket participant.
@@ -1396,6 +1502,10 @@ export interface DrawMatchup {
   /** the four set scores (TT→BD→SQ→TN order) — undefined for the human's own
    * match until they've played it */
   sets?: { a: number; b: number }[];
+  /** true when this pairing was a walkover — a match-blocking injury/illness
+   * ended it early or meant it was never really contested — see
+   * `RoundPair.walkover` */
+  walkover?: boolean;
 }
 
 /**
@@ -1512,6 +1622,7 @@ export function drawRounds(state: GameState, session: TournamentSession): DrawRo
           isYouA: p.a === session.humanId,
           isYouB: p.b === session.humanId,
           sets: p.sets,
+          walkover: p.walkover,
         })),
       });
     });

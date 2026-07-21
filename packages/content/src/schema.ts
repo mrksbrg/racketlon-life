@@ -33,6 +33,39 @@ export const activitiesSchema = z.object({
   travel: activitySchema,
 });
 
+/** Optional [severity1, severity2, severity3] weight override — lets a
+ * dramatic catalog entry (e.g. an Achilles rupture) stay rare-but-plausible
+ * instead of "guaranteed severity 3 whenever a brutal week rolls severity 3." */
+const severityWeightsSchema = z.tuple([z.number().min(0), z.number().min(0), z.number().min(0)]);
+
+const injurySchema = z.object({
+  id: z.string(),
+  label: z.string().min(1),
+  bodyPart: z.string().min(1),
+  kind: z.literal("injury"),
+  sportWeights: z.object({
+    tt: z.number().min(0).optional(),
+    bd: z.number().min(0).optional(),
+    sq: z.number().min(0).optional(),
+    tn: z.number().min(0).optional(),
+    gym: z.number().min(0).optional(),
+  }),
+  severityWeights: severityWeightsSchema.optional(),
+  rare: z.boolean().optional(),
+});
+
+export const injuriesSchema = z.record(z.string().min(1), injurySchema);
+
+const illnessSchema = z.object({
+  id: z.string(),
+  label: z.string().min(1),
+  kind: z.literal("illness"),
+  severityWeights: severityWeightsSchema.optional(),
+  rare: z.boolean().optional(),
+});
+
+export const illnessesSchema = z.record(z.string().min(1), illnessSchema);
+
 /** Gendered so generated NPCs get a name matching their rolled gender —
  * draws are gender-separated (see tournament/engine.ts), so a mismatch would
  * be visible in the field. */
