@@ -29,6 +29,10 @@
     { name: "W. Li", flag: "🇨🇳", country: "CN", age: 25, gender: "f" },
     { name: "O. Wilson", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿", country: "ENG", age: 27, gender: "m" },
     { name: "K. Nováková", flag: "🇨🇿", country: "CZ", age: 24, gender: "f" },
+    { name: "M. Hansen", flag: "🇩🇰", country: "DK", age: 58, gender: "m" },
+    { name: "G. Rossi", flag: "🇮🇹", country: "IT", age: 32, gender: "f" },
+    { name: "J. Kowalski", flag: "🇵🇱", country: "PL", age: 41, gender: "m" },
+    { name: "M. García", flag: "🇪🇸", country: "ES", age: 62, gender: "f" },
   ];
 
   function cardFor(person: GalleryPerson): PortraitCard {

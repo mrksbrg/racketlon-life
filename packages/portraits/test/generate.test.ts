@@ -24,7 +24,7 @@ describe("portrait recipe generation", () => {
       seed: "player-0042",
       head: "broad",
       skinPalette: "skin-02",
-      hair: "swept",
+      hair: "side-part",
       hairPalette: "grey",
       eyes: "soft",
       brows: "straight",
@@ -128,6 +128,24 @@ describe("portrait recipe generation", () => {
       expect(matureHair.has(recipe.hair ?? "")).toBe(false);
       expect(greyHair.has(recipe.hairPalette ?? "")).toBe(false);
     }
+  });
+
+  it("uses age- and gender-aware hairstyle pools while preserving manual overrides", () => {
+    const masculine = new Set(["crop", "side-part", "swept", "curly-short", "buzz", "shaggy"]);
+    const feminine = new Set(["crop", "side-part", "swept", "curly-short", "shaggy", "long-straight", "long-wavy", "ponytail", "bun"]);
+
+    for (let index = 0; index < 100; index++) {
+      const male = generatePortraitRecipe({ ...input, portraitSeed: `male-${index}`, ageYears: 25, gender: "m" });
+      const female = generatePortraitRecipe({ ...input, portraitSeed: `female-${index}`, ageYears: 25, gender: "f" });
+      expect(masculine.has(male.hair ?? "")).toBe(true);
+      expect(feminine.has(female.hair ?? "")).toBe(true);
+    }
+
+    expect(generatePortraitRecipe({
+      ...input,
+      gender: "m",
+      publicCues: { hair: "long-wavy" },
+    }).hair).toBe("long-wavy");
   });
 
   it("rejects unstable or invalid identity inputs", () => {

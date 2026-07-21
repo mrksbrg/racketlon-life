@@ -41,8 +41,14 @@ function normalizeAge(ageYears: number | undefined): number | undefined {
   return Math.floor(ageYears);
 }
 
-function hairFor(seed: string, ageYears: number | undefined): string {
-  const choices = ageYears !== undefined && ageYears >= 40 ? [...catalog.hair, ...catalog.matureHair] : catalog.hair;
+const MASCULINE_HAIR = ["crop", "side-part", "swept", "curly-short", "buzz", "shaggy"] as const;
+const FEMININE_HAIR = ["crop", "side-part", "swept", "curly-short", "shaggy", "long-straight", "long-wavy", "ponytail", "bun"] as const;
+
+function hairFor(seed: string, ageYears: number | undefined, gender: PortraitInput["gender"]): string {
+  const baseChoices = gender === "m" ? MASCULINE_HAIR : gender === "f" ? FEMININE_HAIR : catalog.hair;
+  const choices = ageYears !== undefined && ageYears >= 40 && gender !== "f"
+    ? [...baseChoices, ...catalog.matureHair]
+    : baseChoices;
   return pick(seed, "hair", choices);
 }
 
@@ -117,7 +123,7 @@ export function generatePortraitRecipe(input: PortraitInput): PortraitRecipe {
     seed,
     head: pick(seed, "head", catalog.heads),
     skinPalette: pick(seed, "skin-palette", catalog.skinPalettes),
-    hair: hairFor(seed, ageYears),
+    hair: hairFor(seed, ageYears, input.gender),
     hairPalette: hairPaletteFor(seed, ageYears),
     eyes: pick(seed, "eyes", catalog.eyes),
     brows: pick(seed, "brows", catalog.brows),
