@@ -32,19 +32,20 @@ fine to open-source, but they enter this repo only as **gitignored inputs** in
 
 ## Manually reviewing portrait cues
 
-Portrait corrections live in the committed `data/portrait-cues.json` sidecar,
-keyed by the exact stable `playerId` from `world-bundle.json`. They are not put
-in the scraper CSVs, so rebuilding ratings never overwrites your visual work.
-For example:
+Portrait corrections live in the committed `data/portrait-cues-men.json` and
+`data/portrait-cues-women.json` sidecars, keyed by the exact stable `playerId`
+from `world-bundle.json`. They are not put in the scraper CSVs, so rebuilding
+ratings never overwrites your visual work. For example, a women's entry is:
 
 ```json
 {
-  "name:aadirai-k-a:IND": {
+  "name:pauline-cave:FRA": {
     "skinPalette": "skin-03",
-    "hair": "long-straight",
-    "hairPalette": "black",
+    "hair": "ponytail",
+    "hairPalette": "dark-brown",
     "eyes": "focused",
-    "accessory": "square-glasses"
+    "facialHair": null,
+    "accessory": null
   }
 }
 ```
@@ -53,7 +54,8 @@ Every field is optional. Omitted fields keep their stable generated value. Use
 `"accessory": null` to guarantee no glasses/accessory and
 `"facialHair": null` to guarantee no facial hair. An empty `{}` cue entry is
 invalid. `npm run build:world` validates that every sidecar id still exists in
-the newly imported roster and fails instead of silently losing a correction.
+the newly imported roster, belongs to the file's gender, and occurs in only one
+file. It fails instead of silently losing or overwriting a correction.
 
 Version 1 understands these manual values:
 
@@ -69,7 +71,7 @@ Version 1 understands these manual values:
 - `facialHair`: `stubble`, `moustache`, `goatee`, `short-beard`, `full-beard`,
   `chin-beard`, `soul-patch`, or `null`
 
-The same file also accepts `brows`, `nose`, `mouth`, and `ageMarks` semantic
+Both files also accept `brows`, `nose`, `mouth`, and `ageMarks` semantic
 IDs from `@racketlon/portraits`' versioned catalog. Nationality supplies the
 shirt palette. Facial appearance is otherwise deterministic from `playerId`
 unless a reviewed cue explicitly changes it.

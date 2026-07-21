@@ -49,36 +49,42 @@ constrain eligible pools:
 - age influences grey hair, receding hair, wrinkles, and face softness;
 - gender can influence hair, brow, facial-hair, and head-shape pools without
   making the result rigid or stereotyped;
-- country can choose shirt or national accent colors, and softly weights the
-  skin-tone roll (see "Regional skin-tone weighting" below), but must never
-  mechanically determine any single facial feature;
+- country can choose shirt or national accent colors, and softly weights skin
+  tone, natural hair color, and eye shape (see "Regional appearance weighting"
+  below), but must never mechanically determine any single facial feature;
 - traits can influence expression, for example confident, tense, neutral, or
   cheerful;
 - injury state can add temporary overlays such as a plaster, tape, or bandage.
 
-## Regional skin-tone weighting
+## Regional appearance weighting
 
-Skin tone is chosen by the same per-seed deterministic roll as every other
-feature, but the roll is weighted by a coarse regional tier derived from
-`country` (`SKIN_REGION_BY_COUNTRY` in `generate.ts`) so the generated player
-pool feels plausible per country instead of uniform everywhere.
+Skin tone, natural hair color, and eye shape are chosen by the same per-seed
+deterministic rolls as every other feature, but the rolls are weighted by a
+coarse regional tier derived from `country` (`APPEARANCE_REGION_BY_COUNTRY` in
+`generate.ts`). Grey and salt-and-pepper hair remain age-driven. The weights
+model the known competitive racketlon pool rather than general population
+demographics.
+
+Recipe version 2 keeps version 1's random stream, so this weighting change only
+changes skin, natural hair color, and eyes; unrelated facial features do not
+randomly reshuffle for existing player seeds.
 
 Rules that keep this from becoming a stereotype generator instead of a
 plausibility nudge:
 
-- Every tier keeps a nonzero weight on all 8 catalog skin tones. No country
-  ever excludes a tone outright — a real country's player pool is always more
-  diverse than any coarse tier can capture, and hard exclusion would actively
-  misrepresent countries with real minority populations (e.g. Black European
-  citizens).
+- Every tier keeps a nonzero weight on every catalog option. Very rare outcomes
+  remain possible, while the European tiers make the darkest skin palettes
+  exceptional enough to match the observed sport-specific player pool.
 - The tiers are rough game-design buckets, not demographic data. They exist to
   avoid the pool looking randomly uniform across very different countries, not
   to encode precise population statistics.
 - A country missing from the map falls back to a uniform roll rather than
   guessing a tier.
-- If this weighting ever looks wrong for a specific country, adjust that
-  country's tier or weights directly — do not remove the "never zero" floor to
-  fix it.
+- Reviewed public cues always win over generated choices. If a known player
+  looks wrong, add a sparse manual cue instead of creating a one-player rule in
+  the generator.
+- If a whole country looks wrong, adjust its tier or the tier's three weight
+  tables directly; keep the nonzero floor so unusual outcomes remain possible.
 
 ## Art kit target
 
@@ -196,13 +202,15 @@ Recommended rules:
 
 ## Manual cue workflow
 
-Reviewed real-player corrections live in
-`packages/content/data/portrait-cues.json`, keyed by the stable imported
-`playerId`. Content loading validates the separate map, and the app passes a
+Reviewed real-player corrections live in the gender-specific sidecars
+`packages/content/data/portrait-cues-men.json` and
+`packages/content/data/portrait-cues-women.json`, keyed by the stable imported
+`playerId`. Content loading validates and merges both maps, and the app passes a
 matching sparse entry to the presentation adapter when it builds `PortraitInput`.
 The generated `world-bundle.json` never owns these cues, so `build:world` can
 replace ratings and roster data without overwriting them; the build instead
-fails if a cue points to an id that disappeared from the roster.
+fails if a cue points to an id that disappeared from the roster, appears in both
+files, or is stored in the wrong gender file.
 
 Omitting a field preserves its deterministic generated choice. Setting
 `accessory` or `facialHair` to `null` explicitly removes a generated optional

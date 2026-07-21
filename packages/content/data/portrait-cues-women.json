@@ -1,0 +1,154 @@
+{
+  "name:pauline-cave:FRA": {
+    "skinPalette": "skin-02",
+    "hair": "ponytail",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:anna-klara-ahlmer:SWE": {
+    "skinPalette": "skin-03",
+    "hair": "ponytail",
+    "hairPalette": "blonde",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:stine-jacobsen:DEN": {
+    "skinPalette": "skin-01",
+    "hair": "ponytail",
+    "hairPalette": "blonde",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": "headband"
+  },
+  "name:myriam-enmer:FRA": {
+    "skinPalette": "skin-02",
+    "hair": "bun",
+    "hairPalette": "brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:mollie-patterson:GBR": {
+    "skinPalette": "skin-01",
+    "hair": "ponytail",
+    "hairPalette": "blonde",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:kirsten-i-kaptein:NED": {
+    "skinPalette": "skin-02",
+    "hair": "ponytail",
+    "hairPalette": "dark-brown",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": "headband"
+  },
+  "name:holly-ranson:GBR": {
+    "skinPalette": "skin-02",
+    "hair": "ponytail",
+    "hairPalette": "auburn",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:adeline-kilchenmann:SUI": {
+    "skinPalette": "skin-02",
+    "hair": "curly-short",
+    "hairPalette": "black",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": "square-glasses"
+  },
+  "name:stephanie-chung:USA": {
+    "skinPalette": "skin-03",
+    "hair": "ponytail",
+    "hairPalette": "black",
+    "eyes": "narrow",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:sandra-ettenauer:AUT": {
+    "skinPalette": "skin-03",
+    "hair": "ponytail",
+    "hairPalette": "black",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:lucie-hlavacova:CZE": {
+    "skinPalette": "skin-01",
+    "hair": "ponytail",
+    "hairPalette": "blonde",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:amke-fischer:GER": {
+    "skinPalette": "skin-01",
+    "hair": "long-straight",
+    "hairPalette": "light-brown",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:nathalie-vogel:GER": {
+    "skinPalette": "skin-02",
+    "hair": "bun",
+    "hairPalette": "dark-brown",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:izzy-bramhall:GBR": {
+    "skinPalette": "skin-01",
+    "hair": "crop",
+    "hairPalette": "blonde",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:clarissa-steiner:AUT": {
+    "skinPalette": "skin-02",
+    "hair": "bun",
+    "hairPalette": "brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:dara-ladner:SUI": {
+    "skinPalette": "skin-01",
+    "hair": "ponytail",
+    "hairPalette": "brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:alina-reissenauer:GER": {
+    "skinPalette": "skin-01",
+    "hair": "ponytail",
+    "hairPalette": "auburn",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:titti-wigren:SWE": {
+    "skinPalette": "skin-01",
+    "hair": "crop",
+    "hairPalette": "blonde",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": "round-glasses"
+  },
+  "name:saga-frozkhan:SWE": {
+    "skinPalette": "skin-05",
+    "hair": "ponytail",
+    "hairPalette": "black",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": "headband"
+  }
+}

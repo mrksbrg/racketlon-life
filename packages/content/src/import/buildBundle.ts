@@ -1,7 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { validatePortraitCuePlayerIds } from "../portraitCues.js";
+import {
+  mergePortraitCueMaps,
+  validatePortraitCuePlayerGender,
+  validatePortraitCuePlayerIds,
+} from "../portraitCues.js";
 import { portraitCuesSchema } from "../schema.js";
 import { joinPlayers } from "./join.js";
 import { averageSkill, toBundlePlayer, type WorldBundlePlayer } from "./mapRatings.js";
@@ -24,7 +28,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const pkgRoot = resolve(here, "../..");
 const inputDir = resolve(pkgRoot, "import-data");
 const outFile = resolve(pkgRoot, "data/world-bundle.json");
-const portraitCuesFile = resolve(pkgRoot, "data/portrait-cues.json");
+const portraitCuesMenFile = resolve(pkgRoot, "data/portrait-cues-men.json");
+const portraitCuesWomenFile = resolve(pkgRoot, "data/portrait-cues-women.json");
 
 function readCsv(name: string): Record<string, string>[] {
   const path = resolve(inputDir, name);
@@ -89,8 +94,13 @@ function main(): void {
   // Manual presentation work lives outside the generated bundle, but a
   // rebuild must fail if an imported identity changed and left an orphaned
   // override behind.
-  const portraitCues = portraitCuesSchema.parse(JSON.parse(readFileSync(portraitCuesFile, "utf8")));
-  validatePortraitCuePlayerIds(portraitCues, roster);
+  const menPortraitCues = portraitCuesSchema.parse(JSON.parse(readFileSync(portraitCuesMenFile, "utf8")));
+  const womenPortraitCues = portraitCuesSchema.parse(JSON.parse(readFileSync(portraitCuesWomenFile, "utf8")));
+  validatePortraitCuePlayerIds(menPortraitCues, roster);
+  validatePortraitCuePlayerIds(womenPortraitCues, roster);
+  validatePortraitCuePlayerGender(menPortraitCues, roster, "m");
+  validatePortraitCuePlayerGender(womenPortraitCues, roster, "f");
+  const portraitCues = mergePortraitCueMaps(menPortraitCues, womenPortraitCues);
   const portraitCueCount = Object.keys(portraitCues).length;
   if (portraitCueCount > 0) console.log(`Validated portrait cues for ${portraitCueCount} players`);
 

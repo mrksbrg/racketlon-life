@@ -3,7 +3,8 @@ import activitiesJson from "../data/activities.json";
 import countriesJson from "../data/countries.json";
 import firOfficialsJson from "../data/fir-officials.json";
 import namesJson from "../data/names.json";
-import portraitCuesJson from "../data/portrait-cues.json";
+import portraitCuesMenJson from "../data/portrait-cues-men.json";
+import portraitCuesWomenJson from "../data/portrait-cues-women.json";
 import rankingMatrixJson from "../data/ranking-matrix.json";
 import tournamentsJson from "../data/tournaments.json";
 import traitsJson from "../data/traits.json";
@@ -19,13 +20,26 @@ import {
   traitsSchema,
   worldBundleSchema,
 } from "./schema.js";
-import { validatePortraitCuePlayerIds, type PortraitCueMap } from "./portraitCues.js";
+import {
+  mergePortraitCueMaps,
+  validatePortraitCuePlayerGender,
+  validatePortraitCuePlayerIds,
+  type PortraitCueMap,
+} from "./portraitCues.js";
 
 export const CONTENT_VERSION = "0.1.0";
 
 const parsedWorldPlayers = worldBundleSchema.parse(worldBundleJson).players as ContentBundle["players"];
-export const defaultPortraitCues: Readonly<PortraitCueMap> = portraitCuesSchema.parse(portraitCuesJson);
-validatePortraitCuePlayerIds(defaultPortraitCues, parsedWorldPlayers);
+const parsedMenPortraitCues = portraitCuesSchema.parse(portraitCuesMenJson);
+const parsedWomenPortraitCues = portraitCuesSchema.parse(portraitCuesWomenJson);
+validatePortraitCuePlayerIds(parsedMenPortraitCues, parsedWorldPlayers);
+validatePortraitCuePlayerIds(parsedWomenPortraitCues, parsedWorldPlayers);
+validatePortraitCuePlayerGender(parsedMenPortraitCues, parsedWorldPlayers, "m");
+validatePortraitCuePlayerGender(parsedWomenPortraitCues, parsedWorldPlayers, "f");
+export const defaultPortraitCues: Readonly<PortraitCueMap> = mergePortraitCueMaps(
+  parsedMenPortraitCues,
+  parsedWomenPortraitCues,
+);
 
 /** The default content bundle, validated once at module load. */
 export const defaultContent: ContentBundle = {

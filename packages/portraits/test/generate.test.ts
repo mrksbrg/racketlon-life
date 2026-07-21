@@ -17,10 +17,10 @@ const input = {
 };
 
 describe("portrait recipe generation", () => {
-  it("keeps the version 1 recipe stable for a fixed input", () => {
+  it("keeps the version 2 recipe stable for a fixed input", () => {
     expect(generatePortraitRecipe(input)).toEqual({
-      // This explicit golden recipe makes accidental version-1 changes fail.
-      version: 1,
+      // This explicit golden recipe makes accidental version-2 changes fail.
+      version: 2,
       seed: "player-0042",
       head: "broad",
       skinPalette: "skin-01",
@@ -61,15 +61,19 @@ describe("portrait recipe generation", () => {
       ...input,
       publicCues: {
         hair: "hand-tuned-hair",
+        hairPalette: "auburn",
+        eyes: "narrow",
         accessory: "round-glasses",
         offsets: { hair: { x: 2, y: -1 } },
       },
     });
 
     expect(recipe.hair).toBe("hand-tuned-hair");
+    expect(recipe.hairPalette).toBe("auburn");
+    expect(recipe.eyes).toBe("narrow");
     expect(recipe.accessory).toBe("round-glasses");
     expect(recipe.seed).toBe(input.portraitSeed);
-    expect(recipe.version).toBe(1);
+    expect(recipe.version).toBe(2);
     expect(recipe.offsets.hair).toEqual({ x: 2, y: -1 });
     expect(recipe.offsets.eyes).toBeDefined();
   });
@@ -105,45 +109,84 @@ describe("portrait recipe generation", () => {
     expect(generatePortraitRecipe(adapted).accessory).toBeUndefined();
   });
 
-  it("uses country only for the shirt accent and skin-tone weighting, never other facial features", () => {
+  it("uses country only for regional appearance weights and the shirt accent", () => {
     const swedish = generatePortraitRecipe(input);
     const german = generatePortraitRecipe({ ...input, country: "DE" });
-    const { shirtPalette: swedishPalette, skinPalette: swedishSkin, ...swedishIdentity } = swedish;
-    const { shirtPalette: germanPalette, skinPalette: germanSkin, ...germanIdentity } = german;
+    const {
+      shirtPalette: swedishPalette,
+      skinPalette: swedishSkin,
+      hairPalette: swedishHair,
+      eyes: swedishEyes,
+      ...swedishIdentity
+    } = swedish;
+    const {
+      shirtPalette: germanPalette,
+      skinPalette: germanSkin,
+      hairPalette: germanHair,
+      eyes: germanEyes,
+      ...germanIdentity
+    } = german;
 
     expect(swedishIdentity).toEqual(germanIdentity);
     expect(swedishPalette).not.toBe(germanPalette);
-    // Both are western-tier countries so a single sample may coincidentally
-    // land on the same bucket; the distribution test below covers weighting.
+    // A single deterministic roll may land on the same bucket in two tiers;
+    // the distribution tests below cover the regional weighting itself.
     void swedishSkin;
     void germanSkin;
+    void swedishHair;
+    void germanHair;
+    void swedishEyes;
+    void germanEyes;
   });
 
-  it("weights skin tone per region but never rules out any tone for any country", () => {
+  it("keeps the darkest European skin palettes exceptional, not commonplace", () => {
     const skinIndex = (skinPalette: string) => Number.parseInt(skinPalette.replace("skin-", ""), 10);
     const sampleSkinIndexes = (country: string, samples: number) =>
       Array.from({ length: samples }, (_, index) =>
         skinIndex(generatePortraitRecipe({ ...input, country, portraitSeed: `region-${country}-${index}` }).skinPalette),
       );
 
-    const samples = 4000;
+    const samples = 50_000;
     const nordic = sampleSkinIndexes("SE", samples);
     const southernAfrica = sampleSkinIndexes("ZA", samples);
     const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+    const share = (values: number[], predicate: (value: number) => boolean) =>
+      values.filter(predicate).length / values.length;
 
-    // Every catalog skin tone must still be reachable for both regions: the
-    // weighting must never harden into a categorical exclusion.
+    // All tones remain possible, including rare hand-correctable exceptions.
     expect(new Set(nordic).size).toBe(8);
     expect(new Set(southernAfrica).size).toBe(8);
 
-    // South Africa's tier is weighted toward darker tones on average, Sweden's
-    // toward lighter ones, but neither is a hard cutoff.
+    expect(share(nordic, (value) => value >= 7)).toBeLessThan(0.0005);
+    expect(share(nordic, (value) => value >= 6)).toBeLessThan(0.008);
     expect(mean(southernAfrica)).toBeGreaterThan(mean(nordic) + 2);
 
-    // An unmapped/undefined country falls back to a uniform roll rather than
-    // throwing or defaulting to a specific tier.
-    const unmapped = sampleSkinIndexes("XX", samples);
+    const unmapped = sampleSkinIndexes("XX", 4000);
     expect(new Set(unmapped).size).toBe(8);
+  });
+
+  it("weights natural hair colour and eye shape by region", () => {
+    const samples = 12_000;
+    const sampleRecipes = (country: string) =>
+      Array.from({ length: samples }, (_, index) => generatePortraitRecipe({
+        ...input,
+        country,
+        ageYears: 25,
+        portraitSeed: `appearance-${country}-${index}`,
+      }));
+    const share = <T>(values: T[], predicate: (value: T) => boolean) =>
+      values.filter(predicate).length / values.length;
+
+    const nordic = sampleRecipes("SE");
+    const eastAsian = sampleRecipes("JP");
+
+    expect(share(nordic, (recipe) => recipe.hairPalette === "blonde")).toBeGreaterThan(0.28);
+    expect(share(eastAsian, (recipe) => recipe.hairPalette === "black")).toBeGreaterThan(0.86);
+    expect(share(eastAsian, (recipe) => recipe.eyes === "narrow")).toBeGreaterThan(0.44);
+    expect(share(nordic, (recipe) => recipe.eyes === "narrow")).toBeLessThan(0.11);
+
+    expect(new Set(nordic.map((recipe) => recipe.hairPalette)).size).toBe(6);
+    expect(new Set(eastAsian.map((recipe) => recipe.eyes)).size).toBe(6);
   });
 
   it("keeps mature hair and grey palettes out of the young-player pool", () => {

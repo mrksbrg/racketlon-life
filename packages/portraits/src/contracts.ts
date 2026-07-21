@@ -66,9 +66,9 @@ export interface PortraitInput {
   ageYears?: number;
   gender?: "m" | "f";
   /**
-   * ISO country code. May only steer the shirt accent and, as a soft
-   * probability weighting only, the skin-tone roll — never a hard
-   * determination of any single facial feature. See "Regional skin-tone
+   * ISO country code. May steer the shirt accent and soft probability weights
+   * for skin tone, natural hair colour, and eye shape — never a hard
+   * determination of any single facial feature. See "Regional appearance
    * weighting" in docs/08-portrait-system.md.
    */
   country?: string;

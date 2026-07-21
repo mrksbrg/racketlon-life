@@ -1,0 +1,433 @@
+{
+  "name:leon-griffiths:GBR": {
+    "skinPalette": "skin-02",
+    "hair": "side-part",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": "stubble",
+    "accessory": null
+  },
+  "name:sylvain-ternon:FRA": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "dark-brown",
+    "eyes": "calm",
+    "facialHair": "stubble",
+    "accessory": null
+  },
+  "name:koen-hageraats:NED": {
+    "skinPalette": "skin-01",
+    "hair": "curly-short",
+    "hairPalette": "blonde",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:joerg-kanonenberg:GER": {
+    "skinPalette": "skin-01",
+    "hair": "side-part",
+    "hairPalette": "brown",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:nicolas-lenggenhager:SUI": {
+    "skinPalette": "skin-01",
+    "hair": "receding",
+    "hairPalette": "light-brown",
+    "eyes": "focused",
+    "facialHair": "stubble",
+    "accessory": null
+  },
+  "name:malte-thyregod:DEN": {
+    "skinPalette": "skin-01",
+    "hair": "long-wavy",
+    "hairPalette": "light-brown",
+    "eyes": "focused",
+    "facialHair": "moustache",
+    "accessory": null
+  },
+  "name:luke-griffiths:GBR": {
+    "skinPalette": "skin-01",
+    "hair": "curly-short",
+    "hairPalette": "light-brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": "headband"
+  },
+  "name:kresten-hougaard:DEN": {
+    "skinPalette": "skin-02",
+    "hair": "bald",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:bastian-bohm:GER": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": "headband"
+  },
+  "name:julien-castel:FRA": {
+    "skinPalette": "skin-02",
+    "hair": "crop",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:keith-lesser:GBR": {
+    "skinPalette": "skin-01",
+    "hair": "crop",
+    "hairPalette": "auburn",
+    "eyes": "calm",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:matej-volf:CZE": {
+    "skinPalette": "skin-02",
+    "hair": "crop",
+    "hairPalette": "blonde",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:mandrin-mouchet:FRA": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "brown",
+    "eyes": "bright",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:jonathan-cassier:FRA": {
+    "skinPalette": "skin-03",
+    "hair": "bald",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:cornelius-radermacher:GER": {
+    "skinPalette": "skin-02",
+    "hair": "long-wavy",
+    "hairPalette": "brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:leon-mamie:SUI": {
+    "skinPalette": "skin-02",
+    "hair": "curly-short",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:henrik-mustonen:FIN": {
+    "skinPalette": "skin-01",
+    "hair": "long-straight",
+    "hairPalette": "blonde",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": "headband"
+  },
+  "name:noah-mamie:SUI": {
+    "skinPalette": "skin-02",
+    "hair": "crop",
+    "hairPalette": "brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:leonhard-prager:AUT": {
+    "skinPalette": "skin-02",
+    "hair": "shaggy",
+    "hairPalette": "light-brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:jesper-ratzer:DEN": {
+    "skinPalette": "skin-01",
+    "hair": "receding",
+    "hairPalette": "light-brown",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:steven-wai-kit-cheng:HKG": {
+    "skinPalette": "skin-03",
+    "hair": "swept",
+    "hairPalette": "black",
+    "eyes": "narrow",
+    "facialHair": null,
+    "accessory": "square-glasses"
+  },
+  "name:rav-rykowski:POL": {
+    "skinPalette": "skin-01",
+    "hair": "crop",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:leigh-sands:AUS": {
+    "skinPalette": "skin-02",
+    "hairPalette": "dark-brown",
+    "eyes": "bright",
+    "facialHair": "full-beard",
+    "accessory": null
+  },
+  "name:jan-port:CZE": {
+    "skinPalette": "skin-03",
+    "hair": "crop",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": "stubble",
+    "accessory": null
+  },
+  "name:jamie-watkin-rees:GBR": {
+    "skinPalette": "skin-03",
+    "hair": "crop",
+    "hairPalette": "black",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:mohammed-tarik-koubaa:MAR": {
+    "skinPalette": "skin-04",
+    "hair": "receding",
+    "hairPalette": "black",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:piotr-ostaszyk:POL": {
+    "skinPalette": "skin-02",
+    "hair": "long-straight",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": "headband"
+  },
+  "name:jimmy-tay:SWE": {
+    "skinPalette": "skin-03",
+    "hair": "buzz",
+    "hairPalette": "black",
+    "eyes": "narrow",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:anders-latt:SWE": {
+    "hair": "bald",
+    "accessory": "square-glasses"
+  },
+  "name:anant-gupta:GBR": {
+    "skinPalette": "skin-05",
+    "hairPalette": "black",
+    "eyes": "focused",
+    "accessory": "square-glasses"
+  },
+  "name:jonas-grafeneder:AUT": {
+    "skinPalette": "skin-02",
+    "hair": "side-part",
+    "hairPalette": "dark-brown",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:grzegorz-lorkiewicz:POL": {
+    "skinPalette": "skin-01",
+    "hair": "bald",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:amir-lavasani:CAN": {
+    "skinPalette": "skin-04",
+    "hair": "curly-short",
+    "hairPalette": "black",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:duncan-stahl:GBR": {
+    "skinPalette": "skin-02",
+    "hair": "receding",
+    "hairPalette": "dark-brown",
+    "eyes": "calm",
+    "facialHair": "full-beard",
+    "accessory": null
+  },
+  "name:per-axel-giertz:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "receding",
+    "hairPalette": "brown",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:morten-jaksland:DEN": {
+    "skinPalette": "skin-01",
+    "hair": "crop",
+    "hairPalette": "dark-brown",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:graham-king:SUI": {
+    "skinPalette": "skin-01",
+    "hair": "bald",
+    "hairPalette": "grey",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": "square-glasses"
+  },
+  "name:rene-lindberg:SWE": {
+    "skinPalette": "skin-03",
+    "hair": "receding",
+    "hairPalette": "dark-brown",
+    "eyes": "bright",
+    "facialHair": "stubble",
+    "accessory": null
+  },
+  "name:mathias-fagerstrom:SWE": {
+    "skinPalette": "skin-03",
+    "hair": "receding",
+    "hairPalette": "brown",
+    "eyes": "bright",
+    "facialHair": "stubble",
+    "accessory": null
+  },
+  "name:magnus-eliasson:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "bald",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:jesper-hedlund:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "light-brown",
+    "eyes": "bright",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:ola-ulmo:NOR": {
+    "skinPalette": "skin-02",
+    "hair": "receding",
+    "hairPalette": "light-brown",
+    "eyes": "bright",
+    "facialHair": "stubble",
+    "accessory": "headband"
+  },
+  "name:bo-platzack:NOR": {
+    "skinPalette": "skin-02",
+    "hair": "crop",
+    "hairPalette": "salt-and-pepper",
+    "eyes": "wide",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:sebastian-hedlund:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "brown",
+    "eyes": "calm",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:david-fridner:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "crop",
+    "hairPalette": "brown",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": "square-glasses"
+  },
+  "name:johan-rosenberg:SWE": {
+    "skinPalette": "skin-01",
+    "hair": "receding",
+    "hairPalette": "blonde",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:eskil-jarlskog:SUI": {
+    "skinPalette": "skin-02",
+    "hair": "side-part",
+    "hairPalette": "dark-brown",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:magnus-aberg:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "receding",
+    "hairPalette": "salt-and-pepper",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:pontus-olofsson:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "crop",
+    "hairPalette": "light-brown",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:par-lindholm:SWE": {
+    "skinPalette": "skin-03",
+    "hair": "receding",
+    "hairPalette": "black",
+    "eyes": "narrow",
+    "facialHair": "goatee",
+    "accessory": null
+  },
+  "name:niklas-hagerbrand:SWE": {
+    "skinPalette": "skin-01",
+    "hair": "shaggy",
+    "hairPalette": "blonde",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:magnus-backstrom:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "light-brown",
+    "eyes": "calm",
+    "facialHair": "stubble",
+    "accessory": null
+  },
+  "name:viktor-olivemark:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "light-brown",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:markus-borg:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "crop",
+    "hairPalette": "auburn",
+    "eyes": "calm",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:christofer-hellberg:SWE": {
+    "skinPalette": "skin-02",
+    "hair": "swept",
+    "hairPalette": "dark-brown",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  }
+}

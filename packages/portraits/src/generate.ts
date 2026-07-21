@@ -1,7 +1,9 @@
 import { PORTRAIT_V1_CATALOG as catalog } from "./catalog.js";
 import type { PortraitInput, PortraitOffset, PortraitRecipe } from "./contracts.js";
 
-export const PORTRAIT_RECIPE_VERSION = 1;
+export const PORTRAIT_RECIPE_VERSION = 2;
+/** Keep unchanged channels visually stable when recipe semantics advance. */
+const PORTRAIT_RANDOM_STREAM_VERSION = 1;
 
 /** Stable FNV-1a hash. Changing it requires a new recipe version. */
 function hash(value: string): number {
@@ -14,7 +16,7 @@ function hash(value: string): number {
 }
 
 function roll(seed: string, channel: string): number {
-  return hash(`portrait:${PORTRAIT_RECIPE_VERSION}:${seed}:${channel}`) / 0x1_0000_0000;
+  return hash(`portrait:${PORTRAIT_RANDOM_STREAM_VERSION}:${seed}:${channel}`) / 0x1_0000_0000;
 }
 
 function pick<T>(seed: string, channel: string, values: readonly T[]): T {
@@ -66,14 +68,16 @@ function hairFor(seed: string, ageYears: number | undefined, gender: PortraitInp
   return pick(seed, "hair", choices);
 }
 
-function hairPaletteFor(seed: string, ageYears: number | undefined): string {
+function hairPaletteFor(seed: string, ageYears: number | undefined, country: string | undefined): string {
   if (ageYears !== undefined && ageYears >= 58 && chance(seed, "hair-grey", 0.75)) {
     return pick(seed, "hair-palette-grey", catalog.greyHairPalettes);
   }
   if (ageYears !== undefined && ageYears >= 42 && chance(seed, "hair-grey", 0.35)) {
     return pick(seed, "hair-palette-grey", catalog.greyHairPalettes);
   }
-  return pick(seed, "hair-palette", catalog.hairPalettes);
+  const region = appearanceRegionFor(country);
+  const weights = region === undefined ? UNIFORM_HAIR_WEIGHTS : HAIR_WEIGHTS_BY_REGION[region];
+  return pickWeighted(seed, "hair-palette", catalog.hairPalettes, weights);
 }
 
 function ageMarksFor(seed: string, ageYears: number | undefined): string[] | undefined {
@@ -101,20 +105,19 @@ function shirtPaletteFor(country: string | undefined): string {
 }
 
 /**
- * Rough regional skin-tone weighting, used only to make the generated player
+ * Rough regional appearance weighting, used only to make the generated player
  * pool feel plausible per country rather than uniform everywhere. These are
- * coarse tiers for game-design purposes, not demographic data, and every tier
- * keeps a nonzero weight on every `catalog.skinPalettes` entry (skin-01
- * lightest to skin-08 darkest) because a real country's player pool is always
- * more diverse than any tier can capture. Countries missing from the map fall
- * back to a uniform roll. See "Regional skin-tone weighting" in
+ * coarse tiers for this sport's known player pool, not demographic data. Every
+ * tier keeps a nonzero weight on every option, while reviewed public cues can
+ * always replace the generated result. Countries missing from the map fall
+ * back to a uniform roll. See "Regional appearance weighting" in
  * docs/08-portrait-system.md.
  */
 const SKIN_WEIGHTS_BY_REGION = {
-  nordic: [0.30, 0.28, 0.16, 0.10, 0.06, 0.04, 0.03, 0.03],
-  "western-europe": [0.22, 0.24, 0.16, 0.12, 0.08, 0.06, 0.06, 0.06],
-  "southern-europe": [0.10, 0.16, 0.24, 0.20, 0.12, 0.08, 0.06, 0.04],
-  "eastern-europe": [0.28, 0.28, 0.18, 0.10, 0.06, 0.04, 0.03, 0.03],
+  nordic: [0.42, 0.35, 0.16, 0.05, 0.015, 0.0048, 0.0001, 0.0001],
+  "western-europe": [0.34, 0.34, 0.20, 0.08, 0.03, 0.0098, 0.0001, 0.0001],
+  "southern-europe": [0.12, 0.24, 0.34, 0.22, 0.07, 0.0098, 0.0001, 0.0001],
+  "eastern-europe": [0.38, 0.36, 0.18, 0.06, 0.015, 0.0048, 0.0001, 0.0001],
   "mena-central-asia": [0.06, 0.10, 0.18, 0.22, 0.20, 0.12, 0.08, 0.04],
   "sub-saharan-africa": [0.03, 0.04, 0.06, 0.08, 0.12, 0.18, 0.24, 0.25],
   "south-asia": [0.03, 0.06, 0.14, 0.22, 0.24, 0.16, 0.10, 0.05],
@@ -123,9 +126,37 @@ const SKIN_WEIGHTS_BY_REGION = {
   oceania: [0.22, 0.24, 0.16, 0.12, 0.08, 0.08, 0.05, 0.05],
 } as const satisfies Record<string, readonly number[]>;
 
-type SkinRegionTier = keyof typeof SKIN_WEIGHTS_BY_REGION;
+type AppearanceRegion = keyof typeof SKIN_WEIGHTS_BY_REGION;
 
-const SKIN_REGION_BY_COUNTRY: Record<string, SkinRegionTier> = {
+/** Order: black, dark-brown, brown, light-brown, blonde, auburn. */
+const HAIR_WEIGHTS_BY_REGION = {
+  nordic: [0.03, 0.12, 0.20, 0.25, 0.32, 0.08],
+  "western-europe": [0.08, 0.25, 0.30, 0.20, 0.12, 0.05],
+  "southern-europe": [0.20, 0.38, 0.28, 0.08, 0.03, 0.03],
+  "eastern-europe": [0.05, 0.22, 0.30, 0.25, 0.14, 0.04],
+  "mena-central-asia": [0.32, 0.40, 0.20, 0.05, 0.01, 0.02],
+  "sub-saharan-africa": [0.82, 0.13, 0.03, 0.01, 0.005, 0.005],
+  "south-asia": [0.82, 0.14, 0.03, 0.005, 0.002, 0.003],
+  "east-southeast-asia": [0.90, 0.07, 0.02, 0.005, 0.002, 0.003],
+  americas: [0.25, 0.30, 0.22, 0.12, 0.07, 0.04],
+  oceania: [0.15, 0.30, 0.25, 0.15, 0.10, 0.05],
+} as const satisfies Record<AppearanceRegion, readonly number[]>;
+
+/** Order: calm, focused, bright, narrow, wide, soft. */
+const EYE_WEIGHTS_BY_REGION = {
+  nordic: [0.20, 0.16, 0.22, 0.08, 0.15, 0.19],
+  "western-europe": [0.21, 0.18, 0.17, 0.10, 0.15, 0.19],
+  "southern-europe": [0.20, 0.20, 0.14, 0.13, 0.14, 0.19],
+  "eastern-europe": [0.21, 0.18, 0.17, 0.10, 0.15, 0.19],
+  "mena-central-asia": [0.20, 0.20, 0.12, 0.15, 0.13, 0.20],
+  "sub-saharan-africa": [0.18, 0.20, 0.13, 0.18, 0.13, 0.18],
+  "south-asia": [0.20, 0.19, 0.14, 0.14, 0.13, 0.20],
+  "east-southeast-asia": [0.10, 0.12, 0.05, 0.48, 0.05, 0.20],
+  americas: [0.19, 0.19, 0.16, 0.15, 0.14, 0.17],
+  oceania: [0.20, 0.18, 0.17, 0.12, 0.15, 0.18],
+} as const satisfies Record<AppearanceRegion, readonly number[]>;
+
+const APPEARANCE_REGION_BY_COUNTRY: Record<string, AppearanceRegion> = {
   SE: "nordic", DK: "nordic", FI: "nordic", NO: "nordic",
   DE: "western-europe", AT: "western-europe", GB: "western-europe", CH: "western-europe",
   NL: "western-europe", FR: "western-europe", IE: "western-europe", BE: "western-europe", LI: "western-europe",
@@ -144,13 +175,25 @@ const SKIN_REGION_BY_COUNTRY: Record<string, SkinRegionTier> = {
 };
 
 const UNIFORM_SKIN_WEIGHTS: readonly number[] = catalog.skinPalettes.map(() => 1);
+const UNIFORM_HAIR_WEIGHTS: readonly number[] = catalog.hairPalettes.map(() => 1);
+const UNIFORM_EYE_WEIGHTS: readonly number[] = catalog.eyes.map(() => 1);
+
+function appearanceRegionFor(country: string | undefined): AppearanceRegion | undefined {
+  return country === undefined || country.trim() === ""
+    ? undefined
+    : APPEARANCE_REGION_BY_COUNTRY[country.trim().toUpperCase()];
+}
 
 function skinPaletteFor(seed: string, country: string | undefined): string {
-  const tier = country === undefined || country.trim() === ""
-    ? undefined
-    : SKIN_REGION_BY_COUNTRY[country.trim().toUpperCase()];
-  const weights = tier === undefined ? UNIFORM_SKIN_WEIGHTS : SKIN_WEIGHTS_BY_REGION[tier];
+  const region = appearanceRegionFor(country);
+  const weights = region === undefined ? UNIFORM_SKIN_WEIGHTS : SKIN_WEIGHTS_BY_REGION[region];
   return pickWeighted(seed, "skin-palette", catalog.skinPalettes, weights);
+}
+
+function eyesFor(seed: string, country: string | undefined): string {
+  const region = appearanceRegionFor(country);
+  const weights = region === undefined ? UNIFORM_EYE_WEIGHTS : EYE_WEIGHTS_BY_REGION[region];
+  return pickWeighted(seed, "eyes", catalog.eyes, weights);
 }
 
 function generatedOffsets(seed: string): Record<string, PortraitOffset> {
@@ -171,7 +214,7 @@ export function portraitSeedFor(playerId: string): string {
 }
 
 /**
- * Generate version 1's renderer-neutral recipe.
+ * Generate the current renderer-neutral recipe.
  *
  * Each choice has its own hash channel. Adding a new optional feature therefore
  * cannot reshuffle all existing features inside the same recipe version.
@@ -191,8 +234,8 @@ export function generatePortraitRecipe(input: PortraitInput): PortraitRecipe {
     head: pick(seed, "head", catalog.heads),
     skinPalette: skinPaletteFor(seed, input.country),
     hair: hairFor(seed, ageYears, input.gender),
-    hairPalette: hairPaletteFor(seed, ageYears),
-    eyes: pick(seed, "eyes", catalog.eyes),
+    hairPalette: hairPaletteFor(seed, ageYears, input.country),
+    eyes: eyesFor(seed, input.country),
     brows: pick(seed, "brows", catalog.brows),
     nose: pick(seed, "nose", catalog.noses),
     mouth: pick(seed, "mouth", catalog.mouths),

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { defaultContent } from "./index.js";
-import { validatePortraitCuePlayerIds } from "./portraitCues.js";
+import {
+  mergePortraitCueMaps,
+  validatePortraitCuePlayerGender,
+  validatePortraitCuePlayerIds,
+} from "./portraitCues.js";
 import { portraitCuesSchema } from "./schema.js";
 
 describe("manual portrait cues", () => {
@@ -40,6 +44,23 @@ describe("manual portrait cues", () => {
   it("rejects overrides whose player id disappeared from a rebuilt roster", () => {
     expect(() => validatePortraitCuePlayerIds({ "missing:player": { hair: "crop" } }, defaultContent.players)).toThrow(
       /missing:player/,
+    );
+  });
+
+  it("rejects cues stored in the wrong gender-specific file", () => {
+    const woman = defaultContent.players.find((player) => player.gender === "f")!;
+    expect(() =>
+      validatePortraitCuePlayerGender({ [woman.playerId]: { hair: "ponytail" } }, defaultContent.players, "m"),
+    ).toThrow(/wrong gender/);
+  });
+
+  it("merges gender-specific cue maps without allowing duplicate player ids", () => {
+    expect(mergePortraitCueMaps({ man: { hair: "crop" } }, { woman: { hair: "bun" } })).toEqual({
+      man: { hair: "crop" },
+      woman: { hair: "bun" },
+    });
+    expect(() => mergePortraitCueMaps({ duplicate: { hair: "crop" } }, { duplicate: { hair: "bun" } })).toThrow(
+      /more than one file/,
     );
   });
 });
