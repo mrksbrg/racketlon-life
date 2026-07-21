@@ -51,6 +51,16 @@ results.csv   optional: per-match history for trajectory-based talent estimation
 - The shipped bundle is compacted + gzipped (public sports data, but not plain readable
   text in the repo). The pipeline README documents regeneration.
 
+## Player portraits
+
+Portraits are a presentation/content concern, not a match-simulation mechanic.
+Use the deterministic layered generator described in [08 — Procedural portrait
+system](./08-portrait-system.md): real players and newgens both get a stable
+`portraitSeed`, while famous players can later receive small manual recipe
+overrides instead of bespoke full images. Keep this behind a replaceable
+portrait-provider interface so the game can swap generator, renderer, or licensed
+asset pack later without changing simulation/domain code.
+
 ## Generated players (M4)
 
 `NewPlayerSystem` runs monthly — a continuous drip, never a year-end batch.
