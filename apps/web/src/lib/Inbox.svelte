@@ -19,6 +19,7 @@
     family: "💌",
     official: "🎖️",
     decision: "🤔",
+    injury: "🤕",
   };
 
   /** Trophy for a title, a plainer note otherwise — a "result" message's icon

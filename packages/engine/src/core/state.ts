@@ -118,7 +118,15 @@ import type { Calendar } from "./date.js";
 // `sampleDivisionField` needs it, and every later read (preview, registration
 // wave, or the tournament itself) reuses that lock. A new required field an
 // old save's career lacks, so it's discarded.
-export const SAVE_VERSION = 27;
+// v28: `Injury` now carries `catalogId`/`kind`/`cause` (body-part injuries
+// and illness, resolved against the new `content.injuries`/`content.illnesses`
+// catalogs) instead of a bare sport-keyed `type` string — see
+// systems/injury.ts. `TournamentSession` gained `withdrawnEntrants` and
+// `RoundPair` gained `walkover` for the injury-triggered walkover cascade
+// (tournament/engine.ts). `InboxMessage.category` gained `"injury"`. An old
+// save's `Injury.type` and tournament session shape no longer match, so it's
+// discarded like every other shape change above.
+export const SAVE_VERSION = 28;
 
 /** A future tournament the human has committed to — see BALANCE.tournament.entryDeadlineWeeks. */
 export interface TournamentEntry {
@@ -233,7 +241,8 @@ export interface InboxMessage {
     | "podium"
     | "family"
     | "official"
-    | "decision";
+    | "decision"
+    | "injury";
   from: string;
   subject: string;
   body: string;

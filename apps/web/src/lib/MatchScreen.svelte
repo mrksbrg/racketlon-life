@@ -497,7 +497,11 @@
           {won ? "You win!" : `${m.players.b.name} wins`}
         </div>
         <div class="final">{totalA} – {totalB}</div>
-        {#if m.gummiarm}
+        {#if m.retiredSide}
+          <p class="note walkover">
+            {m.retiredSide === "a" ? "You retired injured" : `${m.players.b.name} retired injured`} — walkover.
+          </p>
+        {:else if m.gummiarm}
           <p class="note">Decided by a gummiarm point.</p>
         {:else if m.decidedEarly}
           <p class="note">Match decided early — the lead was uncatchable.</p>

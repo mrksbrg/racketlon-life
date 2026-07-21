@@ -40,6 +40,7 @@ import {
   PERIODS,
   SLOTS_PER_WEEK,
   SPORTS,
+  activityBlockedByInjury,
   aiChooseTactic,
   chooseGummiarmServe,
   emptyPlan,
@@ -800,14 +801,20 @@ class GameStore {
     return (this.you?.remainingVacationDays ?? 0) <= 0;
   }
 
-  /** Applies the holiday (no work) and out-of-leave (must work) corrections
-   * to a single slot — shared by the grid display (`effectiveSlot`),
-   * submission (`availableSlots`), and template adoption
+  /** Applies the holiday (no work), out-of-leave (must work), injury, and
+   * week-modifier corrections to a single slot — shared by the grid display
+   * (`effectiveSlot`), submission (`availableSlots`), and template adoption
    * (`correctedTemplateSlots`), so a carried-over draft activity that no
-   * longer fits the current calendar/balance is never taken at face value. */
+   * longer fits the current calendar/balance/condition is never taken at
+   * face value (e.g. a sport session drafted last week, before this week's
+   * injury or a "courts closed" modifier made it untrainable — left as-is
+   * it would silently render as scheduled while the engine skips it). */
   private correctActivity(activity: ActivityType, index: number): ActivityType {
     if (activity === "work" && this.isHolidaySlot(index)) return "rest";
     if (activity !== "work" && this.isForcedWorkSlot(index)) return "work";
+    if (activityBlockedByInjury(activity, this.you?.injury?.kind ?? null)) return "rest";
+    const blockedSport = this.weekModifier?.blockedSport;
+    if (blockedSport && TRAIN_FOR[blockedSport] === activity) return "rest";
     return activity;
   }
 
@@ -1125,6 +1132,43 @@ class GameStore {
     this.humanPortraitSeed = null;
     this.version++;
     this.screen = "create";
+  }
+
+  /** Downloads the current career as a JSON save file. */
+  exportSave(): void {
+    if (!this.game) return;
+    const who = (this.you?.name.trim() || "career").replace(/[^a-z0-9]+/gi, "-");
+    const week = this.weekLabel.replace(/[^a-z0-9]+/gi, "-");
+    const blob = new Blob([JSON.stringify(this.game.serialize())], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${who}-${week}.json`.toLowerCase();
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  /** Loads a career from a previously exported save, replacing the current one.
+   * Returns false (without side effects) if the file is malformed or from an
+   * incompatible save version. */
+  async importSave(save: SaveGame): Promise<boolean> {
+    let game: Game;
+    try {
+      game = Game.fromSave(save, defaultContent);
+    } catch {
+      return false;
+    }
+    await set(SAVE_KEY, game.serialize()).catch(() => {});
+    this.game = game;
+    this.slots = emptyPlan().slots;
+    this.summary = null;
+    this.match = null;
+    this.tournamentContext = null;
+    this.awaitingKickoff = false;
+    this.concludedTournament = null;
+    this.version++;
+    this.screen = "planner";
+    return true;
   }
 }
 

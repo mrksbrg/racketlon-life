@@ -2,8 +2,10 @@
   import { SPORTS, SPORT_LABELS } from "@racketlon/engine";
   import { ATTR_META, CHAR_ATTRS, NATIONALITIES } from "./character";
   import PlayerPortrait from "./PlayerPortrait.svelte";
+  import InboxButton from "./InboxButton.svelte";
   import { store } from "./store.svelte";
   import TabBar from "./TabBar.svelte";
+  import TopMenu from "./TopMenu.svelte";
   import {
     SPORT_COLORS,
     SPORT_SHORT,
@@ -49,27 +51,33 @@
   <main>
     <!-- Hero -->
     <section class="hero">
-      <div class="avatar">
-        <PlayerPortrait
-          playerId={you.id}
-          portraitSeed={store.humanPortraitSeed ?? undefined}
-          ageYears={you.age}
-          gender={you.gender}
-          country={you.nationality}
-          label={`Portrait of ${you.name}`}
-        />
-        <span class="flag">{flagEmoji(you.nationality)}</span>
+      <div class="identity">
+        <div class="avatar">
+          <PlayerPortrait
+            playerId={you.id}
+            portraitSeed={store.humanPortraitSeed ?? undefined}
+            ageYears={you.age}
+            gender={you.gender}
+            country={you.nationality}
+            label={`Portrait of ${you.name}`}
+          />
+          <span class="flag">{flagEmoji(you.nationality)}</span>
+        </div>
+        <div class="who">
+          <h1>{you.name}</h1>
+          <div class="meta">{you.age} years · {countryName}</div>
+          {#if you.titles.length > 0}
+            <div class="titles">
+              {#each you.titles as t (t)}
+                <span class="title-pill">{TITLE_LABELS[t] ?? t}</span>
+              {/each}
+            </div>
+          {/if}
+        </div>
       </div>
-      <div class="who">
-        <h1>{you.name}</h1>
-        <div class="meta">{you.age} years · {countryName}</div>
-        {#if you.titles.length > 0}
-          <div class="titles">
-            {#each you.titles as t (t)}
-              <span class="title-pill">{TITLE_LABELS[t] ?? t}</span>
-            {/each}
-          </div>
-        {/if}
+      <div class="top-actions">
+        <InboxButton />
+        <TopMenu />
       </div>
     </section>
 
@@ -463,8 +471,23 @@
   /* Hero */
   .hero {
     display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+  }
+
+  .identity {
+    display: flex;
     align-items: center;
     gap: 14px;
+    min-width: 0;
+  }
+
+  .top-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
   }
 
   .avatar {

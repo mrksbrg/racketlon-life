@@ -6,9 +6,10 @@ import type { EventLog, GameEvent } from "./core/events.js";
 import { eventsForWeek } from "./core/events.js";
 import type { CompletedDraw, GameState, InboxMessage, PersistedOtherDivisionDraw, ReservedSlot, TravelBlock } from "./core/state.js";
 import { SAVE_VERSION, getPlayer, humanPlayer } from "./core/state.js";
+import type { IllnessDef, InjuryDef } from "./model/injury.js";
 import type { ActivityCounts, PlayerPlan } from "./model/plan.js";
 import { countsFromSlots, slotIndex } from "./model/plan.js";
-import type { Player } from "./model/player.js";
+import type { Injury, InjuryKind, Player } from "./model/player.js";
 import { fullName } from "./model/player.js";
 import type { WeekSummary } from "./model/summary.js";
 import type { Sport } from "./model/sport.js";
@@ -146,10 +147,31 @@ export interface FirStandingView {
 }
 
 export interface InjuryView {
-  /** a Sport, or "overuse" when it wasn't attributable to one */
-  type: string;
+  catalogId: string;
+  kind: InjuryKind;
+  /** resolved display label, e.g. "Ankle sprain" or "Flu" — content lookup
+   * already done, so the UI never needs its own catalog access */
+  label: string;
+  /** injury only — undefined for illness, which isn't a body-part injury */
+  bodyPart?: string;
   severity: number;
   weeksRemaining: number;
+}
+
+/** Resolves an engine `Injury` into its display view — the one place that
+ * looks the catalog entry up, so every consumer (HumanView, InjurySpanView)
+ * shows the same label. */
+function injuryView(content: ContentBundle, injury: Injury): InjuryView {
+  const def: InjuryDef | IllnessDef | undefined =
+    injury.kind === "illness" ? content.illnesses[injury.catalogId] : content.injuries[injury.catalogId];
+  return {
+    catalogId: injury.catalogId,
+    kind: injury.kind,
+    label: def?.label ?? "Injury",
+    bodyPart: injury.kind === "injury" ? (def as InjuryDef | undefined)?.bodyPart : undefined,
+    severity: injury.severity,
+    weeksRemaining: injury.weeksRemaining,
+  };
 }
 
 /** The character-creation attributes, banded to the same 1–20 display
@@ -332,6 +354,12 @@ export interface RecentMatchView {
    * sudden-death gummiarm point decided it — see match/engine.ts's module
    * doc. Backs the Me screen's gummiarm tally. */
   gummiarm: boolean;
+  /** true when this match ended (or never really started) as a walkover —
+   * either side already carrying a match-blocking injury/illness, or a
+   * fresh mid-match retirement — see tournament/engine.ts's
+   * `advanceTournament`. `sets` may still carry a real partial score for a
+   * mid-match retirement, but it isn't a completed contest. */
+  walkover: boolean;
 }
 
 /** One opponent's tally of matches played against the human, most-played
@@ -447,7 +475,8 @@ export interface RecordsView {
 export interface InjurySpanView {
   startDate: string;
   endDate: string;
-  type: string;
+  kind: InjuryKind;
+  label: string;
 }
 
 /** One week the human trained, resolved to a real calendar date — see
@@ -831,7 +860,7 @@ export class Game {
       ),
       formBySport: { ...human.condition.formBySport },
       confidence: human.condition.confidence,
-      injury: human.condition.injury,
+      injury: human.condition.injury ? injuryView(this.content, human.condition.injury) : null,
       titles: [...this.state.career.titles],
       bestRating: this.state.career.bestRating,
     };
@@ -949,6 +978,7 @@ export class Game {
         totalB: sets.reduce((sum, s) => sum + s.b, 0),
         sets,
         gummiarm: Boolean(d.gummiarm),
+        walkover: Boolean(d.walkover),
       });
     }
     matches.reverse(); // log is chronological; show most recent first
@@ -1266,10 +1296,12 @@ export class Game {
     const injury = humanPlayer(this.state).condition.injury;
     if (!injury) return null;
     const endWeek = this.state.calendar.weekIndex + injury.weeksRemaining;
+    const view = injuryView(this.content, injury);
     return {
       startDate: dateForWeek(this.state.calendar, injury.startWeek),
       endDate: dateForWeek(this.state.calendar, endWeek),
-      type: injury.type,
+      kind: view.kind,
+      label: view.label,
     };
   }
 
@@ -1826,6 +1858,14 @@ export class Game {
   enterTournament(): MatchState {
     const def = this.registeredTournamentThisWeek();
     if (!def) throw new Error("Not registered for a tournament this week");
+    // An injured/ill player can't take the court at all — matches the
+    // walkover cascade's own invariant (never re-roll or re-play while
+    // already carrying one), and sidesteps the harder question of how to
+    // hand back a "no match to play" result for the human's own very first
+    // pairing, which the rest of this flow always assumes exists.
+    if (humanPlayer(this.state).condition.injury) {
+      throw new Error("Can't compete while injured — see the physio or wait it out");
+    }
     const travel = travelCost(humanPlayer(this.state).identity.nationality, def, this.content);
     if (this.state.career.money < def.entryFee + travel.total) {
       throw new Error("Insufficient funds for this trip");

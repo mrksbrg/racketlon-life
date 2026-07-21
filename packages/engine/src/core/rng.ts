@@ -72,6 +72,19 @@ export class Rng {
     return item;
   }
 
+  /** Weighted pick — draws proportional to each entry's positive weight.
+   * Entries with weight <= 0 never win. Throws if every weight is <= 0. */
+  weightedPick<T>(entries: ReadonlyArray<readonly [T, number]>): T {
+    const total = entries.reduce((sum, [, w]) => sum + Math.max(0, w), 0);
+    if (total <= 0) throw new Error("weightedPick() with no positive weight");
+    let roll = this.next01() * total;
+    for (const [item, w] of entries) {
+      roll -= Math.max(0, w);
+      if (roll < 0) return item;
+    }
+    return entries[entries.length - 1]![0];
+  }
+
   chance(p: number): boolean {
     return this.next01() < p;
   }

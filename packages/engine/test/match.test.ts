@@ -35,6 +35,8 @@ function ref(id: string, skill: number, overrides: Partial<MatchPlayerRef> = {})
     composure: 0.5,
     clutch: 0.5,
     age: 25, // neutral age-modifier window — these tests aren't about aging
+    durability: 0.5,
+    coreStrength: 0.5,
     ...overrides,
   };
 }

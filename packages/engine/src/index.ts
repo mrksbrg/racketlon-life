@@ -2,6 +2,7 @@
 export * from "./model/sport.js";
 export * from "./model/player.js";
 export * from "./model/activity.js";
+export * from "./model/injury.js";
 export * from "./model/plan.js";
 export * from "./model/summary.js";
 
@@ -26,6 +27,7 @@ export * from "./systems/division.js";
 export * from "./systems/decision.js";
 export * from "./systems/modifiers.js";
 export * from "./systems/injury.js";
+export * from "./systems/injury-gating.js";
 export * from "./systems/inbox.js";
 export * from "./systems/travel.js";
 export * from "./systems/holidays.js";

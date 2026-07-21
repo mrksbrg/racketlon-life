@@ -1,9 +1,10 @@
 import { BALANCE } from "../balance.js";
 import { Rng, childSeed } from "../core/rng.js";
+import { clamp } from "../core/util.js";
 import type { Player, Skills } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import { SKILL_MAX, SPORTS } from "../model/sport.js";
-import { matchAgeModifier } from "../systems/age.js";
+import { injuryAgeMultiplier, matchAgeModifier } from "../systems/age.js";
 import { enduranceEnergyMult } from "../systems/effects.js";
 
 /**
@@ -63,6 +64,11 @@ export interface MatchPlayerRef {
   /** whole years — the match engine stays calendar-agnostic, so callers
    * compute this from birthDate via core/date.ts's ageOn() */
   age: number;
+  /** 0..1 — injury resistance, same "Läkekött" stat used by the weekly
+   * training-load roll; see `injuryRiskChance` below */
+  durability: number;
+  /** 0..1 — gym-built trunk strength; also softens match-time injury risk */
+  coreStrength: number;
 }
 
 export interface SetScore {
@@ -150,6 +156,24 @@ export interface MatchState {
    * (and thus what `pointsToWin` would return if called again) changes.
    */
   tennisTarget: { side: Side; points: number } | null;
+  /**
+   * Set the moment a match-time injury risk roll hits (see
+   * `rollMatchInjuryRiskAtBreak`) — ends the match immediately as a
+   * retirement, `winner` set to the healthy side regardless of the score so
+   * far. The caller (tournament/engine.ts) is responsible for turning this
+   * into an actual `Injury` on the retired player and for the walkover
+   * cascade through the rest of the tournament — this field only says
+   * *that* it happened and to whom, not what the injury is (this module has
+   * no content/catalog access).
+   */
+  retiredSide: Side | null;
+  /** the sport being played when `retiredSide` was set — tournament/engine.ts
+   * needs this to weighted-pick the actual injury by cause, and can't safely
+   * recompute it from `setIndex` after the fact (a setEnd-triggered
+   * retirement already incremented `setIndex` to the next, unplayed set by
+   * the time the match is inspected from outside). Null until a retirement
+   * happens. */
+  retiredSport: Sport | null;
 }
 
 export interface PointOutcome {
@@ -171,6 +195,8 @@ export function matchRefFromPlayer(player: Player, age: number): MatchPlayerRef 
     composure: player.attributes.composure,
     clutch: player.attributes.clutch,
     age,
+    durability: player.attributes.durability,
+    coreStrength: player.attributes.coreStrength,
   };
 }
 
@@ -195,6 +221,8 @@ export function createMatch(a: MatchPlayerRef, b: MatchPlayerRef, seed: string):
     sharpness: { a: 100, b: 100 },
     feltSoreness: { a: a.soreness ?? 0, b: b.soreness ?? 0 },
     tennisTarget: null,
+    retiredSide: null,
+    retiredSport: null,
   };
 }
 
@@ -556,6 +584,7 @@ export function playPoint(m: MatchState): PointOutcome | null {
       coolDownSoreness(m);
       if (m.setIndex === 3) m.tennisTarget = pointsToWin(m);
     }
+    rollMatchInjuryRiskAtBreak(m, sport);
     return outcome;
   }
 
@@ -566,9 +595,50 @@ export function playPoint(m: MatchState): PointOutcome | null {
     m.momentum = 0;
     recoverEnergyAtBreak(m, BALANCE.match.sideChangeEnergyRecovery);
     coolDownSoreness(m);
+    rollMatchInjuryRiskAtBreak(m, sport);
   }
 
   return outcome;
+}
+
+/**
+ * Match-time injury-risk chance for `side`, from the tactic they just played
+ * `sport` under — mirrors `sorenessGainForMatch`'s inputs (tournament/
+ * engine.ts: age, coreStrength, durability) but scales primarily by
+ * `BALANCE.match.tacticEnergyMult`, so `allOut` is meaningfully riskier than
+ * `conserve`, the same ratio that makes it the costliest tactic on energy.
+ */
+function injuryRiskChance(m: MatchState, side: Side, sport: Sport): number {
+  const b = BALANCE.matchInjuryRisk;
+  const player = m.players[side];
+  const tacticMult = BALANCE.match.tacticEnergyMult[sport][m.tactics[side]];
+  const ageMult = injuryAgeMultiplier(player.age);
+  const durabilityMult = 1 - player.durability * b.durabilityProtection;
+  const coreMult = 1 - player.coreStrength * b.coreStrengthProtection;
+  return clamp(b.basePerBreak * tacticMult * ageMult * durabilityMult * coreMult, 0, b.maxPerBreak);
+}
+
+/**
+ * Rolled at every break (side change, set end, gummiarm) for the sport/tactic
+ * just played — a second, match-time injury risk independent of the weekly
+ * training-load roll (systems/injury.ts). A hit ends the match immediately
+ * as a retirement: `retiredSide` records who, `winner` flips to the other
+ * side regardless of the score so far — the caller (tournament/engine.ts)
+ * turns this into a real `Injury` and a walkover result. Deterministic per
+ * (seed, pointCount) so it replays identically; sides are checked "a" then
+ * "b" off the same draw, so at most one side retires from a single break.
+ */
+function rollMatchInjuryRiskAtBreak(m: MatchState, sport: Sport): void {
+  const rng = new Rng(childSeed(m.seed, "injuryRisk", m.pointCount));
+  for (const side of ["a", "b"] as const) {
+    if (rng.chance(injuryRiskChance(m, side, sport))) {
+      m.retiredSide = side;
+      m.retiredSport = sport;
+      m.winner = side === "a" ? "b" : "a";
+      m.phase = "finished";
+      return;
+    }
+  }
 }
 
 /**

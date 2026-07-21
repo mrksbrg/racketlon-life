@@ -2,6 +2,8 @@ import type { ContentBundle } from "@racketlon/engine";
 import activitiesJson from "../data/activities.json";
 import countriesJson from "../data/countries.json";
 import firOfficialsJson from "../data/fir-officials.json";
+import illnessesJson from "../data/illnesses.json";
+import injuriesJson from "../data/injuries.json";
 import namesJson from "../data/names.json";
 import portraitCuesMenJson from "../data/portrait-cues-men.json";
 import portraitCuesWomenJson from "../data/portrait-cues-women.json";
@@ -13,6 +15,8 @@ import {
   activitiesSchema,
   countriesSchema,
   firOfficialsSchema,
+  illnessesSchema,
+  injuriesSchema,
   namesSchema,
   portraitCuesSchema,
   rankingMatrixSchema,
@@ -52,6 +56,8 @@ export const defaultContent: ContentBundle = {
   traits: traitsSchema.parse(traitsJson) as ContentBundle["traits"],
   players: parsedWorldPlayers,
   rankingMatrix: rankingMatrixSchema.parse(rankingMatrixJson) as ContentBundle["rankingMatrix"],
+  injuries: injuriesSchema.parse(injuriesJson) as ContentBundle["injuries"],
+  illnesses: illnessesSchema.parse(illnessesJson) as ContentBundle["illnesses"],
 };
 
 export type { PortraitCueMap } from "./portraitCues.js";

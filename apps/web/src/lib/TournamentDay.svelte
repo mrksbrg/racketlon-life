@@ -7,6 +7,10 @@
   /** The registered tournament's own schedule entry — carries the field
    * preview alongside the `TournamentDef` itself. */
   const entry = $derived(store.tourEntries.find((e) => e.isThisWeek) ?? null);
+
+  /** An injured/ill human can't take the court at all (see facade.ts's
+   * `enterTournament`) — surfaced here so "Play ▸" doesn't silently no-op. */
+  const injured = $derived(store.you?.injury ?? null);
 </script>
 
 <StatusBar />
@@ -50,13 +54,19 @@
       {/each}
     </div>
 
-    <p class="note">This week is the tournament — no training slots to plan. Play it out, and normal
-      planning resumes next week.</p>
+    {#if injured}
+      <p class="note injured">🤕 {injured.label} — you can't compete this week. Withdraw, or wait it out.</p>
+    {:else}
+      <p class="note">This week is the tournament — no training slots to plan. Play it out, and normal
+        planning resumes next week.</p>
+    {/if}
   </main>
 
   <footer>
     <button class="withdraw" onclick={() => void store.withdrawRegistration(store.weekIndex)}>Withdraw</button>
-    <button class="play" onclick={() => store.enterTournament()}>Play ▸</button>
+    {#if !injured}
+      <button class="play" onclick={() => store.enterTournament()}>Play ▸</button>
+    {/if}
   </footer>
 {/if}
 

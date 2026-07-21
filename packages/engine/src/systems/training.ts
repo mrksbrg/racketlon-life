@@ -5,6 +5,7 @@ import type { Player, TrainableAttribute } from "../model/player.js";
 import type { Sport } from "../model/sport.js";
 import { SKILL_MAX, SPORTS, levelForSkill } from "../model/sport.js";
 import { countEntries, expectedSessionGain, formDelta } from "./effects.js";
+import { activityBlockedByInjury } from "./injury-gating.js";
 import { weekModifierContent } from "./modifiers.js";
 import type { GameSystem, SystemContext } from "./types.js";
 
@@ -34,11 +35,11 @@ export const TrainingSystem: GameSystem = {
       const trainedAttributes = new Set<TrainableAttribute>();
       for (const [type, sessions] of countEntries(counts)) {
         const def = content.activities[type];
+        if (activityBlockedByInjury(type, player.condition.injury?.kind ?? null)) {
+          ctx.log.emit("injury.blocked", player.identity.id, { activity: type, sessions });
+          continue;
+        }
         if (def.sport !== undefined && def.trainingBase !== undefined) {
-          if (player.condition.injury?.type === def.sport) {
-            ctx.log.emit("injury.blocked", player.identity.id, { sport: def.sport, sessions });
-            continue;
-          }
           sessionsBySport[def.sport] += sessions;
           trainSport(ctx, player, def.sport, def.trainingBase, sessions);
           if (sportMaintainsEndurance(def.sport, sessions)) trainedAttributes.add("endurance");

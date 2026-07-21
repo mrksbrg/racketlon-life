@@ -1,7 +1,9 @@
 <script lang="ts">
   import { SPORTS } from "@racketlon/engine";
+  import InboxButton from "./InboxButton.svelte";
   import { store } from "./store.svelte";
-  import { SPORT_COLORS, SPORT_SHORT, formColor, formatInjury, formatMoney } from "./ui";
+  import TopMenu from "./TopMenu.svelte";
+  import { SPORT_COLORS, SPORT_SHORT, formColor, formatInjury } from "./ui";
 
   const SCREEN_LABELS: Partial<Record<string, string>> = {
     planner: "Home",
@@ -14,12 +16,6 @@
 
   const screenLabel = $derived(SCREEN_LABELS[store.screen] ?? "Home");
   const showSoreness = $derived(Boolean(store.tournamentContext));
-
-  function confirmNewGame() {
-    if (confirm("Start a new career? Your current save will be lost.")) {
-      void store.newGame();
-    }
-  }
 </script>
 
 {#if store.you}
@@ -30,18 +26,8 @@
         <div class="week">{store.weekLabel}</div>
       </div>
       <div class="right">
-        {#if store.screen !== "planner"}
-          <div class="money" class:negative={store.you.money < 0}>
-            {formatMoney(store.you.money)}
-          </div>
-        {/if}
-        <button class="inbox" onclick={() => store.openInbox()} title="Open inbox">
-          <span class="envelope">✉</span>
-          {#if store.unreadCount > 0}
-            <span class="badge">{store.unreadCount > 9 ? "9+" : store.unreadCount}</span>
-          {/if}
-        </button>
-        <button class="reset" onclick={confirmNewGame} title="New career">⟲</button>
+        <InboxButton />
+        <TopMenu />
       </div>
     </div>
     {#if store.you.injury}
@@ -111,48 +97,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-
-  .money {
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .money.negative {
-    color: var(--danger);
-  }
-
-  .inbox {
-    position: relative;
-    color: var(--muted);
-    font-size: 17px;
-    padding: 4px 7px;
-  }
-
-  .envelope {
-    line-height: 1;
-  }
-
-  .badge {
-    position: absolute;
-    top: -5px;
-    right: -2px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 999px;
-    background: var(--danger);
-    color: #fff;
-    font-size: 10px;
-    font-weight: 800;
-    line-height: 16px;
-    text-align: center;
-  }
-
-  .reset {
-    color: var(--muted);
-    font-size: 18px;
-    padding: 4px;
   }
 
   .injury-badge {

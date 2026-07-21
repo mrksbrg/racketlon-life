@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { InjurySpanView, SeasonTournamentEntry, Sport, TrainedWeekView } from "@racketlon/engine";
-  import { DEFAULT_START_MONDAY, SPORT_LABELS, SPORTS } from "@racketlon/engine";
+  import { DEFAULT_START_MONDAY } from "@racketlon/engine";
   import { untrack } from "svelte";
   import { SPORT_COLORS } from "./ui";
 
@@ -153,11 +153,11 @@
       });
     }
     if (injurySpan && (injurySpan.startDate.startsWith(monthPrefix) || injurySpan.endDate.startsWith(monthPrefix))) {
-      const label = (SPORTS as readonly string[]).includes(injurySpan.type) ? SPORT_LABELS[injurySpan.type as Sport] : "Overuse";
+      const icon = injurySpan.kind === "illness" ? "🤒" : "🤕";
       items.push({
         key: "injury",
         weekIndex: null,
-        label: `🤕 ${label} injury`,
+        label: `${icon} ${injurySpan.label}`,
         sub: `Blocks training until ${fmt(injurySpan.endDate)}`,
         kind: "injury",
       });

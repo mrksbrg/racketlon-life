@@ -618,6 +618,41 @@ export const testContent: ContentBundle = {
     },
   },
   players: testRoster(),
+  injuries: {
+    "ankle-sprain": {
+      id: "ankle-sprain",
+      label: "Ankle sprain",
+      bodyPart: "ankle",
+      kind: "injury",
+      sportWeights: { sq: 3, bd: 3, tn: 1.5, tt: 0.3, gym: 0.3 },
+    },
+    "wrist-tendinitis": {
+      id: "wrist-tendinitis",
+      label: "Wrist tendinitis",
+      bodyPart: "wrist",
+      kind: "injury",
+      sportWeights: { sq: 0.3, bd: 1, tn: 1, tt: 2.5, gym: 0.3 },
+    },
+    "back-spasm": {
+      id: "back-spasm",
+      label: "Back spasm",
+      bodyPart: "back",
+      kind: "injury",
+      sportWeights: { sq: 1, bd: 1, tn: 1, tt: 0.5, gym: 2.5 },
+    },
+    "achilles-rupture": {
+      id: "achilles-rupture",
+      label: "Achilles rupture",
+      bodyPart: "achilles",
+      kind: "injury",
+      sportWeights: { sq: 2, bd: 2, tn: 1, tt: 0.1, gym: 0.2 },
+      severityWeights: [0, 0, 1],
+      rare: true,
+    },
+  },
+  illnesses: {
+    flu: { id: "flu", label: "Flu", kind: "illness", severityWeights: [1, 3, 1] },
+  },
 };
 
 /** Builds a 21-slot plan from activity counts, padding with rest. */

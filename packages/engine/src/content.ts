@@ -1,4 +1,5 @@
 import type { ActivityDef, ActivityType } from "./model/activity.js";
+import type { IllnessDef, InjuryDef } from "./model/injury.js";
 import type { Sport } from "./model/sport.js";
 import type { TournamentDef } from "./tournament/engine.js";
 
@@ -167,4 +168,10 @@ export interface ContentBundle {
    * {@link FirOfficialDef}. Distinct from each country's own
    * `CountryDef.president`. */
   firOfficials: Record<string, FirOfficialDef>;
+  /** body-part injury catalog, keyed by id — see {@link InjuryDef} and
+   * systems/injury.ts */
+  injuries: Record<string, InjuryDef>;
+  /** illness catalog, keyed by id — see {@link IllnessDef} and
+   * systems/injury.ts */
+  illnesses: Record<string, IllnessDef>;
 }

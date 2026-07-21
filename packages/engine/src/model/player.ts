@@ -1,3 +1,4 @@
+import type { InjuryCause } from "./injury.js";
 import type { Sport } from "./sport.js";
 
 export type Skills = Record<Sport, number>; // 0–1000 internal scale
@@ -46,8 +47,18 @@ export interface PlayerAttributes {
   traits: string[];
 }
 
+export type InjuryKind = "injury" | "illness";
+
 export interface Injury {
-  type: string;
+  /** catalog id into content.injuries (kind "injury") or content.illnesses
+   * (kind "illness") — resolves to a body-part label ("Ankle sprain") or an
+   * illness label ("Flu") rather than the old bare sport-keyed type. */
+  catalogId: string;
+  kind: InjuryKind;
+  /** the sport (or "gym") whose training/match load produced this — null for
+   * illness, which isn't sport-caused. Retained for attribution/analytics,
+   * not shown directly (the catalog label is what's displayed). */
+  cause: InjuryCause | null;
   severity: number; // 1..3
   weeksRemaining: number;
   /** the weekIndex it first occurred on — lets a UI reconstruct the injury's
@@ -78,6 +89,10 @@ export interface PlayerCondition {
    * but a season-long lapse really costs you. */
   neglectWeeks: Record<Sport, number>;
   confidence: number; // -10..10
+  /** at most one active injury OR illness at a time — see {@link Injury} and
+   * systems/injury.ts. While set, some/all sport training is blocked (see
+   * systems/injury-gating.ts) and a match-blocking injury/illness forces a
+   * walkover of any tournament match (see tournament/engine.ts). */
   injury: Injury | null;
   /** which age-decline "cliff" step-downs (systems/aging.ts) have already
    * fired for this player — each fires at most once, ever. */
