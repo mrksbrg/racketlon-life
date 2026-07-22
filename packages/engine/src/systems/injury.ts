@@ -26,8 +26,11 @@ const SPORT_ACTIVITY: Record<Sport, "trainTT" | "trainBD" | "trainSQ" | "trainTN
  * only if that misses does the original training-load-driven injury roll
  * run, using the same `injuryLoad()` the forecast already uses. Only one
  * injury/illness at a time — while carrying one, a player heals instead of
- * rolling for a new one. Durability ("Läkekött") pulls double duty for both:
- * it cuts the chance of getting hurt AND shortens how long it lasts.
+ * rolling for a new one. Prevention and recovery are deliberately split
+ * across two different attributes: coreStrength (gym-built, trainable)
+ * lowers the CHANCE of getting hurt; durability ("Läkekött"/Fast Healer,
+ * fixed at creation) only speeds recovery once it happens — see
+ * `coreStrengthProtection`/`durabilityHealBonus` in BALANCE.injuryRisk.
  */
 export const InjurySystem: GameSystem = {
   id: "injury",
@@ -92,7 +95,7 @@ function rollInjury(ctx: SystemContext, player: Player, counts: ActivityCounts):
   const b = BALANCE.injuryRisk;
   const age = ageOn(ctx.state.calendar.mondayISO, player.identity.birthDate);
   const chance = clamp(
-    load * b.chancePerLoad * (1 - player.attributes.durability * b.durabilityProtection) * injuryAgeMultiplier(age),
+    load * b.chancePerLoad * (1 - player.attributes.coreStrength * b.coreStrengthProtection) * injuryAgeMultiplier(age),
     0,
     b.maxWeeklyChance,
   );

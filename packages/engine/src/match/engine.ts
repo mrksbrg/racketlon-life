@@ -64,10 +64,10 @@ export interface MatchPlayerRef {
   /** whole years — the match engine stays calendar-agnostic, so callers
    * compute this from birthDate via core/date.ts's ageOn() */
   age: number;
-  /** 0..1 — injury resistance, same "Läkekött" stat used by the weekly
-   * training-load roll; see `injuryRiskChance` below */
-  durability: number;
-  /** 0..1 — gym-built trunk strength; also softens match-time injury risk */
+  /** 0..1 — gym-built trunk strength; softens match-time injury risk (see
+   * `injuryRiskChance` below) — durability plays no role here, only in how
+   * fast a resulting injury heals (systems/injury.ts), so it isn't part of
+   * this frozen snapshot at all. */
   coreStrength: number;
 }
 
@@ -195,7 +195,6 @@ export function matchRefFromPlayer(player: Player, age: number): MatchPlayerRef 
     composure: player.attributes.composure,
     clutch: player.attributes.clutch,
     age,
-    durability: player.attributes.durability,
     coreStrength: player.attributes.coreStrength,
   };
 }
@@ -603,19 +602,20 @@ export function playPoint(m: MatchState): PointOutcome | null {
 
 /**
  * Match-time injury-risk chance for `side`, from the tactic they just played
- * `sport` under — mirrors `sorenessGainForMatch`'s inputs (tournament/
- * engine.ts: age, coreStrength, durability) but scales primarily by
- * `BALANCE.match.tacticEnergyMult`, so `allOut` is meaningfully riskier than
- * `conserve`, the same ratio that makes it the costliest tactic on energy.
+ * `sport` under — scales primarily by `BALANCE.match.tacticEnergyMult`, so
+ * `allOut` is meaningfully riskier than `conserve`, the same ratio that
+ * makes it the costliest tactic on energy. Only coreStrength (gym-built,
+ * trainable) protects against getting hurt here, same split as the weekly
+ * training-load roll (systems/injury.ts) — durability plays no role in
+ * risk, only in how fast a resulting injury heals.
  */
 function injuryRiskChance(m: MatchState, side: Side, sport: Sport): number {
   const b = BALANCE.matchInjuryRisk;
   const player = m.players[side];
   const tacticMult = BALANCE.match.tacticEnergyMult[sport][m.tactics[side]];
   const ageMult = injuryAgeMultiplier(player.age);
-  const durabilityMult = 1 - player.durability * b.durabilityProtection;
   const coreMult = 1 - player.coreStrength * b.coreStrengthProtection;
-  return clamp(b.basePerBreak * tacticMult * ageMult * durabilityMult * coreMult, 0, b.maxPerBreak);
+  return clamp(b.basePerBreak * tacticMult * ageMult * coreMult, 0, b.maxPerBreak);
 }
 
 /**

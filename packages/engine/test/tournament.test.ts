@@ -1165,6 +1165,9 @@ describe("drawRounds (draw tree view)", () => {
     for (const m of decided) {
       expect(m.sets).toBeDefined();
       expect(m.sets).toHaveLength(4); // TT, BD, SQ, TN
+      // a walkover (injury retirement) is a deliberate exception — the
+      // winner is whoever's left standing, not whoever led on points.
+      if (m.walkover) continue;
       // racketlon is decided on total points, not sets won (a 2-2 set tie goes
       // to a gummiarm) — sanity-link the surfaced scores to the surfaced
       // winner: the winner never trails on aggregate points across the four.

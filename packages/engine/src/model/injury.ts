@@ -35,8 +35,8 @@ export interface InjuryDef {
    * durability-scaled rate applies. A torn Achilles has a real biological
    * floor no amount of natural resilience shortens; set this to 1 so it
    * always takes the full rolled duration in real weeks, regardless of
-   * durability. Durability still helps by lowering the CHANCE of ever
-   * getting one in the first place. */
+   * durability. CoreStrength still helps by lowering the CHANCE of ever
+   * getting one in the first place — see model/player.ts's `coreStrength`. */
   maxHealRate?: number;
   /** drives the "serious injury" inbox trigger (systems/inbox.ts) */
   rare?: boolean;

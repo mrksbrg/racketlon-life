@@ -35,7 +35,6 @@ function ref(id: string, skill: number, overrides: Partial<MatchPlayerRef> = {})
     composure: 0.5,
     clutch: 0.5,
     age: 25, // neutral age-modifier window — these tests aren't about aging
-    durability: 0.5,
     coreStrength: 0.5,
     ...overrides,
   };
@@ -63,6 +62,11 @@ describe("match engine", () => {
     for (let i = 0; i < 60; i++) {
       const m = runMatch(`inv-${i}`, 480, 440);
       expect(m.winner).not.toBeNull();
+      // a match-time injury retirement is a deliberate, known exception to
+      // every invariant below — the "winner" is whoever's still standing,
+      // not whoever had more points, and the score is just wherever play
+      // happened to be cut short.
+      if (m.retiredSide !== null) continue;
       const winner = m.winner as "a" | "b";
       const loser = winner === "a" ? "b" : "a";
       // the winner always has strictly more total points
