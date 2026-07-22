@@ -67,8 +67,10 @@
     "label": "Achilles rupture",
     "bodyPart": "achilles",
     "kind": "injury",
-    "sportWeights": { "sq": 2, "bd": 2, "tn": 1, "tt": 0.1, "gym": 0.2 },
+    "sportWeights": { "sq": 0.05, "bd": 0.05, "tn": 0.03, "tt": 0.003, "gym": 0.006 },
     "severityWeights": [0, 0, 1],
+    "weeksRemainingRange": [26, 36],
+    "maxHealRate": 1,
     "rare": true
   },
   "stress-fracture": {
@@ -76,8 +78,10 @@
     "label": "Stress fracture",
     "bodyPart": "shin",
     "kind": "injury",
-    "sportWeights": { "sq": 1.5, "bd": 1.5, "tn": 1, "tt": 0.1, "gym": 0.3 },
+    "sportWeights": { "sq": 0.04, "bd": 0.04, "tn": 0.03, "tt": 0.003, "gym": 0.01 },
     "severityWeights": [0, 1, 2],
+    "weeksRemainingRange": [8, 14],
+    "maxHealRate": 1,
     "rare": true
   }
 }

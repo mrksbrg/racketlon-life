@@ -38,6 +38,11 @@ export const activitiesSchema = z.object({
  * instead of "guaranteed severity 3 whenever a brutal week rolls severity 3." */
 const severityWeightsSchema = z.tuple([z.number().min(0), z.number().min(0), z.number().min(0)]);
 
+/** Optional [min, max] weeks override (inclusive) — replaces the generic
+ * severity-tier duration table for a catastrophic entry whose real recovery
+ * time doesn't fit that table's 5-7 week cap even at severity 3. */
+const weeksRemainingRangeSchema = z.tuple([z.number().int().positive(), z.number().int().positive()]);
+
 const injurySchema = z.object({
   id: z.string(),
   label: z.string().min(1),
@@ -51,6 +56,8 @@ const injurySchema = z.object({
     gym: z.number().min(0).optional(),
   }),
   severityWeights: severityWeightsSchema.optional(),
+  weeksRemainingRange: weeksRemainingRangeSchema.optional(),
+  maxHealRate: z.number().positive().optional(),
   rare: z.boolean().optional(),
 });
 
@@ -61,6 +68,8 @@ const illnessSchema = z.object({
   label: z.string().min(1),
   kind: z.literal("illness"),
   severityWeights: severityWeightsSchema.optional(),
+  weeksRemainingRange: weeksRemainingRangeSchema.optional(),
+  maxHealRate: z.number().positive().optional(),
   rare: z.boolean().optional(),
 });
 

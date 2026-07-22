@@ -21,7 +21,7 @@ import {
 } from "../match/engine.js";
 import { divisionAssignments, divisionOf } from "../systems/division.js";
 import { enduranceRecoveryMult } from "../systems/effects.js";
-import { pickInjuryDef, pickMatchInjurySeverity, rollInjuryDuration } from "../systems/injury.js";
+import { pickInjuryDef, pickInjuryDuration, pickMatchInjurySeverity } from "../systems/injury.js";
 import { firWorldRanking, rankingPointsFor } from "../systems/ranking-points.js";
 import type { RatingResultsBook } from "../systems/ranking.js";
 import { applyTournamentRatings, cloneRatings, combinedRating, recordMatchResults } from "../systems/ranking.js";
@@ -818,7 +818,7 @@ function applyMatchRetirementInjury(
   const def = pickInjuryDef(session.content, rng, sport);
   if (!def) return; // content gap: no injuries defined
   const severity = pickMatchInjurySeverity(rng, def);
-  const weeksRemaining = rollInjuryDuration(rng, severity);
+  const weeksRemaining = pickInjuryDuration(rng, def, severity);
   player.condition.injury = {
     catalogId: def.id,
     kind: "injury",

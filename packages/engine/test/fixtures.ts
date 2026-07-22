@@ -647,6 +647,8 @@ export const testContent: ContentBundle = {
       kind: "injury",
       sportWeights: { sq: 2, bd: 2, tn: 1, tt: 0.1, gym: 0.2 },
       severityWeights: [0, 0, 1],
+      weeksRemainingRange: [26, 36],
+      maxHealRate: 1,
       rare: true,
     },
   },

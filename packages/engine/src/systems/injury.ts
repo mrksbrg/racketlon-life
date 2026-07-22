@@ -37,7 +37,9 @@ export const InjurySystem: GameSystem = {
       const injury = player.condition.injury;
 
       if (injury) {
-        const healRate = 1 + Math.round(player.attributes.durability * BALANCE.injuryRisk.durabilityHealBonus);
+        const def = injury.kind === "illness" ? ctx.content.illnesses[injury.catalogId] : ctx.content.injuries[injury.catalogId];
+        const uncappedHealRate = 1 + Math.round(player.attributes.durability * BALANCE.injuryRisk.durabilityHealBonus);
+        const healRate = def?.maxHealRate !== undefined ? Math.min(uncappedHealRate, def.maxHealRate) : uncappedHealRate;
         injury.weeksRemaining = Math.max(0, injury.weeksRemaining - healRate);
         if (injury.weeksRemaining === 0) {
           player.condition.injury = null;
@@ -100,7 +102,7 @@ function rollInjury(ctx: SystemContext, player: Player, counts: ActivityCounts):
   const def = pickInjuryDef(ctx.content, ctx.rng, cause);
   if (!def) return; // content gap: no injuries defined
   const severity = pickSeverity(ctx.rng, load, def);
-  const weeksRemaining = rollInjuryDuration(ctx.rng, severity);
+  const weeksRemaining = pickInjuryDuration(ctx.rng, def, severity);
   player.condition.injury = {
     catalogId: def.id,
     kind: "injury",
@@ -200,4 +202,17 @@ export function rollInjuryDuration(rng: Rng, severity: 1 | 2 | 3): number {
   if (severity === 1) return 1 + rng.int(2); // 1-2 weeks
   if (severity === 2) return 3 + rng.int(2); // 3-4 weeks
   return 5 + rng.int(3); // 5-7 weeks
+}
+
+/** An entry's own `weeksRemainingRange`, when present, replaces the generic
+ * severity-tier duration table — e.g. Achilles rupture rolls 26-36 weeks
+ * regardless of severity, not the tier table's 5-7 week cap. Exported for
+ * tournament/engine.ts's match-time retirement path, same reuse as
+ * `pickInjuryDef`/`pickMatchInjurySeverity`. */
+export function pickInjuryDuration(rng: Rng, def: InjuryDef | IllnessDef, severity: 1 | 2 | 3): number {
+  if (def.weeksRemainingRange) {
+    const [min, max] = def.weeksRemainingRange;
+    return min + rng.int(max - min + 1);
+  }
+  return rollInjuryDuration(rng, severity);
 }
