@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Game } from "../src/index.js";
+import { Game, Rng, pickInjuryDuration } from "../src/index.js";
 import { planWith, testContent } from "./fixtures.js";
 
 const HEAVY_TT = planWith({ trainTT: 14 });
@@ -91,6 +91,56 @@ describe("InjurySystem", () => {
       return humanOf(game).condition.injury;
     };
     expect(run("injury-det")).toEqual(run("injury-det"));
+  });
+});
+
+describe("catalog duration/heal-rate overrides (serious injuries don't heal on the mild-injury clock)", () => {
+  const achilles = testContent.injuries["achilles-rupture"]!;
+  const ankleSprain = testContent.injuries["ankle-sprain"]!;
+
+  it("Achilles rupture always rolls within its own 26-36 week range, never the generic severity table's 5-7 week cap", () => {
+    for (let i = 0; i < 200; i++) {
+      const weeks = pickInjuryDuration(new Rng(`achilles-duration-${i}`), achilles, 3);
+      expect(weeks).toBeGreaterThanOrEqual(26);
+      expect(weeks).toBeLessThanOrEqual(36);
+    }
+  });
+
+  it("a maxHealRate cap keeps healing at 1 week/week even at max durability", () => {
+    const game = Game.newGame({ content: testContent, seed: "achilles-heal-cap" });
+    const save = game.serialize();
+    const human = save.state.players.find((p) => p.identity.id === save.state.career.playerId)!;
+    human.attributes.durability = 1; // max — would normally heal 3 weeks/week
+    human.condition.injury = {
+      catalogId: "achilles-rupture",
+      kind: "injury",
+      cause: "sq",
+      severity: 3,
+      weeksRemaining: 30,
+      startWeek: save.state.calendar.weekIndex,
+    };
+    const healed = Game.fromSave(save, testContent);
+    healed.submitWeek(planWith({}));
+    expect(humanInjury(healed)!.weeksRemaining).toBe(29); // capped to 1/week, not 3
+  });
+
+  it("a common injury with no maxHealRate still gets the full durability-scaled heal rate", () => {
+    const game = Game.newGame({ content: testContent, seed: "ankle-heal-uncapped" });
+    const save = game.serialize();
+    const human = save.state.players.find((p) => p.identity.id === save.state.career.playerId)!;
+    human.attributes.durability = 1; // max — 1 + round(1*2) = 3 weeks/week
+    human.condition.injury = {
+      catalogId: "ankle-sprain",
+      kind: "injury",
+      cause: "sq",
+      severity: 2,
+      weeksRemaining: 10,
+      startWeek: save.state.calendar.weekIndex,
+    };
+    const healed = Game.fromSave(save, testContent);
+    healed.submitWeek(planWith({}));
+    expect(humanInjury(healed)!.weeksRemaining).toBe(7); // uncapped, full 3/week speedup
+    expect(ankleSprain.maxHealRate).toBeUndefined();
   });
 });
 

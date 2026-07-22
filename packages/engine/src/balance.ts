@@ -139,14 +139,18 @@ export const BALANCE = {
     fatigueDivisor: 10,
     mediumAt: 8,
     highAt: 15,
-    /** weekly injury probability = load × this, before durability reduction */
+    /** weekly injury probability = load × this, before coreStrength reduction */
     chancePerLoad: 0.01,
-    /** durability (Läkekött) 0..1 cuts that chance by up to this fraction */
-    durabilityProtection: 0.6,
+    /** coreStrength (gym-built, trainable) 0..1 cuts that chance by up to this
+     * fraction — the risk-reduction half of the prevention/recovery split;
+     * durability ("Läkekött"/Fast Healer) has no role in whether you get
+     * hurt, only in how fast you heal once you are (durabilityHealBonus). */
+    coreStrengthProtection: 0.6,
     /** hard ceiling so even a reckless training-camp week can't guarantee one */
     maxWeeklyChance: 0.35,
     /** extra "weeks of healing" applied per real week, per point of durability
-     * 0..1 — Läkekött doesn't just resist injury, it shortens recovery too */
+     * 0..1 — durability is purely recovery speed, not injury resistance;
+     * see `coreStrengthProtection` above for what actually lowers the odds. */
     durabilityHealBonus: 2,
   },
   /**
@@ -255,17 +259,19 @@ export const BALANCE = {
    * Match-time injury risk (docs' "risk when going all out" ask) — a second,
    * independent-of-training injury roll, checked at every break (side
    * change, set end, gummiarm) for the sport/tactic just played, over on top
-   * of the weekly training-load roll (BALANCE.injuryRisk). Mirrors
-   * `sorenessGainForMatch`'s inputs (age, coreStrength, durability) but
-   * scales primarily by `BALANCE.match.tacticEnergyMult` — the same ratios
-   * that make `allOut` the most energy-costly tactic make it the riskiest
-   * one here too, "money time" cutting both ways. First-pass values, tuned
-   * so most matches produce zero injuries and `allOut` in squash stands out
-   * as meaningfully riskier than `conserve`.
+   * of the weekly training-load roll (BALANCE.injuryRisk). Scales primarily
+   * by `BALANCE.match.tacticEnergyMult` — the same ratios that make `allOut`
+   * the most energy-costly tactic make it the riskiest one here too, "money
+   * time" cutting both ways. First-pass values, tuned so most matches
+   * produce zero injuries and `allOut` in squash stands out as meaningfully
+   * riskier than `conserve`. Deliberately durability-free: durability
+   * ("Läkekött"/Fast Healer) only speeds recovery once hurt
+   * (`injuryRisk.durabilityHealBonus`) — coreStrength (gym-built, trainable)
+   * is the only thing that lowers the CHANCE of getting hurt in the first
+   * place, both here and in the weekly roll.
    */
   matchInjuryRisk: {
     basePerBreak: 0.004,
-    durabilityProtection: 0.5,
     coreStrengthProtection: 0.3,
     maxPerBreak: 0.1,
   },

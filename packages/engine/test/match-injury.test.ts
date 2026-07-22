@@ -13,7 +13,6 @@ function ref(id: string, overrides: Partial<MatchPlayerRef> = {}): MatchPlayerRe
     composure: 0.5,
     clutch: 0.5,
     age: 25, // below BALANCE.age.injuryRiskFromAge — no age-driven bonus risk
-    durability: 0.5,
     coreStrength: 0.5,
     ...overrides,
   };
@@ -66,16 +65,16 @@ describe("match-time injury risk", () => {
     expect(allOutRetirements).toBeGreaterThan(conserveRetirements);
   }, 20000);
 
-  it("durability meaningfully reduces retirement frequency", () => {
+  it("coreStrength meaningfully reduces retirement frequency (durability plays no role in risk)", () => {
     const TRIALS = 300;
-    let fragileRetirements = 0;
-    let durableRetirements = 0;
+    let weakRetirements = 0;
+    let strongRetirements = 0;
     for (let i = 0; i < TRIALS; i++) {
-      if (driveMatch(`fragile-${i}`, "allOut", { durability: 0 }).retiredSide === "a") fragileRetirements++;
-      if (driveMatch(`durable-${i}`, "allOut", { durability: 1 }).retiredSide === "a") durableRetirements++;
+      if (driveMatch(`weak-core-${i}`, "allOut", { coreStrength: 0 }).retiredSide === "a") weakRetirements++;
+      if (driveMatch(`strong-core-${i}`, "allOut", { coreStrength: 1 }).retiredSide === "a") strongRetirements++;
     }
-    expect(fragileRetirements).toBeGreaterThan(0);
-    expect(fragileRetirements).toBeGreaterThan(durableRetirements);
+    expect(weakRetirements).toBeGreaterThan(0);
+    expect(weakRetirements).toBeGreaterThan(strongRetirements);
   }, 20000);
 
   it("is deterministic for a given seed", () => {

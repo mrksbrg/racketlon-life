@@ -10,6 +10,17 @@ function advance(game: Game, n: number): void {
   for (let i = 0; i < n; i++) game.submitWeek(WORK);
 }
 
+/** Force-clears any injury/illness the human happened to pick up along the
+ * way (the independent weekly illness roll, and match-time injury risk
+ * during a played tournament, can both strike on an otherwise-unrelated
+ * seed) — for tests whose concern isn't the injury system itself, and that
+ * would otherwise throw on `enterTournament()` for an unrelated reason. */
+function clearHumanInjury(game: Game): Game {
+  const save = game.serialize();
+  save.state.players.find((p) => p.identity.id === save.state.career.playerId)!.condition.injury = null;
+  return Game.fromSave(save, testContent);
+}
+
 /** A handful of ranked male players on top of testContent's all-null roster
  * — the FIR ranking digest only lists players with a counted result, so
  * testing its sorting/inclusion needs *some* non-null population. Mirrors
@@ -211,10 +222,11 @@ describe("inbox generation", () => {
   });
 
   it("sends independent results emails for two different tournaments", () => {
-    const game = Game.newGame({ content: testContent, seed: "inbox-result-3" });
+    let game = Game.newGame({ content: testContent, seed: "inbox-result-3" });
     playWeekThreeTournament(game);
     game.registerForTournament(7);
     advance(game, 3); // reach and play through week 7's tournament
+    game = clearHumanInjury(game);
     let match = game.enterTournament();
     for (;;) {
       simulateMatchAuto(match);

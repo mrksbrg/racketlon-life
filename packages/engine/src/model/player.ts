@@ -26,13 +26,18 @@ export interface PlayerAttributes {
    * Never shown as a number; systems/inbox.ts sends vague "clue" messages as
    * a sport's skill nears its ceiling. */
   potential: Record<Sport, number>;
-  /** 0..1 — injury resistance + recovery speed ("Läkekött"), used from M1 */
+  /** 0..1 — recovery speed only ("Läkekött"/Fast Healer), fixed at creation
+   * — shortens how long an injury/illness lasts (systems/injury.ts's
+   * `durabilityHealBonus`). Plays no role in whether you get hurt at all;
+   * see `coreStrength` for the trainable, prevention half of that split. */
   durability: number;
   /** 0..1 — drives AI planning quality and consistency */
   professionalism: number;
   /** 0..1 — in-match energy reserve; slows fatigue build-up (Endurance) */
   endurance: number;
-  /** 0..1 — gym-built trunk strength; foundation for future injury/power hooks */
+  /** 0..1 — gym-built trunk strength, trainable. Lowers the CHANCE of
+   * getting injured, both the weekly training-load roll and match-time risk
+   * (see `durability` for the separate recovery-speed half of that split). */
   coreStrength: number;
   /** 0..1 — successful civilian career track, higher salary; minor tactical-learning bonus */
   career: number;
