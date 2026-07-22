@@ -11,6 +11,31 @@ front-facing sports portraits, hard pixel clusters, restrained shading, and
 national-color shirts. It is a visual reference rather than a production sprite
 sheet; production portraits remain assembled deterministically from recipe parts.
 
+### Authored raster acceptance standard
+
+Any authored or AI-assisted raster override must look as though it was drawn
+natively on the same 96×96 canvas as the procedural renderer, even when its
+stored PNG is larger for convenient display:
+
+- build the face from large, deliberate square pixel clusters and stepped edges;
+- use roughly 24–32 colors for the complete portrait, with three to five flat
+  skin tones and three to four tones for each hair or facial-hair material;
+- use hard contours and nearest-neighbor-style enlargement, with no antialiasing,
+  smooth gradients, pores, photographic noise, fine hair strands, or detailed
+  irises;
+- simplify eyes, nose, mouth, ears, cheek planes, wrinkles, and facial hair into
+  readable sprite shapes at the intended in-game size;
+- use source photographs only for broad identity cues. Never inherit their
+  lighting, skin texture, depth of field, or high-resolution shading;
+- keep national shirts within their shared country design family; and
+- reject any result that reads as a photograph with a pixel filter rather than
+  hand-placed 1990s game art.
+
+Use an already approved portrait from the active provider as the strict style
+reference when producing another raster override. Save replacements under a new
+versioned filename and switch the provider only after the complete portrait has
+been reviewed at its actual UI size.
+
 ## Recommendation
 
 Use a small stylized pixel portrait generator at 96×96. Each portrait

@@ -25,10 +25,10 @@
   },
   "name:joerg-kanonenberg:GER": {
     "skinPalette": "skin-01",
-    "hair": "side-part",
+    "hair": "receding",
     "hairPalette": "brown",
     "eyes": "calm",
-    "facialHair": null,
+    "facialHair": "short-beard",
     "accessory": null
   },
   "name:nicolas-lenggenhager:SUI": {

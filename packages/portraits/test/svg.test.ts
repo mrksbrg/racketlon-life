@@ -38,6 +38,17 @@ describe("SVG portrait renderer", () => {
     expect(renderPortraitSvg(recipe)).toContain("#fecc02");
   });
 
+  it("uses the royal-blue GB shirt for both supported country codes", () => {
+    const gbShirt = {
+      primary: "#214db5",
+      secondary: "#f5f5f1",
+      tertiary: "#cf142b",
+    };
+
+    expect(shirtColorsFor("country-GB")).toEqual(gbShirt);
+    expect(shirtColorsFor("country-GBR")).toEqual(gbShirt);
+  });
+
   it("escapes accessible labels", () => {
     const svg = renderPortraitSvg(recipe, { label: 'A & B <team> "one"' });
     expect(svg).toContain("A &amp; B &lt;team> &quot;one&quot;");

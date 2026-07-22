@@ -89,6 +89,7 @@ export interface PortraitRenderer<TRenderable> {
  */
 export interface PortraitProvider<TRenderable = unknown> {
   recipeFor(input: PortraitInput): PortraitRecipe;
-  assetUrlFor?(recipe: PortraitRecipe): string;
+  /** Returns undefined when this provider has no authored asset for the recipe. */
+  assetUrlFor?(recipe: PortraitRecipe): string | undefined;
   render?(recipe: PortraitRecipe): TRenderable;
 }
