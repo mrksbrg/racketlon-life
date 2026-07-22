@@ -120,10 +120,10 @@
     "accessory": null
   },
   "name:leon-mamie:SUI": {
-    "skinPalette": "skin-02",
-    "hair": "curly-short",
-    "hairPalette": "dark-brown",
-    "eyes": "focused",
+    "skinPalette": "skin-01",
+    "hair": "shaggy",
+    "hairPalette": "light-brown",
+    "eyes": "soft",
     "facialHair": null,
     "accessory": null
   },
@@ -427,6 +427,86 @@
     "hair": "swept",
     "hairPalette": "dark-brown",
     "eyes": "calm",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:giovanni-gentile:SUI": {
+    "skinPalette": "skin-03",
+    "hair": "crop",
+    "hairPalette": "salt-and-pepper",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:juho-vuorinen:FIN": {
+    "skinPalette": "skin-01",
+    "hair": "receding",
+    "hairPalette": "light-brown",
+    "eyes": "bright",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:samuel-worobel:FRA": {
+    "skinPalette": "skin-03",
+    "hair": "swept",
+    "hairPalette": "brown",
+    "eyes": "bright",
+    "facialHair": "short-beard",
+    "accessory": null
+  },
+  "name:isak-enstrom:SWE": {
+    "skinPalette": "skin-01",
+    "hair": "long-straight",
+    "hairPalette": "blond",
+    "eyes": "bright",
+    "facialHair": "moustache",
+    "accessory": null
+  },
+  "name:simon-lau:GBR": {
+    "skinPalette": "skin-03",
+    "hair": "crop",
+    "hairPalette": "black",
+    "eyes": "narrow",
+    "facialHair": null,
+    "accessory": null
+  },
+  "name:jacob-steinmetz:DEN": {
+    "skinPalette": "skin-02",
+    "hair": "bald",
+    "hairPalette": "grey",
+    "eyes": "calm",
+    "facialHair": null,
+    "accessory": "round-glasses"
+  },
+  "name:carsten-lindhard-jensen:DEN": {
+    "skinPalette": "skin-02",
+    "hair": "receding",
+    "hairPalette": "grey",
+    "eyes": "calm",
+    "facialHair": "full-beard",
+    "accessory": null
+  },
+  "name:kim-ljungberg-jensen:DEN": {
+    "skinPalette": "skin-02",
+    "hair": "buzz",
+    "hairPalette": "dark-brown",
+    "eyes": "bright",
+    "facialHair": null,
+    "accessory": "square-glasses"
+  },
+  "name:thomas-ostenfeld-larsen:DEN": {
+    "skinPalette": "skin-01",
+    "hair": "receding",
+    "hairPalette": "grey",
+    "eyes": "bright",
+    "facialHair": "moustache",
+    "accessory": "round-glasses"
+  },
+  "name:rachid-bech-azeddine:DEN": {
+    "skinPalette": "skin-04",
+    "hair": "swept",
+    "hairPalette": "salt-and-pepper",
+    "eyes": "bright",
     "facialHair": null,
     "accessory": null
   }

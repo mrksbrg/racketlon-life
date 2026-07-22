@@ -150,5 +150,13 @@
     "eyes": "calm",
     "facialHair": null,
     "accessory": "headband"
+  },
+  "name:esther-dubendorfer:SUI": {
+    "skinPalette": "skin-01",
+    "hair": "bun",
+    "hairPalette": "salt-and-pepper",
+    "eyes": "focused",
+    "facialHair": null,
+    "accessory": "earring"
   }
 }

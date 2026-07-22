@@ -258,9 +258,9 @@ const hair = {
     rect(58, 13, 3, 3, "hair-highlight"), rect(67, 13, 3, 4, "hair-shadow"),
   )),
   receding: hairSprite(layer(
-    polygon([[27, 42], [25, 29], [31, 21], [40, 18], [43, 25], [48, 32], [53, 25], [56, 18], [66, 22], [71, 31], [69, 43], [64, 34], [58, 29], [53, 32], [48, 36], [42, 31], [36, 29], [31, 35]], "hair-base", "hair-shadow", 2),
-    line([29, 28], [37, 21], "hair-highlight", 1), line([60, 21], [67, 29], "hair-highlight", 1),
-    rect(31, 31, 3, 2, "hair-shadow"), rect(63, 31, 3, 2, "hair-shadow"),
+    polygon([[27, 42], [25, 29], [31, 21], [40, 17], [48, 15], [56, 18], [66, 22], [71, 31], [69, 43], [64, 35], [61, 30], [57, 27], [53, 29], [48, 33], [43, 29], [39, 27], [35, 30], [31, 35]], "hair-base", "hair-shadow", 2),
+    line([29, 28], [39, 20], "hair-highlight", 1), line([50, 18], [63, 24], "hair-highlight", 1),
+    rect(44, 18, 6, 1, "hair-highlight"), rect(31, 31, 3, 2, "hair-shadow"), rect(63, 31, 3, 2, "hair-shadow"),
   )),
   bald: hairSprite(layer(
     rect(27, 31, 3, 13, "hair-shadow"), rect(67, 31, 3, 13, "hair-shadow"),

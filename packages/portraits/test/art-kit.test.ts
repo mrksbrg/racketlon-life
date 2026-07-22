@@ -86,6 +86,23 @@ describe("version 1 authored pixel face kit", () => {
     expectLayerInsideCanvas(PIXEL_FACE_ART_KIT_V1.anatomy.ears);
   });
 
+  it("keeps receding hair connected across the crown", () => {
+    const receding = PIXEL_FACE_ART_KIT_V1.hair.receding;
+    expect(receding).toBeDefined();
+    if (receding === undefined) return;
+
+    const crown = receding.front.primitives.find(
+      (primitive) => primitive.kind === "polygon",
+    );
+    expect(crown?.kind).toBe("polygon");
+    if (crown?.kind !== "polygon") return;
+
+    const centralCrownY = Math.min(
+      ...crown.points.filter(([x]) => x >= 45 && x <= 51).map(([, y]) => y),
+    );
+    expect(centralCrownY).toBeLessThanOrEqual(18);
+  });
+
   it("contains enough independently editable parts for a meaningful vertical slice", () => {
     expect(Object.keys(PIXEL_FACE_ART_KIT_V1.heads)).toHaveLength(8);
     expect(Object.keys(PIXEL_FACE_ART_KIT_V1.eyes)).toHaveLength(6);
