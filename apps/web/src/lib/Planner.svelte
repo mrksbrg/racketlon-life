@@ -11,6 +11,29 @@
   import { ACTIVITY_COLORS, formatMoney } from "./ui";
 
   let picking = $state<number | null>(null);
+  let confirmingSimulate = $state(false);
+
+  /** True when Simulate would spend paid leave on a plan that isn't
+   * obviously worth it: no tournament this week (the tournament button
+   * takes over the footer for those weeks — see below) and not a dedicated,
+   * fully income-free training-camp-style week either, where burning leave
+   * is clearly the point. Vacation days are a limited resource, so a mixed
+   * week that quietly nibbles at them deserves a confirmation, not a silent
+   * spend. */
+  const riskyVacationSpend = $derived(store.vacationCostThisWeek > 0 && !!store.forecast && store.forecast.salaryEarned > 0);
+
+  function handleSimulateClick() {
+    if (riskyVacationSpend) {
+      confirmingSimulate = true;
+      return;
+    }
+    void store.simulateWeek();
+  }
+
+  function confirmSimulate() {
+    confirmingSimulate = false;
+    void store.simulateWeek();
+  }
 
   const tournamentEntry = $derived(store.tourEntries.find((e) => e.isThisWeek) ?? null);
   const travelSlots = $derived(new Set(store.travelBlocksThisWeek.flatMap((block) => block.slotIndices)));
@@ -190,13 +213,27 @@
         {store.canAffordTournamentThisWeek ? "Play tournament ▸" : "Can't afford this trip"}
       </button>
     {:else}
-      <button class="simulate" onclick={() => void store.simulateWeek()}>Simulate week ▸</button>
+      <button class="simulate" onclick={handleSimulateClick}>Simulate week ▸</button>
     {/if}
   </div>
 </footer>
 
 {#if picking !== null}
   <ActivityPicker slotIndex={picking} onpick={pick} onclose={() => (picking = null)} unavailable={pickingUnavailable} />
+{/if}
+
+{#if confirmingSimulate}
+  <button class="backdrop" onclick={() => (confirmingSimulate = false)} aria-label="Close"></button>
+  <div class="sheet" role="dialog" aria-label="Confirm vacation days">
+    <h3>🏖 Use {store.vacationCostThisWeek} vacation {store.vacationCostThisWeek === 1 ? "day" : "days"}?</h3>
+    <p class="confirm-body">
+      No tournament this week and this isn't a dedicated training camp — vacation days are a limited resource. Spend them anyway?
+    </p>
+    <div class="confirm-actions">
+      <button class="confirm-cancel" onclick={() => (confirmingSimulate = false)}>Back to plan</button>
+      <button class="confirm-go" onclick={confirmSimulate}>Simulate anyway ▸</button>
+    </div>
+  </div>
 {/if}
 
 <TabBar />
@@ -451,5 +488,64 @@
   .simulate:disabled {
     background: var(--card-2);
     color: var(--muted);
+  }
+
+  .backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 10;
+  }
+
+  .sheet {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+    width: 100%;
+    max-width: 480px;
+    background: var(--card);
+    border-radius: 16px 16px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    padding: 18px 16px calc(16px + env(safe-area-inset-bottom));
+    z-index: 11;
+  }
+
+  .sheet h3 {
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+
+  .confirm-body {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.4;
+    margin-bottom: 14px;
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .confirm-cancel,
+  .confirm-go {
+    flex: 1;
+    border-radius: 10px;
+    padding: 12px;
+    font-weight: 700;
+    font-size: 13.5px;
+  }
+
+  .confirm-cancel {
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .confirm-go {
+    background: var(--danger);
+    color: white;
   }
 </style>

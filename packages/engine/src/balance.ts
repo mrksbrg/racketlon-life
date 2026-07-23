@@ -301,7 +301,22 @@ export const BALANCE = {
      * baseline only happens overnight/after the match, via
      * `sorenessGainForMatch` (tournament/engine.ts). First-pass value. */
     sorenessCooldownBump: 0.35,
-    energyWeight: 0.35, // fully drained in-match energy → −35 eff
+    energyWeight: 0.35, // fully drained in-match energy → −35 eff on its own
+    /**
+     * "Hitting the wall" — on top of the mild, linear `energyWeight` bleed,
+     * energy below `below` adds a steeply *convex* penalty (cubic in how
+     * empty the tank is) that's negligible near the threshold but dominates
+     * the closer energy gets to 0. A player at `below` energy plays almost
+     * exactly like `energyWeight` alone would predict; a player at 0 is
+     * playing a fundamentally different, near-helpless match — losing the
+     * vast majority of points to an equal-skill, fresh opponent (see
+     * `energyPenalty` in match/engine.ts). This is deliberately a cliff, not
+     * a slope: it's what makes draining the tank to empty a real risk
+     * instead of a mild inconvenience, and why the AI already bails into
+     * `conserve` once energy drops under `ai.exhaustedBelow` (15), well
+     * inside this wall's `below` threshold.
+     */
+    energyWall: { below: 20, pow: 3, maxExtra: 700 },
     /** softer than energyWeight — mental sharpness bottoming out at 0 costs
      * less than being fully physically drained, but it's still a real bite. */
     sharpnessWeight: 0.25, // sharpness at 0 → −25 eff

@@ -395,6 +395,20 @@ function formFactor(form: number): number {
   return f.matchFloor + f.matchSpan * (form / f.max);
 }
 
+/** Eff lost to in-match energy: `energyWeight`'s mild linear bleed, plus
+ * `energyWall`'s steep cubic collapse once energy drops under its
+ * `below` threshold — negligible up there, but it dominates as energy
+ * nears 0 so a fully drained player is genuinely hitting the wall, not
+ * just mildly tired. See BALANCE.match.energyWall's doc comment. */
+function energyPenalty(energy: number): number {
+  const b = BALANCE.match;
+  const linear = (100 - energy) * b.energyWeight;
+  const wall = b.energyWall;
+  if (energy >= wall.below) return linear;
+  const drained = (wall.below - energy) / wall.below;
+  return linear + wall.maxExtra * drained ** wall.pow;
+}
+
 function effectiveStrength(
   ref: MatchPlayerRef,
   sport: Sport,
@@ -413,7 +427,7 @@ function effectiveStrength(
     ref.skills[sport] * formFactor(ref.formBySport[sport]) -
     ref.fatigue * b.fatigueWeight -
     soreness * b.sorenessWeight -
-    (100 - energy) * b.energyWeight -
+    energyPenalty(energy) -
     (100 - sharpness) * b.sharpnessWeight +
     t.eff +
     matchAgeModifier(ref.age);

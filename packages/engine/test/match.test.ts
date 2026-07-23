@@ -678,6 +678,19 @@ describe("match engine", () => {
     expect(allOutCost).toBeGreaterThan(normalCost * 2);
   });
 
+  it("hits the wall near empty energy — a mild bleed at moderate fatigue, a near-lockout at 0", () => {
+    const probBWins = (energyB: number) => {
+      const m = createMatch(ref("a", 500), ref("b", 500), `wall-${energyB}`);
+      m.energy.b = energyB;
+      return 1 - pointWinProbability(m, new Rng(`wall-prob-${energyB}`));
+    };
+
+    // at the wall's own threshold, only energyWeight's mild linear bleed applies
+    expect(probBWins(BALANCE.match.energyWall.below)).toBeGreaterThan(0.45);
+    // a fully drained player, otherwise even in skill, is all but locked out of the point
+    expect(probBWins(0)).toBeLessThan(0.15);
+  });
+
   describe("pointsToWin (magic number)", () => {
     /** A match with the first three sets pre-filled and the tennis set open. */
     function atTennis(a: [number, number], b: [number, number], c: [number, number]): MatchState {
