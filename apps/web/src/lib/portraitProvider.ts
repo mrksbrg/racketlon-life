@@ -6,7 +6,7 @@ import {
 } from "@racketlon/portraits";
 
 const authoredPortraitModules = import.meta.glob<string>(
-  "../../../../packages/portraits/assets/generated/pilot-v1/*.png",
+  "../../../../packages/portraits/assets/{men,women}/*.png",
   { eager: true, import: "default", query: "?url" },
 );
 
