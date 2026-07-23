@@ -646,6 +646,10 @@ export interface OpponentProfileView {
   firStanding: FirStandingView | null;
   /** newest first — see {@link OpponentResultView} */
   recentResults: OpponentResultView[];
+  /** current injury/illness, if any — public knowledge in any real sport
+   * (unlike hidden attributes/exact skill), so shown for every player, not
+   * just the human's own StatusBar badge. Null while healthy. */
+  injury: InjuryView | null;
   /** true iff this is the human's own profile — reached mid-match or
    * mid-draw by tapping your own name (see store.svelte.ts's `viewOpponent`
    * doc comment). It's the same person as the Me tab, not actually an
@@ -1354,26 +1358,7 @@ export class Game {
     const p = this.state.players.find((pl) => pl.identity.id === id);
     if (!p) return null;
     const isYou = p.identity.id === this.state.career.playerId;
-    const sports = {} as Record<Sport, OpponentSportView>;
-    const ratings = {} as Record<Sport, RatingView>;
-    for (const sport of SPORTS) {
-      const skill = p.attributes.skills[sport];
-      if (isYou) {
-        const level = levelForSkill(skill);
-        sports[sport] = { levelMin: level, levelMax: level, level, progress: levelProgress(skill) };
-      } else {
-        const setsPlayed = this.state.career.headToHeadSets[id]?.[sport] ?? 0;
-        const bandWidth = levelRangeWidthForFamiliarity(
-          setsPlayed,
-          BALANCE.opponentInfo.levelRangeStartWidth,
-          BALANCE.opponentInfo.levelRangeMinWidth,
-        );
-        const range = levelRangeForSkill(skill, bandWidth);
-        sports[sport] = { levelMin: range.min, levelMax: range.max };
-      }
-      const g = p.ratings[sport];
-      ratings[sport] = { rating: Math.round(g.rating), rd: Math.round(g.rd) };
-    }
+    const { sports, ratings } = this.sportLevelsFor(p, isYou);
     return {
       id: p.identity.id,
       name: fullName(p),
@@ -1394,8 +1379,56 @@ export class Game {
         tiedCount: r.tiedCount,
         matchesPlayed: r.matchesPlayed,
       })),
+      injury: p.condition.injury ? injuryView(this.content, p.condition.injury) : null,
       isYou,
     };
+  }
+
+  /** The per-sport level/rating block shared by `opponentProfile` and
+   * `matchSportLevels` — exact for the human, a familiarity-fuzzed range for
+   * anyone else (see `OpponentSportView`'s doc comment for why). */
+  private sportLevelsFor(
+    p: Player,
+    isYou: boolean,
+  ): { sports: Record<Sport, OpponentSportView>; ratings: Record<Sport, RatingView> } {
+    const sports = {} as Record<Sport, OpponentSportView>;
+    const ratings = {} as Record<Sport, RatingView>;
+    for (const sport of SPORTS) {
+      const skill = p.attributes.skills[sport];
+      if (isYou) {
+        const level = levelForSkill(skill);
+        sports[sport] = { levelMin: level, levelMax: level, level, progress: levelProgress(skill) };
+      } else {
+        const setsPlayed = this.state.career.headToHeadSets[p.identity.id]?.[sport] ?? 0;
+        const bandWidth = levelRangeWidthForFamiliarity(
+          setsPlayed,
+          BALANCE.opponentInfo.levelRangeStartWidth,
+          BALANCE.opponentInfo.levelRangeMinWidth,
+        );
+        const range = levelRangeForSkill(skill, bandWidth);
+        sports[sport] = { levelMin: range.min, levelMax: range.max };
+      }
+      const g = p.ratings[sport];
+      ratings[sport] = { rating: Math.round(g.rating), rd: Math.round(g.rd) };
+    }
+    return { sports, ratings };
+  }
+
+  /**
+   * The same per-sport Glicko rating `opponentProfile` shows, for the two
+   * players in the match currently on screen — unlike the level band,
+   * ratings aren't fuzzed for familiarity (see `sportLevelsFor`), so this is
+   * the real number for either side. Lets `MatchScreen` show both players'
+   * ratings without the friction of leaving the match to open a full profile
+   * (which also computes head-to-head history, tournament history, etc. —
+   * overkill for a screen re-rendering every point). Null if `id` doesn't
+   * resolve to a player in this world.
+   */
+  matchSportRatings(id: string): Record<Sport, RatingView> | null {
+    const p = this.state.players.find((pl) => pl.identity.id === id);
+    if (!p) return null;
+    const isYou = p.identity.id === this.state.career.playerId;
+    return this.sportLevelsFor(p, isYou).ratings;
   }
 
   /**
@@ -1841,6 +1874,14 @@ export class Game {
   prepareAndEnterTournament(plan: PlayerPlan): MatchState {
     const def = this.registeredTournamentThisWeek();
     if (!def) throw new Error("Not registered for a tournament this week");
+    // Checked BEFORE `simulateTournamentPreparation` runs, not just inside
+    // `enterTournament()` afterward — that pass includes InjurySystem's own
+    // healing tick, which can clear a marginal (1-2 week) injury on its own.
+    // Without this earlier check, someone still genuinely injured going into
+    // the week could get waved through purely because this week's own prep
+    // pass happened to finish healing them a moment before the entry gate
+    // ran — a lucky-timing loophole, not an actual recovery.
+    this.assertNotInjured();
     if (!this.tournamentPreparationDone) {
       const snapshot = this.ensureWeekSnapshot();
       simulateTournamentPreparation(
@@ -1855,17 +1896,21 @@ export class Game {
     return this.enterTournament();
   }
 
-  enterTournament(): MatchState {
-    const def = this.registeredTournamentThisWeek();
-    if (!def) throw new Error("Not registered for a tournament this week");
-    // An injured/ill player can't take the court at all — matches the
-    // walkover cascade's own invariant (never re-roll or re-play while
-    // already carrying one), and sidesteps the harder question of how to
-    // hand back a "no match to play" result for the human's own very first
-    // pairing, which the rest of this flow always assumes exists.
+  /** An injured/ill player can't take the court at all — matches the
+   * walkover cascade's own invariant (never re-roll or re-play while
+   * already carrying one), and sidesteps the harder question of how to hand
+   * back a "no match to play" result for the human's own very first
+   * pairing, which the rest of this flow always assumes exists. */
+  private assertNotInjured(): void {
     if (humanPlayer(this.state).condition.injury) {
       throw new Error("Can't compete while injured — see the physio or wait it out");
     }
+  }
+
+  enterTournament(): MatchState {
+    const def = this.registeredTournamentThisWeek();
+    if (!def) throw new Error("Not registered for a tournament this week");
+    this.assertNotInjured();
     const travel = travelCost(humanPlayer(this.state).identity.nationality, def, this.content);
     if (this.state.career.money < def.entryFee + travel.total) {
       throw new Error("Insufficient funds for this trip");

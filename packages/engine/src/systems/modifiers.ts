@@ -111,9 +111,11 @@ export function homeLatitudeFor(content: ContentBundle, nationality: string): nu
  * one at a time (the plan's "stays a glance, not a report" guardrail) —
  * always drawn from whichever modifiers are eligible for the player's own
  * *local* season (see `localSeason`), so e.g. a heat wave never rolls in a
- * Swedish January.
+ * Swedish January. Never rolls before `BALANCE.modifiers.minWeekIndex` —
+ * a brand-new career has enough to onboard already.
  */
 export function activeWeekModifier(seed: string, weekIndex: number, calendar: Calendar, homeLat: number): WeekModifierDef | null {
+  if (weekIndex < BALANCE.modifiers.minWeekIndex) return null;
   const rng = new Rng(childSeed(seed, weekIndex, "modifier"));
   if (!rng.chance(BALANCE.modifiers.chance)) return null;
   const season = localSeason(calendar, weekIndex, homeLat);

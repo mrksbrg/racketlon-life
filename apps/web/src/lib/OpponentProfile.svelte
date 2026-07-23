@@ -4,7 +4,7 @@
   import { NATIONALITIES } from "./character";
   import PlayerPortrait from "./PlayerPortrait.svelte";
   import { store } from "./store.svelte";
-  import { SPORT_COLORS, SPORT_SHORT, finishLabel, flagEmoji } from "./ui";
+  import { SPORT_COLORS, SPORT_SHORT, finishLabel, flagEmoji, formatInjury } from "./ui";
 
   const p = $derived(store.opponentProfile);
 
@@ -59,6 +59,9 @@
         <div class="who">
           <h1>{p.name}</h1>
           <div class="meta">{p.age} years · {countryName}</div>
+          {#if p.injury}
+            <div class="injury-badge">{formatInjury(p.injury)}</div>
+          {/if}
         </div>
       </section>
 
@@ -314,6 +317,18 @@
     color: var(--muted);
     font-size: 13.5px;
     margin-top: 2px;
+  }
+
+  .injury-badge {
+    display: inline-block;
+    margin-top: 8px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--danger) 18%, var(--card));
+    border: 1px solid var(--danger);
+    color: var(--danger);
+    font-size: 11px;
+    font-weight: 700;
   }
 
   .rating-strip {

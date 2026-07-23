@@ -898,6 +898,27 @@ describe("Game facade", () => {
     expect(Object.keys(profile!.sports.tt)).not.toContain("progress");
   });
 
+  it("opponentProfile surfaces another player's injury (public knowledge, unlike hidden attributes)", () => {
+    const game = Game.newGame({ content: testContent, seed: "f13-injury" });
+    expect(game.opponentProfile("test-m-0")!.injury).toBeNull();
+
+    const save = game.serialize();
+    save.state.players.find((p) => p.identity.id === "test-m-0")!.condition.injury = {
+      catalogId: "ankle-sprain",
+      kind: "injury",
+      cause: "sq",
+      severity: 2,
+      weeksRemaining: 4,
+      startWeek: save.state.calendar.weekIndex,
+    };
+    const injured = Game.fromSave(save, testContent);
+    const profile = injured.opponentProfile("test-m-0")!;
+    expect(profile.injury).not.toBeNull();
+    expect(profile.injury!.label).toBe("Ankle sprain");
+    expect(profile.injury!.kind).toBe("injury");
+    expect(profile.injury!.weeksRemaining).toBe(4);
+  });
+
   it("opponentProfile.recentResults carries the real weekIndex, wired to the same week the human played", () => {
     const game = Game.newGame({ content: testContent, seed: "f14-opp-week" });
     playTournamentAt(game, 3);

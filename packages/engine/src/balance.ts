@@ -683,6 +683,11 @@ export const BALANCE = {
     /** chance a week rolls a modifier at all — never more than one per
      * week regardless (see `activeWeekModifier`). */
     chance: 0.45,
+    /** no modifier rolls before this weekIndex — a new career's first
+     * month is already a lot to absorb (character creation, the planner,
+     * first tournaments); let it settle before layering flavor events on
+     * top. */
+    minWeekIndex: 4,
   },
   forecast: {
     /** expected weekly skill gain thresholds for ++ and +++ */

@@ -15,6 +15,7 @@ import type {
   OtherDivisionDraw,
   PlayerMatchView,
   RankingRowView,
+  RatingView,
   RecentMatchView,
   RecordsView,
   ReservedSlot,
@@ -350,6 +351,16 @@ class GameStore {
   matchesForPlayer(playerId: string): PlayerMatchView[] {
     if (!this.game) return [];
     return this.game.matchesForPlayer(playerId);
+  }
+
+  /** Per-sport Glicko rating for either side of the live match — the real
+   * number for both sides (unlike the level band, ratings aren't fuzzed for
+   * familiarity), without the full `opponentProfile`'s other overhead. Used
+   * by MatchScreen so a player's own/opponent's rating is visible without
+   * leaving the match. */
+  matchSportRatings(playerId: string): Record<Sport, RatingView> | null {
+    if (!this.game) return null;
+    return this.game.matchSportRatings(playerId);
   }
 
   /** Which gender's ladder the Rankings screen shows — defaults to the

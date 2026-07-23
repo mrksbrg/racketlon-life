@@ -6,6 +6,8 @@ function ref(id: string, overrides: Partial<MatchPlayerRef> = {}): MatchPlayerRe
   return {
     id,
     name: id,
+    nationality: "SWE",
+    gender: "m",
     skills: { tt: 500, bd: 500, sq: 500, tn: 500 },
     formBySport: { tt: 20, bd: 20, sq: 20, tn: 20 },
     fatigue: 20,

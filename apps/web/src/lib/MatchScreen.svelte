@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { defaultPortraitCues } from "@racketlon/content";
   import type { ClutchMoment, MatchState, Sport, Tactic } from "@racketlon/engine";
   import {
     SPORTS,
@@ -16,6 +17,7 @@
     tacticsForSport,
     totalPoints,
   } from "@racketlon/engine";
+  import PlayerPortrait from "./PlayerPortrait.svelte";
   import { store, type MatchSpeed } from "./store.svelte";
   import {
     energyColor,
@@ -322,6 +324,8 @@
   {@const mentalTellB = mentalTell(mentalB)}
   {@const momentumPos = momentumBarPosition(m.momentum)}
   {@const moment = m.phase === "playing" ? clutchMoment(m) : null}
+  {@const youRatings = store.matchSportRatings(m.players.a.id)}
+  {@const oppRatings = store.matchSportRatings(m.players.b.id)}
   <div class="match">
     <div class="top">
       <span class="label">
@@ -344,7 +348,27 @@
     {/if}
 
     <div class="players">
-      <button class="pname you" onclick={() => store.viewOpponent(m.players.a.id)}>{m.players.a.name}</button>
+      <div class="player">
+        <button class="portrait-btn" onclick={() => store.viewOpponent(m.players.a.id)}>
+          <PlayerPortrait
+            playerId={m.players.a.id}
+            portraitSeed={store.humanPortraitSeed ?? undefined}
+            ageYears={m.players.a.age}
+            gender={m.players.a.gender}
+            country={m.players.a.nationality}
+            cues={defaultPortraitCues[m.players.a.id]}
+            label={`Portrait of ${m.players.a.name}`}
+          />
+        </button>
+        <button class="pname you" onclick={() => store.viewOpponent(m.players.a.id)}>{m.players.a.name}</button>
+        <div class="levels">
+          {#each SPORTS as s (s)}
+            <span class="level-chip" style:color={SPORT_COLORS[s]}>
+              {SPORT_SHORT[s]} {youRatings?.[s]?.rating ?? "?"}
+            </span>
+          {/each}
+        </div>
+      </div>
       <div class="score-col">
         <span class="totals" class:leading-a={totalA > totalB} class:leading-b={totalB > totalA}>
           {totalA} – {totalB}
@@ -353,7 +377,26 @@
           {#if totalA === totalB}level{:else if totalA > totalB}you +{totalA - totalB}{:else}−{totalB - totalA}{/if}
         </span>
       </div>
-      <button class="pname" onclick={() => store.viewOpponent(m.players.b.id)}>{m.players.b.name}</button>
+      <div class="player opp">
+        <button class="portrait-btn" onclick={() => store.viewOpponent(m.players.b.id)}>
+          <PlayerPortrait
+            playerId={m.players.b.id}
+            ageYears={m.players.b.age}
+            gender={m.players.b.gender}
+            country={m.players.b.nationality}
+            cues={defaultPortraitCues[m.players.b.id]}
+            label={`Portrait of ${m.players.b.name}`}
+          />
+        </button>
+        <button class="pname" onclick={() => store.viewOpponent(m.players.b.id)}>{m.players.b.name}</button>
+        <div class="levels">
+          {#each SPORTS as s (s)}
+            <span class="level-chip" style:color={SPORT_COLORS[s]}>
+              {SPORT_SHORT[s]} {oppRatings?.[s]?.rating ?? "?"}
+            </span>
+          {/each}
+        </div>
+      </div>
     </div>
 
     {#if store.tournamentContext}
@@ -728,6 +771,27 @@
     gap: 10px;
   }
 
+  .player {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .player.opp {
+    align-items: flex-end;
+  }
+
+  .portrait-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
   .pname {
     font-weight: 700;
     font-size: 14px;
@@ -737,6 +801,27 @@
   .pname.you {
     text-align: left;
     color: var(--accent);
+  }
+
+  .levels {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .player.opp .levels {
+    justify-content: flex-end;
+  }
+
+  .level-chip {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 5px;
+    white-space: nowrap;
   }
 
   .score-col {

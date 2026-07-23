@@ -45,6 +45,10 @@ function clampTacticForSport(tactic: Tactic, sport: Sport): Tactic {
 export interface MatchPlayerRef {
   id: string;
   name: string;
+  /** for the live match screen's portrait — not used by any resolution
+   * logic below (age is what actually feeds `matchAgeModifier` etc.). */
+  nationality: string;
+  gender: "m" | "f";
   skills: Skills;
   /** 0..20 per sport — see BALANCE.form and `formFactor` below */
   formBySport: Record<Sport, number>;
@@ -187,6 +191,8 @@ export function matchRefFromPlayer(player: Player, age: number): MatchPlayerRef 
   return {
     id: player.identity.id,
     name: `${player.identity.firstName} ${player.identity.lastName}`,
+    nationality: player.identity.nationality,
+    gender: player.identity.gender,
     skills: { ...player.attributes.skills },
     formBySport: { ...player.condition.formBySport },
     fatigue: player.condition.fatigue,

@@ -443,6 +443,31 @@ describe("tournament facade flow", () => {
     expect(game.you.sports.tt.level + game.you.sports.tt.progress).toBeGreaterThan(ttBefore);
   });
 
+  it("blocks entry for a player still injured going into the week, even though tournament prep's own healing tick would have finished them off a moment later", () => {
+    // Regression: `prepareAndEnterTournament` used to check injury status
+    // only *after* running that week's own prep pass (which includes
+    // InjurySystem's weekly heal) — so an injury with just 1-2 weeks left
+    // could conveniently finish healing during prep, a moment before the
+    // gate ran, letting a still-recently-injured player sneak in.
+    const game = Game.newGame({ content: testContent, seed: "tour-injured-entry" });
+    game.registerForTournament(3);
+    advanceUntil(game, () => game.weekIndex === 2);
+    const save = game.serialize();
+    save.state.players.find((p) => p.identity.id === save.state.career.playerId)!.condition.injury = {
+      catalogId: "ankle-sprain",
+      kind: "injury",
+      cause: "sq",
+      severity: 2,
+      weeksRemaining: 3, // decays during this week's own prep pass, but not to 0
+      startWeek: save.state.calendar.weekIndex,
+    };
+    const injured = Game.fromSave(save, testContent);
+    injured.submitWeek(WORK_PLAN); // advances into week 3, the tournament week
+    expect(injured.weekIndex).toBe(3);
+    expect(injured.you!.injury).not.toBeNull(); // still hurt entering the tournament week
+    expect(() => injured.prepareAndEnterTournament(WORK_PLAN)).toThrow(/injured/i);
+  });
+
   it("blocks tournament days and ignores planned training on those slots", () => {
     const game = Game.newGame({ content: testContent, seed: "tour-event-blocks" });
     registerAndAdvanceTo(game, 3);
