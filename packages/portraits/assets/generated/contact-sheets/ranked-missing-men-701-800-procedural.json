@@ -1,0 +1,913 @@
+{
+  "description": "Player-ID map for ranked-missing-men-701-800-procedural.png. Each tile is the deterministic procedural fallback rendered by the game.",
+  "sheet": "ranked-missing-men-701-800-procedural.png",
+  "grid": {
+    "columns": 10,
+    "rows": 10,
+    "tileWidth": 128,
+    "tileHeight": 128
+  },
+  "selection": "FIR-ranked men without an authored men portrait, missing-portrait positions 701-800, ordered by world rank.",
+  "entries": [
+    {
+      "tile": 1,
+      "row": 1,
+      "column": 1,
+      "worldRank": 766,
+      "playerId": "name:anton-heinesen:DEN",
+      "name": "Anton Heinesen",
+      "nationality": "DK"
+    },
+    {
+      "tile": 2,
+      "row": 1,
+      "column": 2,
+      "worldRank": 767,
+      "playerId": "name:murtaza-misri:IND",
+      "name": "Murtaza Misri",
+      "nationality": "IN"
+    },
+    {
+      "tile": 3,
+      "row": 1,
+      "column": 3,
+      "worldRank": 768,
+      "playerId": "name:somnath-sonawane:IND",
+      "name": "Somnath Sonawane",
+      "nationality": "IN"
+    },
+    {
+      "tile": 4,
+      "row": 1,
+      "column": 4,
+      "worldRank": 769,
+      "playerId": "name:andrew-von-rosenbach:CAN",
+      "name": "Andrew Von Rosenbach",
+      "nationality": "CA"
+    },
+    {
+      "tile": 5,
+      "row": 1,
+      "column": 5,
+      "worldRank": 770,
+      "playerId": "name:ian-johnston:GBR",
+      "name": "Ian Johnston",
+      "nationality": "GB"
+    },
+    {
+      "tile": 6,
+      "row": 1,
+      "column": 6,
+      "worldRank": 771,
+      "playerId": "name:robin-souvignet:FRA",
+      "name": "Robin Souvignet",
+      "nationality": "FR"
+    },
+    {
+      "tile": 7,
+      "row": 1,
+      "column": 7,
+      "worldRank": 772,
+      "playerId": "name:sam-intrator:USA",
+      "name": "Sam Intrator",
+      "nationality": "US"
+    },
+    {
+      "tile": 8,
+      "row": 1,
+      "column": 8,
+      "worldRank": 773,
+      "playerId": "name:kelvin-tse:HKG",
+      "name": "Kelvin Tse",
+      "nationality": "HK"
+    },
+    {
+      "tile": 9,
+      "row": 1,
+      "column": 9,
+      "worldRank": 774,
+      "playerId": "name:roberto-ferrari:SUI",
+      "name": "Roberto Ferrari",
+      "nationality": "CH"
+    },
+    {
+      "tile": 10,
+      "row": 1,
+      "column": 10,
+      "worldRank": 775,
+      "playerId": "name:david-hutchinson:IRL",
+      "name": "David Hutchinson",
+      "nationality": "IE"
+    },
+    {
+      "tile": 11,
+      "row": 2,
+      "column": 1,
+      "worldRank": 776,
+      "playerId": "name:leonardo-king:USA",
+      "name": "Leonardo King",
+      "nationality": "US"
+    },
+    {
+      "tile": 12,
+      "row": 2,
+      "column": 2,
+      "worldRank": 777,
+      "playerId": "name:jonathan-helmo:DEN",
+      "name": "Jonathan Helmo",
+      "nationality": "DK"
+    },
+    {
+      "tile": 13,
+      "row": 2,
+      "column": 3,
+      "worldRank": 778,
+      "playerId": "name:murtaza-faquih:IND",
+      "name": "Murtaza Faquih",
+      "nationality": "IN"
+    },
+    {
+      "tile": 14,
+      "row": 2,
+      "column": 4,
+      "worldRank": 779,
+      "playerId": "name:yuuta-inotsume:JPN",
+      "name": "Yuuta Inotsume",
+      "nationality": "JP"
+    },
+    {
+      "tile": 15,
+      "row": 2,
+      "column": 5,
+      "worldRank": 780,
+      "playerId": "name:chris-cockburn:GBR",
+      "name": "Chris Cockburn",
+      "nationality": "GB"
+    },
+    {
+      "tile": 16,
+      "row": 2,
+      "column": 6,
+      "worldRank": 781,
+      "playerId": "name:michael-lechner:GER",
+      "name": "Michael Lechner",
+      "nationality": "DE"
+    },
+    {
+      "tile": 17,
+      "row": 2,
+      "column": 7,
+      "worldRank": 782,
+      "playerId": "name:mike-mcconnell:USA",
+      "name": "Mike Mcconnell",
+      "nationality": "US"
+    },
+    {
+      "tile": 18,
+      "row": 2,
+      "column": 8,
+      "worldRank": 783,
+      "playerId": "name:nate-ming-curran:USA",
+      "name": "Nate Ming Curran",
+      "nationality": "US"
+    },
+    {
+      "tile": 19,
+      "row": 2,
+      "column": 9,
+      "worldRank": 784,
+      "playerId": "name:rami-halme:FIN",
+      "name": "Rami Halme",
+      "nationality": "FI"
+    },
+    {
+      "tile": 20,
+      "row": 2,
+      "column": 10,
+      "worldRank": 785,
+      "playerId": "name:franz-bronner:GER",
+      "name": "Franz Brönner",
+      "nationality": "DE"
+    },
+    {
+      "tile": 21,
+      "row": 3,
+      "column": 1,
+      "worldRank": 786,
+      "playerId": "name:sebastian-mikkelsen:DEN",
+      "name": "Sebastian Mikkelsen",
+      "nationality": "DK"
+    },
+    {
+      "tile": 22,
+      "row": 3,
+      "column": 2,
+      "worldRank": 787,
+      "playerId": "name:jakub-roman:CZE",
+      "name": "Jakub Roman",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 23,
+      "row": 3,
+      "column": 3,
+      "worldRank": 788,
+      "playerId": "name:romain-renault:FRA",
+      "name": "Romain Renault",
+      "nationality": "FR"
+    },
+    {
+      "tile": 24,
+      "row": 3,
+      "column": 4,
+      "worldRank": 789,
+      "playerId": "name:heiko-reinhardt:GER",
+      "name": "Heiko Reinhardt",
+      "nationality": "DE"
+    },
+    {
+      "tile": 25,
+      "row": 3,
+      "column": 5,
+      "worldRank": 790,
+      "playerId": "name:maximilian-beer:GER",
+      "name": "Maximilian Beer",
+      "nationality": "DE"
+    },
+    {
+      "tile": 26,
+      "row": 3,
+      "column": 6,
+      "worldRank": 791,
+      "playerId": "name:santtu-loimusalo:FIN",
+      "name": "Santtu Loimusalo",
+      "nationality": "FI"
+    },
+    {
+      "tile": 27,
+      "row": 3,
+      "column": 7,
+      "worldRank": 792,
+      "playerId": "name:sun-chan:HKG",
+      "name": "Sun Chan",
+      "nationality": "HK"
+    },
+    {
+      "tile": 28,
+      "row": 3,
+      "column": 8,
+      "worldRank": 793,
+      "playerId": "name:chris-adusei-poku:USA",
+      "name": "Chris Adusei-Poku",
+      "nationality": "US"
+    },
+    {
+      "tile": 29,
+      "row": 3,
+      "column": 9,
+      "worldRank": 794,
+      "playerId": "name:huafeng-fan:USA",
+      "name": "Huafeng Fan",
+      "nationality": "US"
+    },
+    {
+      "tile": 30,
+      "row": 3,
+      "column": 10,
+      "worldRank": 795,
+      "playerId": "name:maxim-smith:GBR",
+      "name": "Maxim Smith",
+      "nationality": "GB"
+    },
+    {
+      "tile": 31,
+      "row": 4,
+      "column": 1,
+      "worldRank": 796,
+      "playerId": "name:nathan-olson:USA",
+      "name": "Nathan Olson",
+      "nationality": "US"
+    },
+    {
+      "tile": 32,
+      "row": 4,
+      "column": 2,
+      "worldRank": 797,
+      "playerId": "name:vladimir-brzak:SVK",
+      "name": "Vladimir Brzak",
+      "nationality": "SK"
+    },
+    {
+      "tile": 33,
+      "row": 4,
+      "column": 3,
+      "worldRank": 798,
+      "playerId": "name:nikhil-mansukhani:IND",
+      "name": "Nikhil Mansukhani",
+      "nationality": "IN"
+    },
+    {
+      "tile": 34,
+      "row": 4,
+      "column": 4,
+      "worldRank": 799,
+      "playerId": "name:ellis-jarrold:GBR",
+      "name": "Ellis Jarrold",
+      "nationality": "GB"
+    },
+    {
+      "tile": 35,
+      "row": 4,
+      "column": 5,
+      "worldRank": 800,
+      "playerId": "name:filip-husek:CZE",
+      "name": "Filip Hušek",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 36,
+      "row": 4,
+      "column": 6,
+      "worldRank": 801,
+      "playerId": "name:rafael-werner:SUI",
+      "name": "Rafael Werner",
+      "nationality": "CH"
+    },
+    {
+      "tile": 37,
+      "row": 4,
+      "column": 7,
+      "worldRank": 802,
+      "playerId": "name:roman-koch:GER",
+      "name": "Roman Koch",
+      "nationality": "DE"
+    },
+    {
+      "tile": 38,
+      "row": 4,
+      "column": 8,
+      "worldRank": 803,
+      "playerId": "name:stephane-falcoz:FRA",
+      "name": "Stéphane Falcoz",
+      "nationality": "FR"
+    },
+    {
+      "tile": 39,
+      "row": 4,
+      "column": 9,
+      "worldRank": 804,
+      "playerId": "name:calum-murray:GBR",
+      "name": "Calum Murray",
+      "nationality": "GB"
+    },
+    {
+      "tile": 40,
+      "row": 4,
+      "column": 10,
+      "worldRank": 805,
+      "playerId": "name:jai-singh-bakshi:IND",
+      "name": "Jai Singh Bakshi",
+      "nationality": "IN"
+    },
+    {
+      "tile": 41,
+      "row": 5,
+      "column": 1,
+      "worldRank": 806,
+      "playerId": "name:shashank-singal:USA",
+      "name": "Shashank Singal",
+      "nationality": "US"
+    },
+    {
+      "tile": 42,
+      "row": 5,
+      "column": 2,
+      "worldRank": 807,
+      "playerId": "name:soli-colah:IND",
+      "name": "Soli Colah",
+      "nationality": "IN"
+    },
+    {
+      "tile": 43,
+      "row": 5,
+      "column": 3,
+      "worldRank": 808,
+      "playerId": "name:jeremy-lo:HKG",
+      "name": "Jeremy Lo",
+      "nationality": "HK"
+    },
+    {
+      "tile": 44,
+      "row": 5,
+      "column": 4,
+      "worldRank": 809,
+      "playerId": "name:jari-pekka-malinen:FIN",
+      "name": "Jari-Pekka Malinen",
+      "nationality": "FI"
+    },
+    {
+      "tile": 45,
+      "row": 5,
+      "column": 5,
+      "worldRank": 810,
+      "playerId": "name:daci-branda:ROM",
+      "name": "Daci Branda",
+      "nationality": "RO"
+    },
+    {
+      "tile": 46,
+      "row": 5,
+      "column": 6,
+      "worldRank": 811,
+      "playerId": "name:henry-friedlander:USA",
+      "name": "Henry Friedlander",
+      "nationality": "US"
+    },
+    {
+      "tile": 47,
+      "row": 5,
+      "column": 7,
+      "worldRank": 812,
+      "playerId": "name:kayaan-shah:IND",
+      "name": "Kayaan Shah",
+      "nationality": "IN"
+    },
+    {
+      "tile": 48,
+      "row": 5,
+      "column": 8,
+      "worldRank": 813,
+      "playerId": "name:liam-o-cuinn:GBR",
+      "name": "Liam O'Cuinn",
+      "nationality": "GB"
+    },
+    {
+      "tile": 49,
+      "row": 5,
+      "column": 9,
+      "worldRank": 814,
+      "playerId": "name:tamas-fonyodi:HUN",
+      "name": "Tamás Fonyódi",
+      "nationality": "HU"
+    },
+    {
+      "tile": 50,
+      "row": 5,
+      "column": 10,
+      "worldRank": 815,
+      "playerId": "name:alberic-merieult:FRA",
+      "name": "Albéric Mérieult",
+      "nationality": "FR"
+    },
+    {
+      "tile": 51,
+      "row": 6,
+      "column": 1,
+      "worldRank": 816,
+      "playerId": "name:jonathan-priddle:GBR",
+      "name": "Jonathan Priddle",
+      "nationality": "GB"
+    },
+    {
+      "tile": 52,
+      "row": 6,
+      "column": 2,
+      "worldRank": 817,
+      "playerId": "name:mehdi-bahrami:AFG",
+      "name": "Mehdi Bahrami",
+      "nationality": "AF"
+    },
+    {
+      "tile": 53,
+      "row": 6,
+      "column": 3,
+      "worldRank": 818,
+      "playerId": "name:mark-van-der-heide:NED",
+      "name": "Mark Van Der Heide",
+      "nationality": "NL"
+    },
+    {
+      "tile": 54,
+      "row": 6,
+      "column": 4,
+      "worldRank": 819,
+      "playerId": "name:callum-mitchell:GBR",
+      "name": "Callum Mitchell",
+      "nationality": "GB"
+    },
+    {
+      "tile": 55,
+      "row": 6,
+      "column": 5,
+      "worldRank": 820,
+      "playerId": "name:david-darlington:RSA",
+      "name": "David Darlington",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 56,
+      "row": 6,
+      "column": 6,
+      "worldRank": 821,
+      "playerId": "name:eloise-nimoityn:USA",
+      "name": "Eloise Nimoityn",
+      "nationality": "US"
+    },
+    {
+      "tile": 57,
+      "row": 6,
+      "column": 7,
+      "worldRank": 822,
+      "playerId": "name:ethan-hinrichsen:RSA",
+      "name": "Ethan Hinrichsen",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 58,
+      "row": 6,
+      "column": 8,
+      "worldRank": 823,
+      "playerId": "name:geoffrey-bonnamy:FRA",
+      "name": "Geoffrey Bonnamy",
+      "nationality": "FR"
+    },
+    {
+      "tile": 59,
+      "row": 6,
+      "column": 9,
+      "worldRank": 824,
+      "playerId": "name:grant-kim:RSA",
+      "name": "Grant Kim",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 60,
+      "row": 6,
+      "column": 10,
+      "worldRank": 825,
+      "playerId": "name:jack-arthurs:IRL",
+      "name": "Jack Arthurs",
+      "nationality": "IE"
+    },
+    {
+      "tile": 61,
+      "row": 7,
+      "column": 1,
+      "worldRank": 826,
+      "playerId": "name:makgatle-sekome:RSA",
+      "name": "Makgatle Sekome",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 62,
+      "row": 7,
+      "column": 2,
+      "worldRank": 827,
+      "playerId": "name:patrik-sebesi:HUN",
+      "name": "Patrik Sebesi",
+      "nationality": "HU"
+    },
+    {
+      "tile": 63,
+      "row": 7,
+      "column": 3,
+      "worldRank": 828,
+      "playerId": "name:oscar-vester:DEN",
+      "name": "Oscar Vester",
+      "nationality": "DK"
+    },
+    {
+      "tile": 64,
+      "row": 7,
+      "column": 4,
+      "worldRank": 829,
+      "playerId": "name:andreas-ziemer:GER",
+      "name": "Andreas Ziemer",
+      "nationality": "DE"
+    },
+    {
+      "tile": 65,
+      "row": 7,
+      "column": 5,
+      "worldRank": 830,
+      "playerId": "name:jake-saxby:GBR",
+      "name": "Jake Saxby",
+      "nationality": "GB"
+    },
+    {
+      "tile": 66,
+      "row": 7,
+      "column": 6,
+      "worldRank": 831,
+      "playerId": "name:jan-meier:SUI",
+      "name": "Jan Meier",
+      "nationality": "CH"
+    },
+    {
+      "tile": 67,
+      "row": 7,
+      "column": 7,
+      "worldRank": 832,
+      "playerId": "name:noa-worobel:FRA",
+      "name": "Noa Worobel",
+      "nationality": "FR"
+    },
+    {
+      "tile": 68,
+      "row": 7,
+      "column": 8,
+      "worldRank": 833,
+      "playerId": "name:thomas-lauferon:FRA",
+      "name": "Thomas Lauféron",
+      "nationality": "FR"
+    },
+    {
+      "tile": 69,
+      "row": 7,
+      "column": 9,
+      "worldRank": 834,
+      "playerId": "name:topi-termonen:FIN",
+      "name": "Topi Termonen",
+      "nationality": "FI"
+    },
+    {
+      "tile": 70,
+      "row": 7,
+      "column": 10,
+      "worldRank": 835,
+      "playerId": "name:christophe-firth:GBR",
+      "name": "Christophe Firth",
+      "nationality": "GB"
+    },
+    {
+      "tile": 71,
+      "row": 8,
+      "column": 1,
+      "worldRank": 836,
+      "playerId": "name:sebastian-eggert:AUT",
+      "name": "Sebastian Eggert",
+      "nationality": "AT"
+    },
+    {
+      "tile": 72,
+      "row": 8,
+      "column": 2,
+      "worldRank": 837,
+      "playerId": "name:callie-delalio:USA",
+      "name": "Callie Delalio",
+      "nationality": "US"
+    },
+    {
+      "tile": 73,
+      "row": 8,
+      "column": 3,
+      "worldRank": 838,
+      "playerId": "name:jordan-whitmore:GBR",
+      "name": "Jordan Whitmore",
+      "nationality": "GB"
+    },
+    {
+      "tile": 74,
+      "row": 8,
+      "column": 4,
+      "worldRank": 839,
+      "playerId": "name:niklas-feucht:AUT",
+      "name": "Niklas Feucht",
+      "nationality": "AT"
+    },
+    {
+      "tile": 75,
+      "row": 8,
+      "column": 5,
+      "worldRank": 840,
+      "playerId": "name:peter-lindenauer:USA",
+      "name": "Peter Lindenauer",
+      "nationality": "US"
+    },
+    {
+      "tile": 76,
+      "row": 8,
+      "column": 6,
+      "worldRank": 841,
+      "playerId": "name:anton-robb:GBR",
+      "name": "Anton Robb",
+      "nationality": "GB"
+    },
+    {
+      "tile": 77,
+      "row": 8,
+      "column": 7,
+      "worldRank": 842,
+      "playerId": "name:marcin-kobialka:POL",
+      "name": "Marcin Kobialka",
+      "nationality": "PL"
+    },
+    {
+      "tile": 78,
+      "row": 8,
+      "column": 8,
+      "worldRank": 843,
+      "playerId": "name:petr-kotala:SUI",
+      "name": "Petr Kotala",
+      "nationality": "CH"
+    },
+    {
+      "tile": 79,
+      "row": 8,
+      "column": 9,
+      "worldRank": 844,
+      "playerId": "name:philippe-lesaffre:FRA",
+      "name": "Philippe Lesaffre",
+      "nationality": "FR"
+    },
+    {
+      "tile": 80,
+      "row": 8,
+      "column": 10,
+      "worldRank": 845,
+      "playerId": "name:bernard-ross:RSA",
+      "name": "Bernard Ross",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 81,
+      "row": 9,
+      "column": 1,
+      "worldRank": 846,
+      "playerId": "name:david-ming-hui-guo:RSA",
+      "name": "David Ming Hui Guo",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 82,
+      "row": 9,
+      "column": 2,
+      "worldRank": 847,
+      "playerId": "name:fabrice-le-blanc:NED",
+      "name": "Fabrice Le Blanc",
+      "nationality": "NL"
+    },
+    {
+      "tile": 83,
+      "row": 9,
+      "column": 3,
+      "worldRank": 848,
+      "playerId": "name:jan-faisst:GER",
+      "name": "Jan Faisst",
+      "nationality": "DE"
+    },
+    {
+      "tile": 84,
+      "row": 9,
+      "column": 4,
+      "worldRank": 849,
+      "playerId": "name:jens-sund-mikkelsen:DEN",
+      "name": "Jens Sund Mikkelsen",
+      "nationality": "DK"
+    },
+    {
+      "tile": 85,
+      "row": 9,
+      "column": 5,
+      "worldRank": 850,
+      "playerId": "name:jp-marvin:RSA",
+      "name": "Jp Marvin",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 86,
+      "row": 9,
+      "column": 6,
+      "worldRank": 851,
+      "playerId": "name:louis-devillers:FRA",
+      "name": "Louis Devillers",
+      "nationality": "FR"
+    },
+    {
+      "tile": 87,
+      "row": 9,
+      "column": 7,
+      "worldRank": 852,
+      "playerId": "name:mattias-wallin:SWE",
+      "name": "Mattias Wallin",
+      "nationality": "SE"
+    },
+    {
+      "tile": 88,
+      "row": 9,
+      "column": 8,
+      "worldRank": 853,
+      "playerId": "name:nasr-esau:RSA",
+      "name": "Nasr Esau",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 89,
+      "row": 9,
+      "column": 9,
+      "worldRank": 854,
+      "playerId": "name:samir-von-daniken:SUI",
+      "name": "Samir Von Däniken",
+      "nationality": "CH"
+    },
+    {
+      "tile": 90,
+      "row": 9,
+      "column": 10,
+      "worldRank": 855,
+      "playerId": "name:mohammed-ezzi:IND",
+      "name": "Mohammed Ezzi",
+      "nationality": "IN"
+    },
+    {
+      "tile": 91,
+      "row": 10,
+      "column": 1,
+      "worldRank": 856,
+      "playerId": "name:philippe-montembaut:FRA",
+      "name": "Philippe Montembaut",
+      "nationality": "FR"
+    },
+    {
+      "tile": 92,
+      "row": 10,
+      "column": 2,
+      "worldRank": 857,
+      "playerId": "name:alex-vena:RSA",
+      "name": "Alex Vena",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 93,
+      "row": 10,
+      "column": 3,
+      "worldRank": 858,
+      "playerId": "name:dillan-godfrey:RSA",
+      "name": "Dillan Godfrey",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 94,
+      "row": 10,
+      "column": 4,
+      "worldRank": 859,
+      "playerId": "name:matthew-meade:RSA",
+      "name": "Matthew Meade",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 95,
+      "row": 10,
+      "column": 5,
+      "worldRank": 860,
+      "playerId": "name:mika-nydahl:SWE",
+      "name": "Mika Nydahl",
+      "nationality": "SE"
+    },
+    {
+      "tile": 96,
+      "row": 10,
+      "column": 6,
+      "worldRank": 861,
+      "playerId": "name:matthias-vogt:GER",
+      "name": "Matthias Vogt",
+      "nationality": "DE"
+    },
+    {
+      "tile": 97,
+      "row": 10,
+      "column": 7,
+      "worldRank": 862,
+      "playerId": "name:walle-vuorinen:FIN",
+      "name": "Walle Vuorinen",
+      "nationality": "FI"
+    },
+    {
+      "tile": 98,
+      "row": 10,
+      "column": 8,
+      "worldRank": 863,
+      "playerId": "name:harold-van-schouwen:NED",
+      "name": "Harold Van Schouwen",
+      "nationality": "NL"
+    },
+    {
+      "tile": 99,
+      "row": 10,
+      "column": 9,
+      "worldRank": 864,
+      "playerId": "name:emmanuel-bojan:FRA",
+      "name": "Emmanuel Bojan",
+      "nationality": "FR"
+    },
+    {
+      "tile": 100,
+      "row": 10,
+      "column": 10,
+      "worldRank": 865,
+      "playerId": "name:erwin-combrinck-seepe:RSA",
+      "name": "Erwin Combrinck-Seepe",
+      "nationality": "ZA"
+    }
+  ]
+}

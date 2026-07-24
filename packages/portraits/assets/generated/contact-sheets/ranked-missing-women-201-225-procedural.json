@@ -1,0 +1,238 @@
+{
+  "description": "Player-ID map for ranked-missing-women-201-225-procedural.png. Each tile is the deterministic procedural fallback rendered by the game.",
+  "sheet": "ranked-missing-women-201-225-procedural.png",
+  "grid": {
+    "columns": 5,
+    "rows": 5,
+    "tileWidth": 128,
+    "tileHeight": 128
+  },
+  "selection": "Final 25 FIR-ranked women without an authored women portrait, ordered by world rank.",
+  "entries": [
+    {
+      "tile": 1,
+      "row": 1,
+      "column": 1,
+      "worldRank": 226,
+      "playerId": "name:marine-noga:FRA",
+      "name": "Marine Noga",
+      "nationality": "FR"
+    },
+    {
+      "tile": 2,
+      "row": 1,
+      "column": 2,
+      "worldRank": 227,
+      "playerId": "name:beth-milburn:GBR",
+      "name": "Beth Milburn",
+      "nationality": "GB"
+    },
+    {
+      "tile": 3,
+      "row": 1,
+      "column": 3,
+      "worldRank": 228,
+      "playerId": "name:sara-milburn:GBR",
+      "name": "Sara Milburn",
+      "nationality": "GB"
+    },
+    {
+      "tile": 4,
+      "row": 1,
+      "column": 4,
+      "worldRank": 229,
+      "playerId": "name:khanyisile-mjalo:RSA",
+      "name": "Khanyisile Mjalo",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 5,
+      "row": 1,
+      "column": 5,
+      "worldRank": 230,
+      "playerId": "name:ruyi-xu:CHN",
+      "name": "Ruyi Xu",
+      "nationality": "CN"
+    },
+    {
+      "tile": 6,
+      "row": 2,
+      "column": 1,
+      "worldRank": 231,
+      "playerId": "name:sofia-canova:CZE",
+      "name": "Sofia Canová",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 7,
+      "row": 2,
+      "column": 2,
+      "worldRank": 232,
+      "playerId": "name:jordan-scoble:RSA",
+      "name": "Jordan Scoble",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 8,
+      "row": 2,
+      "column": 3,
+      "worldRank": 233,
+      "playerId": "name:tracy-makamure:RSA",
+      "name": "Tracy Makamure",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 9,
+      "row": 2,
+      "column": 4,
+      "worldRank": 234,
+      "playerId": "name:favour-nagaddya:RSA",
+      "name": "Favour Nagaddya",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 10,
+      "row": 2,
+      "column": 5,
+      "worldRank": 235,
+      "playerId": "name:lam-niloufer:IND",
+      "name": "Lam Niloufer",
+      "nationality": "IN"
+    },
+    {
+      "tile": 11,
+      "row": 3,
+      "column": 1,
+      "worldRank": 236,
+      "playerId": "name:laura-schorer:GER",
+      "name": "Laura Schorer",
+      "nationality": "DE"
+    },
+    {
+      "tile": 12,
+      "row": 3,
+      "column": 2,
+      "worldRank": 237,
+      "playerId": "name:aamena-patel:RSA",
+      "name": "Aamena Patel",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 13,
+      "row": 3,
+      "column": 3,
+      "worldRank": 238,
+      "playerId": "name:emma-flisberg:SWE",
+      "name": "Emma Flisberg",
+      "nationality": "SE"
+    },
+    {
+      "tile": 14,
+      "row": 3,
+      "column": 4,
+      "worldRank": 239,
+      "playerId": "name:chiara-ross:RSA",
+      "name": "Chiara Ross",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 15,
+      "row": 3,
+      "column": 5,
+      "worldRank": 240,
+      "playerId": "name:day-ally:RSA",
+      "name": "Day Ally",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 16,
+      "row": 4,
+      "column": 1,
+      "worldRank": 241,
+      "playerId": "name:hlengiwe-nxumalo:RSA",
+      "name": "Hlengiwe Nxumalo",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 17,
+      "row": 4,
+      "column": 2,
+      "worldRank": 242,
+      "playerId": "name:mpho-baholo:RSA",
+      "name": "Mpho Baholo",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 18,
+      "row": 4,
+      "column": 3,
+      "worldRank": 243,
+      "playerId": "name:jutta-vaclahovsky:GER",
+      "name": "Jutta Vaclahovsky",
+      "nationality": "DE"
+    },
+    {
+      "tile": 19,
+      "row": 4,
+      "column": 4,
+      "worldRank": 244,
+      "playerId": "name:lesego-mogoroga:RSA",
+      "name": "Lesego Mogoroga",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 20,
+      "row": 4,
+      "column": 5,
+      "worldRank": 245,
+      "playerId": "name:shana-cloete:RSA",
+      "name": "Shana Cloete",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 21,
+      "row": 5,
+      "column": 1,
+      "worldRank": 246,
+      "playerId": "name:lebukukle-aplom:RSA",
+      "name": "Lebukukle Aplom",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 22,
+      "row": 5,
+      "column": 2,
+      "worldRank": 247,
+      "playerId": "name:lara-altmann:GER",
+      "name": "Lara Altmann",
+      "nationality": "DE"
+    },
+    {
+      "tile": 23,
+      "row": 5,
+      "column": 3,
+      "worldRank": 248,
+      "playerId": "name:stephanie-sontag:GER",
+      "name": "Stephanie Sontag",
+      "nationality": "DE"
+    },
+    {
+      "tile": 24,
+      "row": 5,
+      "column": 4,
+      "worldRank": 249,
+      "playerId": "name:weiling-hu:GER",
+      "name": "Weiling Hu",
+      "nationality": "DE"
+    },
+    {
+      "tile": 25,
+      "row": 5,
+      "column": 5,
+      "worldRank": 250,
+      "playerId": "name:sabrina-wamsler:GER",
+      "name": "Sabrina Wamsler",
+      "nationality": "DE"
+    }
+  ]
+}
