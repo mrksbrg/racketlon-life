@@ -1,0 +1,913 @@
+{
+  "description": "Player-ID map for ranked-missing-women-101-200-procedural.png. Each tile is the deterministic procedural fallback rendered by the game.",
+  "sheet": "ranked-missing-women-101-200-procedural.png",
+  "grid": {
+    "columns": 10,
+    "rows": 10,
+    "tileWidth": 128,
+    "tileHeight": 128
+  },
+  "selection": "Second group of 100 FIR-ranked women without an authored women portrait, ordered by world rank.",
+  "entries": [
+    {
+      "tile": 1,
+      "row": 1,
+      "column": 1,
+      "worldRank": 124,
+      "playerId": "name:laureline-tschanz:FRA",
+      "name": "Laureline Tschanz",
+      "nationality": "FR"
+    },
+    {
+      "tile": 2,
+      "row": 1,
+      "column": 2,
+      "worldRank": 125,
+      "playerId": "name:lucie-hanackova:CZE",
+      "name": "Lucie Hanáčková",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 3,
+      "row": 1,
+      "column": 3,
+      "worldRank": 126,
+      "playerId": "name:tsz-ying-chan:HKG",
+      "name": "Tsz Ying Chan",
+      "nationality": "HK"
+    },
+    {
+      "tile": 4,
+      "row": 1,
+      "column": 4,
+      "worldRank": 127,
+      "playerId": "name:irma-alderse-baas:NED",
+      "name": "Irma Alderse Baas",
+      "nationality": "NL"
+    },
+    {
+      "tile": 5,
+      "row": 1,
+      "column": 5,
+      "worldRank": 128,
+      "playerId": "name:petra-trocilova:CZE",
+      "name": "Petra Trocilova",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 6,
+      "row": 1,
+      "column": 6,
+      "worldRank": 129,
+      "playerId": "name:flavia-belo-fernandes:FRA",
+      "name": "Flavia Belo Fernandes",
+      "nationality": "FR"
+    },
+    {
+      "tile": 7,
+      "row": 1,
+      "column": 7,
+      "worldRank": 130,
+      "playerId": "name:tatjana-braun:GER",
+      "name": "Tatjana Braun",
+      "nationality": "DE"
+    },
+    {
+      "tile": 8,
+      "row": 1,
+      "column": 8,
+      "worldRank": 131,
+      "playerId": "name:fedora-kwok:CAN",
+      "name": "Fedora Kwok",
+      "nationality": "CA"
+    },
+    {
+      "tile": 9,
+      "row": 1,
+      "column": 9,
+      "worldRank": 132,
+      "playerId": "name:katerina-pokorna:CZE",
+      "name": "Kateřina Pokorná",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 10,
+      "row": 1,
+      "column": 10,
+      "worldRank": 133,
+      "playerId": "name:sona-konigsmarkova:CZE",
+      "name": "Soňa Königsmarková",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 11,
+      "row": 2,
+      "column": 1,
+      "worldRank": 134,
+      "playerId": "name:nga-man-pong:HKG",
+      "name": "Nga Man Pong",
+      "nationality": "HK"
+    },
+    {
+      "tile": 12,
+      "row": 2,
+      "column": 2,
+      "worldRank": 135,
+      "playerId": "name:clara-lehv:USA",
+      "name": "Clara Lehv",
+      "nationality": "US"
+    },
+    {
+      "tile": 13,
+      "row": 2,
+      "column": 3,
+      "worldRank": 136,
+      "playerId": "name:elizaveta-eliseeva:GER",
+      "name": "Elizaveta Eliseeva",
+      "nationality": "DE"
+    },
+    {
+      "tile": 14,
+      "row": 2,
+      "column": 4,
+      "worldRank": 137,
+      "playerId": "name:emilie-roux:SUI",
+      "name": "Emilie Roux",
+      "nationality": "CH"
+    },
+    {
+      "tile": 15,
+      "row": 2,
+      "column": 5,
+      "worldRank": 138,
+      "playerId": "name:pui-yi-lee:HKG",
+      "name": "Pui Yi Lee",
+      "nationality": "HK"
+    },
+    {
+      "tile": 16,
+      "row": 2,
+      "column": 6,
+      "worldRank": 139,
+      "playerId": "name:miriam-verbeij:NED",
+      "name": "Miriam Verbeij",
+      "nationality": "NL"
+    },
+    {
+      "tile": 17,
+      "row": 2,
+      "column": 7,
+      "worldRank": 140,
+      "playerId": "name:charlotte-boll:GER",
+      "name": "Charlotte Böll",
+      "nationality": "DE"
+    },
+    {
+      "tile": 18,
+      "row": 2,
+      "column": 8,
+      "worldRank": 141,
+      "playerId": "name:louise-duguet:FRA",
+      "name": "Louise Duguet",
+      "nationality": "FR"
+    },
+    {
+      "tile": 19,
+      "row": 2,
+      "column": 9,
+      "worldRank": 142,
+      "playerId": "name:julia-virovlyansky:USA",
+      "name": "Julia Virovlyansky",
+      "nationality": "US"
+    },
+    {
+      "tile": 20,
+      "row": 2,
+      "column": 10,
+      "worldRank": 143,
+      "playerId": "name:zuzana-hanackova:CZE",
+      "name": "Zuzana Hanackova",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 21,
+      "row": 3,
+      "column": 1,
+      "worldRank": 144,
+      "playerId": "name:kayleigh-chapman:GBR",
+      "name": "Kayleigh Chapman",
+      "nationality": "GB"
+    },
+    {
+      "tile": 22,
+      "row": 3,
+      "column": 2,
+      "worldRank": 145,
+      "playerId": "name:charlotte-bujeau:FRA",
+      "name": "Charlotte Bujeau",
+      "nationality": "FR"
+    },
+    {
+      "tile": 23,
+      "row": 3,
+      "column": 3,
+      "worldRank": 146,
+      "playerId": "name:mary-gu:USA",
+      "name": "Mary Gu",
+      "nationality": "US"
+    },
+    {
+      "tile": 24,
+      "row": 3,
+      "column": 4,
+      "worldRank": 147,
+      "playerId": "name:millie-rhodes:GBR",
+      "name": "Millie Rhodes",
+      "nationality": "GB"
+    },
+    {
+      "tile": 25,
+      "row": 3,
+      "column": 5,
+      "worldRank": 148,
+      "playerId": "name:cheuk-ying-kwan:HKG",
+      "name": "Cheuk Ying Kwan",
+      "nationality": "HK"
+    },
+    {
+      "tile": 26,
+      "row": 3,
+      "column": 6,
+      "worldRank": 149,
+      "playerId": "name:holly-thompson:GBR",
+      "name": "Holly Thompson",
+      "nationality": "GB"
+    },
+    {
+      "tile": 27,
+      "row": 3,
+      "column": 7,
+      "worldRank": 150,
+      "playerId": "name:laura-del-favero:CZE",
+      "name": "Laura Del Favero",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 28,
+      "row": 3,
+      "column": 8,
+      "worldRank": 151,
+      "playerId": "name:martine-torp:NOR",
+      "name": "Martine Torp",
+      "nationality": "NO"
+    },
+    {
+      "tile": 29,
+      "row": 3,
+      "column": 9,
+      "worldRank": 152,
+      "playerId": "name:salla-kaukonen:FIN",
+      "name": "Salla Kaukonen",
+      "nationality": "FI"
+    },
+    {
+      "tile": 30,
+      "row": 3,
+      "column": 10,
+      "worldRank": 153,
+      "playerId": "name:stephanie-bret:FRA",
+      "name": "Stephanie Bret",
+      "nationality": "FR"
+    },
+    {
+      "tile": 31,
+      "row": 4,
+      "column": 1,
+      "worldRank": 154,
+      "playerId": "name:susie-dilloway:GBR",
+      "name": "Susie Dilloway",
+      "nationality": "GB"
+    },
+    {
+      "tile": 32,
+      "row": 4,
+      "column": 2,
+      "worldRank": 155,
+      "playerId": "name:britta-weber:GER",
+      "name": "Britta Weber",
+      "nationality": "DE"
+    },
+    {
+      "tile": 33,
+      "row": 4,
+      "column": 3,
+      "worldRank": 156,
+      "playerId": "name:nidhi-tiwari:IND",
+      "name": "Nidhi Tiwari",
+      "nationality": "IN"
+    },
+    {
+      "tile": 34,
+      "row": 4,
+      "column": 4,
+      "worldRank": 157,
+      "playerId": "name:perrine-colombi:FRA",
+      "name": "Perrine Colombi",
+      "nationality": "FR"
+    },
+    {
+      "tile": 35,
+      "row": 4,
+      "column": 5,
+      "worldRank": 159,
+      "playerId": "name:hannah-friis-holdt:DEN",
+      "name": "Hannah Friis Holdt",
+      "nationality": "DK"
+    },
+    {
+      "tile": 36,
+      "row": 4,
+      "column": 6,
+      "worldRank": 160,
+      "playerId": "name:marjukka-jokimies:FIN",
+      "name": "Marjukka Jokimies",
+      "nationality": "FI"
+    },
+    {
+      "tile": 37,
+      "row": 4,
+      "column": 7,
+      "worldRank": 161,
+      "playerId": "name:tina-elminowski:GER",
+      "name": "Tina Elminowski",
+      "nationality": "DE"
+    },
+    {
+      "tile": 38,
+      "row": 4,
+      "column": 8,
+      "worldRank": 162,
+      "playerId": "name:tiril-platzack:NOR",
+      "name": "Tiril Platzack",
+      "nationality": "NO"
+    },
+    {
+      "tile": 39,
+      "row": 4,
+      "column": 9,
+      "worldRank": 163,
+      "playerId": "name:femke-krist:NED",
+      "name": "Femke Krist",
+      "nationality": "NL"
+    },
+    {
+      "tile": 40,
+      "row": 4,
+      "column": 10,
+      "worldRank": 164,
+      "playerId": "name:klara-byrtusova:CZE",
+      "name": "Klára Byrtusová",
+      "nationality": "CZ"
+    },
+    {
+      "tile": 41,
+      "row": 5,
+      "column": 1,
+      "worldRank": 165,
+      "playerId": "name:claudia-faust-helmer:GER",
+      "name": "Claudia Faust-Helmer",
+      "nationality": "DE"
+    },
+    {
+      "tile": 42,
+      "row": 5,
+      "column": 2,
+      "worldRank": 166,
+      "playerId": "name:live-r-rvik:NOR",
+      "name": "Live Rørvik",
+      "nationality": "NO"
+    },
+    {
+      "tile": 43,
+      "row": 5,
+      "column": 3,
+      "worldRank": 167,
+      "playerId": "name:ronja-kosonen:FIN",
+      "name": "Ronja Kosonen",
+      "nationality": "FI"
+    },
+    {
+      "tile": 44,
+      "row": 5,
+      "column": 4,
+      "worldRank": 168,
+      "playerId": "name:pauline-vincent:FRA",
+      "name": "Pauline Vincent",
+      "nationality": "FR"
+    },
+    {
+      "tile": 45,
+      "row": 5,
+      "column": 5,
+      "worldRank": 169,
+      "playerId": "name:petra-votter:GER",
+      "name": "Petra Vötter",
+      "nationality": "DE"
+    },
+    {
+      "tile": 46,
+      "row": 5,
+      "column": 6,
+      "worldRank": 170,
+      "playerId": "name:helena-marska:POL",
+      "name": "Helena Marska",
+      "nationality": "PL"
+    },
+    {
+      "tile": 47,
+      "row": 5,
+      "column": 7,
+      "worldRank": 171,
+      "playerId": "name:yorsalem-luul:GER",
+      "name": "Yorsalem Luul",
+      "nationality": "DE"
+    },
+    {
+      "tile": 48,
+      "row": 5,
+      "column": 8,
+      "worldRank": 172,
+      "playerId": "name:christine-duncan:IRL",
+      "name": "Christine Duncan",
+      "nationality": "IE"
+    },
+    {
+      "tile": 49,
+      "row": 5,
+      "column": 9,
+      "worldRank": 173,
+      "playerId": "name:emma-ranson:GBR",
+      "name": "Emma Ranson",
+      "nationality": "GB"
+    },
+    {
+      "tile": 50,
+      "row": 5,
+      "column": 10,
+      "worldRank": 174,
+      "playerId": "name:victoria-dubendorfer:SUI",
+      "name": "Victoria Dübendorfer",
+      "nationality": "CH"
+    },
+    {
+      "tile": 51,
+      "row": 6,
+      "column": 1,
+      "worldRank": 176,
+      "playerId": "name:alekha-jalan:IND",
+      "name": "Alekha Jalan",
+      "nationality": "IN"
+    },
+    {
+      "tile": 52,
+      "row": 6,
+      "column": 2,
+      "worldRank": 177,
+      "playerId": "name:claudie-favier:FRA",
+      "name": "Claudie Favier",
+      "nationality": "FR"
+    },
+    {
+      "tile": 53,
+      "row": 6,
+      "column": 3,
+      "worldRank": 178,
+      "playerId": "name:rachel-jina:NZL",
+      "name": "Rachel Jina",
+      "nationality": "NZ"
+    },
+    {
+      "tile": 54,
+      "row": 6,
+      "column": 4,
+      "worldRank": 179,
+      "playerId": "name:riina-jouppila:FIN",
+      "name": "Riina Jouppila",
+      "nationality": "FI"
+    },
+    {
+      "tile": 55,
+      "row": 6,
+      "column": 5,
+      "worldRank": 180,
+      "playerId": "name:sze-wai-hung:HKG",
+      "name": "Sze Wai Hung",
+      "nationality": "HK"
+    },
+    {
+      "tile": 56,
+      "row": 6,
+      "column": 6,
+      "worldRank": 181,
+      "playerId": "name:verena-paul:GER",
+      "name": "Verena Paul",
+      "nationality": "DE"
+    },
+    {
+      "tile": 57,
+      "row": 6,
+      "column": 7,
+      "worldRank": 182,
+      "playerId": "name:danae-bianes:USA",
+      "name": "Danae Bianes",
+      "nationality": "US"
+    },
+    {
+      "tile": 58,
+      "row": 6,
+      "column": 8,
+      "worldRank": 183,
+      "playerId": "name:fabienne-blanc:SUI",
+      "name": "Fabienne Blanc",
+      "nationality": "CH"
+    },
+    {
+      "tile": 59,
+      "row": 6,
+      "column": 9,
+      "worldRank": 184,
+      "playerId": "name:madeline-messina:USA",
+      "name": "Madeline Messina",
+      "nationality": "US"
+    },
+    {
+      "tile": 60,
+      "row": 6,
+      "column": 10,
+      "worldRank": 185,
+      "playerId": "name:sin-hok-chan:HKG",
+      "name": "Sin Hok Chan",
+      "nationality": "HK"
+    },
+    {
+      "tile": 61,
+      "row": 7,
+      "column": 1,
+      "worldRank": 186,
+      "playerId": "name:stefanie-schediwy:GER",
+      "name": "Stefanie Schediwy",
+      "nationality": "DE"
+    },
+    {
+      "tile": 62,
+      "row": 7,
+      "column": 2,
+      "worldRank": 187,
+      "playerId": "name:zuzanna-pastuszka:POL",
+      "name": "Zuzanna Pastuszka",
+      "nationality": "PL"
+    },
+    {
+      "tile": 63,
+      "row": 7,
+      "column": 3,
+      "worldRank": 188,
+      "playerId": "name:zuzanna-minarska:POL",
+      "name": "Zuzanna Minarska",
+      "nationality": "PL"
+    },
+    {
+      "tile": 64,
+      "row": 7,
+      "column": 4,
+      "worldRank": 189,
+      "playerId": "name:aurelie-dechomets:FRA",
+      "name": "Aurélie Dechomets",
+      "nationality": "FR"
+    },
+    {
+      "tile": 65,
+      "row": 7,
+      "column": 5,
+      "worldRank": 190,
+      "playerId": "name:liliana-runke:POL",
+      "name": "Liliana Runke",
+      "nationality": "PL"
+    },
+    {
+      "tile": 66,
+      "row": 7,
+      "column": 6,
+      "worldRank": 191,
+      "playerId": "name:nga-man-almen-wong:HKG",
+      "name": "Nga Man Almen Wong",
+      "nationality": "HK"
+    },
+    {
+      "tile": 67,
+      "row": 7,
+      "column": 7,
+      "worldRank": 192,
+      "playerId": "name:alice-makombore:RSA",
+      "name": "Alice Makombore",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 68,
+      "row": 7,
+      "column": 8,
+      "worldRank": 193,
+      "playerId": "name:emily-white:IRL",
+      "name": "Emily White",
+      "nationality": "IE"
+    },
+    {
+      "tile": 69,
+      "row": 7,
+      "column": 9,
+      "worldRank": 194,
+      "playerId": "name:natalie-wing:GBR",
+      "name": "Natalie Wing",
+      "nationality": "GB"
+    },
+    {
+      "tile": 70,
+      "row": 7,
+      "column": 10,
+      "worldRank": 195,
+      "playerId": "name:berit-schmaul-klaiber:GER",
+      "name": "Berit Schmaul-Klaiber",
+      "nationality": "DE"
+    },
+    {
+      "tile": 71,
+      "row": 8,
+      "column": 1,
+      "worldRank": 196,
+      "playerId": "name:tung-yu-yip:HKG",
+      "name": "Tung Yu Yip",
+      "nationality": "HK"
+    },
+    {
+      "tile": 72,
+      "row": 8,
+      "column": 2,
+      "worldRank": 197,
+      "playerId": "name:chloe-delpont:FRA",
+      "name": "Chloé Delpont",
+      "nationality": "FR"
+    },
+    {
+      "tile": 73,
+      "row": 8,
+      "column": 3,
+      "worldRank": 198,
+      "playerId": "name:deborah-alimpinisis-hofer:SUI",
+      "name": "Deborah Alimpinisis-Hofer",
+      "nationality": "CH"
+    },
+    {
+      "tile": 74,
+      "row": 8,
+      "column": 4,
+      "worldRank": 199,
+      "playerId": "name:diana-vuchinger:GER",
+      "name": "Diana Vuchinger",
+      "nationality": "DE"
+    },
+    {
+      "tile": 75,
+      "row": 8,
+      "column": 5,
+      "worldRank": 200,
+      "playerId": "name:esther-ma:HKG",
+      "name": "Esther Ma",
+      "nationality": "HK"
+    },
+    {
+      "tile": 76,
+      "row": 8,
+      "column": 6,
+      "worldRank": 201,
+      "playerId": "name:shikha-barasia:IND",
+      "name": "Shikha Barasia",
+      "nationality": "IN"
+    },
+    {
+      "tile": 77,
+      "row": 8,
+      "column": 7,
+      "worldRank": 202,
+      "playerId": "name:christine-ingvarsson:SWE",
+      "name": "Christine Ingvarsson",
+      "nationality": "SE"
+    },
+    {
+      "tile": 78,
+      "row": 8,
+      "column": 8,
+      "worldRank": 203,
+      "playerId": "name:izzy-sommerville:GBR",
+      "name": "Izzy Sommerville",
+      "nationality": "GB"
+    },
+    {
+      "tile": 79,
+      "row": 8,
+      "column": 9,
+      "worldRank": 204,
+      "playerId": "name:pelokazi-nongqele:RSA",
+      "name": "Pelokazi Nongqele",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 80,
+      "row": 8,
+      "column": 10,
+      "worldRank": 205,
+      "playerId": "name:ruth-greenlees:IRL",
+      "name": "Ruth Greenlees",
+      "nationality": "IE"
+    },
+    {
+      "tile": 81,
+      "row": 9,
+      "column": 1,
+      "worldRank": 206,
+      "playerId": "name:sinovuyo-quntana:RSA",
+      "name": "Sinovuyo Quntana",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 82,
+      "row": 9,
+      "column": 2,
+      "worldRank": 207,
+      "playerId": "name:emily-flynn:IRL",
+      "name": "Emily Flynn",
+      "nationality": "IE"
+    },
+    {
+      "tile": 83,
+      "row": 9,
+      "column": 3,
+      "worldRank": 208,
+      "playerId": "name:lia-paglia:SUI",
+      "name": "Lia Paglia",
+      "nationality": "CH"
+    },
+    {
+      "tile": 84,
+      "row": 9,
+      "column": 4,
+      "worldRank": 209,
+      "playerId": "name:madri-louw:RSA",
+      "name": "Madri Louw",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 85,
+      "row": 9,
+      "column": 5,
+      "worldRank": 210,
+      "playerId": "name:melissa-witbooi:RSA",
+      "name": "Melissa Witbooi",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 86,
+      "row": 9,
+      "column": 6,
+      "worldRank": 211,
+      "playerId": "name:ning-kong:HKG",
+      "name": "Ning Kong",
+      "nationality": "HK"
+    },
+    {
+      "tile": 87,
+      "row": 9,
+      "column": 7,
+      "worldRank": 212,
+      "playerId": "name:wai-kwan-leung:HKG",
+      "name": "Wai Kwan Leung",
+      "nationality": "HK"
+    },
+    {
+      "tile": 88,
+      "row": 9,
+      "column": 8,
+      "worldRank": 213,
+      "playerId": "name:duport-maurine:FRA",
+      "name": "Duport Maurine",
+      "nationality": "FR"
+    },
+    {
+      "tile": 89,
+      "row": 9,
+      "column": 9,
+      "worldRank": 214,
+      "playerId": "name:kath-chan:HKG",
+      "name": "Kath Chan",
+      "nationality": "HK"
+    },
+    {
+      "tile": 90,
+      "row": 9,
+      "column": 10,
+      "worldRank": 215,
+      "playerId": "name:hannah-crozier:IRL",
+      "name": "Hannah Crozier",
+      "nationality": "IE"
+    },
+    {
+      "tile": 91,
+      "row": 10,
+      "column": 1,
+      "worldRank": 216,
+      "playerId": "name:julia-yang:USA",
+      "name": "Julia Yang",
+      "nationality": "US"
+    },
+    {
+      "tile": 92,
+      "row": 10,
+      "column": 2,
+      "worldRank": 217,
+      "playerId": "name:minjon-de-vos:RSA",
+      "name": "Minjon De Vos",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 93,
+      "row": 10,
+      "column": 3,
+      "worldRank": 218,
+      "playerId": "name:tlakuso-matshabele:RSA",
+      "name": "Tlakuso Matshabele",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 94,
+      "row": 10,
+      "column": 4,
+      "worldRank": 219,
+      "playerId": "name:alina-hyder:RSA",
+      "name": "Alina Hyder",
+      "nationality": "ZA"
+    },
+    {
+      "tile": 95,
+      "row": 10,
+      "column": 5,
+      "worldRank": 220,
+      "playerId": "name:aoifin-shorten:IRL",
+      "name": "Aoifin Shorten",
+      "nationality": "IE"
+    },
+    {
+      "tile": 96,
+      "row": 10,
+      "column": 6,
+      "worldRank": 221,
+      "playerId": "name:candice-geake:GBR",
+      "name": "Candice Geake",
+      "nationality": "GB"
+    },
+    {
+      "tile": 97,
+      "row": 10,
+      "column": 7,
+      "worldRank": 222,
+      "playerId": "name:ka-man-yau:HKG",
+      "name": "Ka Man Yau",
+      "nationality": "HK"
+    },
+    {
+      "tile": 98,
+      "row": 10,
+      "column": 8,
+      "worldRank": 223,
+      "playerId": "name:nathalie-alidor:FRA",
+      "name": "Nathalie Alidor",
+      "nationality": "FR"
+    },
+    {
+      "tile": 99,
+      "row": 10,
+      "column": 9,
+      "worldRank": 224,
+      "playerId": "name:nefeli-solomon:GRE",
+      "name": "Nefeli Solomon",
+      "nationality": "GR"
+    },
+    {
+      "tile": 100,
+      "row": 10,
+      "column": 10,
+      "worldRank": 225,
+      "playerId": "name:daniela-ellis:GBR",
+      "name": "Daniela Ellis",
+      "nationality": "GB"
+    }
+  ]
+}
