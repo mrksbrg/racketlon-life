@@ -9,6 +9,8 @@ const MAX_PNG_BYTES = 64 * 1024;
 function pngFilesIn(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const path = join(directory, entry.name);
+    // Contact sheets are review/reference material, not runtime portrait assets.
+    if (entry.isDirectory() && entry.name === "contact-sheets") return [];
     if (entry.isDirectory()) return pngFilesIn(path);
     return entry.isFile() && entry.name.endsWith(".png") ? [path] : [];
   });
